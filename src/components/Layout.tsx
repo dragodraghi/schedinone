@@ -1,4 +1,5 @@
-import { NavLink, type ReactNode } from "react-router-dom";
+import { type ReactNode } from "react";
+import { NavLink } from "react-router-dom";
 
 const tabs = [
   { to: "/", label: "Dashboard", icon: "🏠" },
