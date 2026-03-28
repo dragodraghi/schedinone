@@ -2,9 +2,10 @@ import { useState } from "react";
 
 interface Props {
   onLogin: (name: string, code: string) => void;
+  error?: string;
 }
 
-export default function LoginPage({ onLogin }: Props) {
+export default function LoginPage({ onLogin, error }: Props) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
 
@@ -54,6 +55,20 @@ export default function LoginPage({ onLogin }: Props) {
             className="w-full px-4 py-3.5 glass rounded-xl text-white placeholder-[#475569] focus:outline-none transition-all duration-200"
             style={{ borderColor: code ? 'rgba(0, 212, 255, 0.3)' : 'var(--border)' }} />
         </div>
+
+        {error && (
+          <div
+            className="glass rounded-xl px-4 py-3 text-sm font-bold animate-in"
+            style={{
+              background: 'rgba(255,51,102,0.10)',
+              border: '1px solid rgba(255,51,102,0.4)',
+              color: 'var(--wrong)',
+              fontFamily: 'Outfit, sans-serif',
+            }}
+          >
+            {error}
+          </div>
+        )}
 
         <button type="submit" disabled={!isValid}
           className="btn-glow w-full py-3.5 rounded-xl font-bold text-sm tracking-widest uppercase transition-all duration-300 disabled:opacity-30"

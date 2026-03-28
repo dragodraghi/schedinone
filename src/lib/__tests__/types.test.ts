@@ -45,6 +45,7 @@ describe("types", () => {
       winnerPick: "Francia",
       points: 0,
       paid: false,
+      scheduleStatus: "bozza",
     };
     expect(player.predictions.m1).toBe("1");
   });

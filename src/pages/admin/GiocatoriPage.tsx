@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import type { Player } from "../../lib/types";
@@ -73,6 +74,10 @@ export default function GiocatoriPage({ players, gameId }: Props) {
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Nessun giocatore</p>
         </div>
       )}
+
+      <Link to="/admin" className="block text-center text-sm transition-colors" style={{ color: 'var(--text-muted)' }}>
+        ← Admin
+      </Link>
     </div>
   );
 }

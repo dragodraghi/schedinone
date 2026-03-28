@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import type { Game, Player, Match } from "../../lib/types";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "../../lib/firebase";
+import type { Game, Player, Match, Phase } from "../../lib/types";
 
 interface Props {
   game: Game;
@@ -8,10 +11,16 @@ interface Props {
   onLogout: () => void;
 }
 
+const PHASES: Phase[] = ["gironi", "ottavi", "quarti", "semifinali", "finale"];
+
 export default function AdminPage({ game, players, matches, onLogout }: Props) {
+  const [savingPhase, setSavingPhase] = useState(false);
+  const [topScorerInput, setTopScorerInput] = useState(game.topScorer ?? "");
+  const [winnerInput, setWinnerInput] = useState(game.winner ?? "");
+  const [savingSpecial, setSavingSpecial] = useState(false);
+
   const paidCount = players.filter((p) => p.paid).length;
   const prize = game.entryFee * paidCount;
-
   const pendingCount = players.filter((p) => p.scheduleStatus === "inviata").length;
 
   const kpis = [
@@ -27,6 +36,24 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
     { to: "/admin/risultati", label: "Gestisci Risultati", icon: "🔄" },
     { to: "/admin/giocatori", label: "Gestisci Giocatori", icon: "👥" },
   ];
+
+  const handlePhaseChange = async (newPhase: Phase) => {
+    if (newPhase === game.currentPhase) return;
+    setSavingPhase(true);
+    const gameRef = doc(db, "games", game.id);
+    await updateDoc(gameRef, { currentPhase: newPhase });
+    setSavingPhase(false);
+  };
+
+  const handleSaveSpecial = async () => {
+    setSavingSpecial(true);
+    const gameRef = doc(db, "games", game.id);
+    await updateDoc(gameRef, {
+      topScorer: topScorerInput.trim() || null,
+      winner: winnerInput.trim() || null,
+    });
+    setSavingSpecial(false);
+  };
 
   return (
     <div className="space-y-6 animate-in">
@@ -46,10 +73,36 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
         ))}
       </div>
 
-      {/* Current phase */}
-      <div className="glass rounded-xl p-4">
-        <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Fase corrente</p>
-        <p className="text-xl font-black capitalize" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--accent)' }}>{game.currentPhase}</p>
+      {/* Phase management */}
+      <div className="glass rounded-xl p-4 space-y-3">
+        <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Avanza Fase</p>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          Fase corrente:{" "}
+          <span className="font-black capitalize" style={{ color: 'var(--accent)' }}>{game.currentPhase}</span>
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {PHASES.map((phase) => {
+            const isActive = game.currentPhase === phase;
+            return (
+              <button
+                key={phase}
+                onClick={() => handlePhaseChange(phase)}
+                disabled={savingPhase}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all capitalize"
+                style={{
+                  fontFamily: 'Outfit, sans-serif',
+                  background: isActive ? 'rgba(0,212,255,0.2)' : 'rgba(255,255,255,0.05)',
+                  color: isActive ? 'var(--accent)' : 'var(--text-muted)',
+                  border: `1px solid ${isActive ? 'rgba(0,212,255,0.4)' : 'var(--border)'}`,
+                  boxShadow: isActive ? '0 0 8px rgba(0,212,255,0.25)' : 'none',
+                  opacity: savingPhase ? 0.6 : 1,
+                }}
+              >
+                {phase}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Action links */}
@@ -68,6 +121,49 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
             {action.icon} {action.label}
           </Link>
         ))}
+      </div>
+
+      {/* TopScorer / Winner settings */}
+      <div className="glass rounded-xl p-4 space-y-3">
+        <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--gold)', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Pronostici Speciali</p>
+        <div className="space-y-2">
+          <div>
+            <label className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Capocannoniere</label>
+            <input
+              type="text"
+              value={topScorerInput}
+              onChange={(e) => setTopScorerInput(e.target.value)}
+              placeholder="Nome giocatore"
+              className="w-full mt-1 px-3 py-2 bg-white/5 border rounded-lg text-sm text-white placeholder-[#475569] focus:outline-none transition-all"
+              style={{ borderColor: topScorerInput ? 'rgba(255,215,0,0.3)' : 'var(--border)' }}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Vincitrice</label>
+            <input
+              type="text"
+              value={winnerInput}
+              onChange={(e) => setWinnerInput(e.target.value)}
+              placeholder="Nome squadra"
+              className="w-full mt-1 px-3 py-2 bg-white/5 border rounded-lg text-sm text-white placeholder-[#475569] focus:outline-none transition-all"
+              style={{ borderColor: winnerInput ? 'rgba(255,215,0,0.3)' : 'var(--border)' }}
+            />
+          </div>
+          <button
+            onClick={handleSaveSpecial}
+            disabled={savingSpecial}
+            className="w-full py-2.5 rounded-lg font-bold text-sm transition-all"
+            style={{
+              fontFamily: 'Outfit, sans-serif',
+              background: 'linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,215,0,0.1))',
+              color: 'var(--gold)',
+              border: '1px solid rgba(255,215,0,0.4)',
+              opacity: savingSpecial ? 0.6 : 1,
+            }}
+          >
+            {savingSpecial ? "Salvando..." : "Salva"}
+          </button>
+        </div>
       </div>
 
       <Link

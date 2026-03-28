@@ -31,6 +31,7 @@ export default function App() {
   const { players } = usePlayers(GAME_ID);
   const [loggedIn, setLoggedIn] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
+  const [loginError, setLoginError] = useState("");
 
   const currentPlayer = players.find((p) => p.id === user?.uid) ?? null;
   const isAdmin = game?.admins.includes(user?.uid ?? "") ?? false;
@@ -41,35 +42,41 @@ export default function App() {
 
   const handleLogin = async (name: string, code: string) => {
     if (!game) return;
+    setLoginError("");
     if (code !== game.accessCode && code !== game.adminCode) {
-      alert("Codice non valido");
+      setLoginError("Codice non valido. Controlla e riprova.");
       return;
     }
 
-    const firebaseUser = user ?? (await loginAnonymously());
-    const playerRef = doc(db, "games", GAME_ID, "players", firebaseUser.uid);
-    const existing = await getDoc(playerRef);
+    try {
+      const firebaseUser = user ?? (await loginAnonymously());
+      const playerRef = doc(db, "games", GAME_ID, "players", firebaseUser.uid);
+      const existing = await getDoc(playerRef);
 
-    if (!existing.exists()) {
-      await setDoc(playerRef, {
-        name,
-        joinedAt: serverTimestamp(),
-        predictions: {},
-        topScorerPick: "",
-        winnerPick: "",
-        points: 0,
-        paid: false,
-        scheduleStatus: "bozza",
-      });
+      if (!existing.exists()) {
+        await setDoc(playerRef, {
+          name,
+          joinedAt: serverTimestamp(),
+          predictions: {},
+          topScorerPick: "",
+          winnerPick: "",
+          points: 0,
+          paid: false,
+          scheduleStatus: "bozza",
+        });
+      }
+
+      if (code === game.adminCode && !game.admins.includes(firebaseUser.uid)) {
+        const gameRef = doc(db, "games", GAME_ID);
+        await updateDoc(gameRef, { admins: arrayUnion(firebaseUser.uid) });
+      }
+
+      setLoggedIn(true);
+      setShowSplash(true);
+    } catch (err) {
+      console.error("Login error:", err);
+      setLoginError("Errore durante l'accesso. Riprova.");
     }
-
-    if (code === game.adminCode && !game.admins.includes(firebaseUser.uid)) {
-      const gameRef = doc(db, "games", GAME_ID);
-      await updateDoc(gameRef, { admins: arrayUnion(firebaseUser.uid) });
-    }
-
-    setLoggedIn(true);
-    setShowSplash(true);
   };
 
   const handleLogout = async () => {
@@ -102,23 +109,35 @@ export default function App() {
     );
   }
 
-  if (!loggedIn || !currentPlayer) {
-    return <LoginPage onLogin={handleLogin} />;
+  if (!loggedIn) {
+    return <LoginPage onLogin={handleLogin} error={loginError} />;
   }
 
   if (showSplash) {
     return <SplashScreen onComplete={() => setShowSplash(false)} />;
   }
 
+  const safePlayer = currentPlayer ?? {
+    id: user?.uid ?? "",
+    name: "Admin",
+    joinedAt: new Date(),
+    predictions: {},
+    topScorerPick: "",
+    winnerPick: "",
+    points: 0,
+    paid: false,
+    scheduleStatus: "bozza" as const,
+  };
+
   return (
     <BrowserRouter>
       <Layout isAdmin={isAdmin}>
         <Routes>
-          <Route path="/" element={<DashboardPage game={game} player={currentPlayer} players={players} matches={matches} />} />
-          <Route path="/schedina" element={<SchedinaPage game={game} player={currentPlayer} matches={matches} gameId={GAME_ID} />} />
-          <Route path="/classifica" element={<ClassificaPage game={game} player={currentPlayer} players={players} />} />
-          <Route path="/profilo" element={<ProfiloPage game={game} player={currentPlayer} players={players} matches={matches} isAdmin={isAdmin} onLogout={handleLogout} />} />
-          <Route path="/griglione" element={<RiepilogoPage game={game} players={players} matches={matches} currentPlayer={currentPlayer} />} />
+          <Route path="/" element={<DashboardPage game={game} player={safePlayer} players={players} matches={matches} />} />
+          <Route path="/schedina" element={<SchedinaPage game={game} player={safePlayer} matches={matches} gameId={GAME_ID} />} />
+          <Route path="/classifica" element={<ClassificaPage game={game} player={safePlayer} players={players} />} />
+          <Route path="/profilo" element={<ProfiloPage game={game} player={safePlayer} players={players} matches={matches} isAdmin={isAdmin} onLogout={handleLogout} />} />
+          <Route path="/griglione" element={<RiepilogoPage game={game} players={players} matches={matches} currentPlayer={currentPlayer ?? undefined} />} />
           {isAdmin && (
             <>
               <Route path="/admin" element={<AdminPage game={game} players={players} matches={matches} onLogout={handleLogout} />} />

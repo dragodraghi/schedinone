@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, writeBatch } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import type { Game, Player, Match, ScheduleStatus } from "../../lib/types";
 
@@ -52,6 +52,7 @@ function statusBorder(status: ScheduleStatus): string {
 export default function SchedineRicevutePage({ players, matches, gameId, game }: Props) {
   const [activeTab, setActiveTab] = useState<FilterTab>("Tutte");
   const [updating, setUpdating] = useState<string | null>(null);
+  const [acceptingAll, setAcceptingAll] = useState(false);
 
   const totalMatches = matches.filter((m) => m.phase === game.currentPhase).length;
 
@@ -81,6 +82,20 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
     setUpdating(null);
   };
 
+  const pendingPlayers = submitted.filter((p) => p.scheduleStatus === "inviata");
+
+  const acceptAll = async () => {
+    if (pendingPlayers.length === 0) return;
+    setAcceptingAll(true);
+    const batch = writeBatch(db);
+    for (const p of pendingPlayers) {
+      const ref = doc(db, "games", gameId, "players", p.id);
+      batch.update(ref, { scheduleStatus: "accettata" });
+    }
+    await batch.commit();
+    setAcceptingAll(false);
+  };
+
   return (
     <div className="space-y-4 animate-in">
       {/* Header */}
@@ -101,6 +116,25 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
           ← Admin
         </Link>
       </div>
+
+      {/* Accetta Tutte button */}
+      {pendingPlayers.length > 0 && (
+        <button
+          onClick={acceptAll}
+          disabled={acceptingAll}
+          className="w-full py-3 rounded-xl font-bold text-sm transition-all"
+          style={{
+            fontFamily: "Outfit, sans-serif",
+            background: "rgba(0,255,136,0.15)",
+            color: "var(--correct)",
+            border: "1px solid rgba(0,255,136,0.4)",
+            opacity: acceptingAll ? 0.6 : 1,
+            boxShadow: "0 0 16px rgba(0,255,136,0.1)",
+          }}
+        >
+          {acceptingAll ? "Accettando..." : `✓ Accetta Tutte (${pendingPlayers.length})`}
+        </button>
+      )}
 
       {/* Filter tabs */}
       <div className="flex flex-wrap gap-1.5">

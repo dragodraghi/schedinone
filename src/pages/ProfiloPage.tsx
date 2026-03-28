@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import type { Game, Player, Match } from "../lib/types";
 
 interface Props {
@@ -12,7 +12,9 @@ interface Props {
 }
 
 export default function ProfiloPage({ game, player, players, matches, isAdmin, onLogout }: Props) {
-  const [tab, setTab] = useState<"stats" | "confronto">("stats");
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") === "confronto" ? "confronto" : "stats";
+  const [tab, setTab] = useState<"stats" | "confronto">(initialTab);
   const [compareWith, setCompareWith] = useState<string>("");
 
   const finishedMatches = matches.filter((m) => m.result !== null);

@@ -9,15 +9,15 @@ const playerTabs = [
   { to: "/profilo", label: "Profilo", icon: "👤" },
 ];
 
-const adminTab = { to: "/admin", label: "Comitato", icon: "⚙️" };
+const adminTab = { to: "/admin", label: "Admin", icon: "⚙️" };
 
 export default function Layout({ children, isAdmin }: { children: ReactNode; isAdmin?: boolean }) {
   const tabs = isAdmin ? [...playerTabs, adminTab] : playerTabs;
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg-deep)' }}>
-      <main className="flex-1 pb-20 px-3 pt-3 max-w-5xl mx-auto w-full">{children}</main>
-      <nav className="fixed bottom-0 left-0 right-0 glass border-t" style={{ borderColor: 'var(--border)', backdropFilter: 'blur(20px)' }}>
+      <main className="flex-1 pb-24 px-3 pt-3 max-w-5xl mx-auto w-full">{children}</main>
+      <nav className="fixed bottom-0 left-0 right-0 glass border-t" style={{ borderColor: 'var(--border)', backdropFilter: 'blur(20px)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="flex justify-around max-w-lg mx-auto">
           {tabs.map((tab) => (
             <NavLink

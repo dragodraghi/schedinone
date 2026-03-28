@@ -63,7 +63,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
       grouped[g].push(m);
     });
     // Sort within each group by kickoff
-    Object.values(grouped).forEach((arr) => arr.sort((a, b) => a.kickoff.getTime() - b.kickoff.getTime()));
+    Object.values(grouped).forEach((arr) => arr.sort((a, b) => (a.kickoff?.getTime?.() ?? 0) - (b.kickoff?.getTime?.() ?? 0)));
     return grouped;
   }, [filteredGironiMatches]);
 

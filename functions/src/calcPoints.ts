@@ -17,15 +17,18 @@ export async function recalculatePoints(gameId: string) {
 
   for (const playerDoc of playersSnap.docs) {
     const data = playerDoc.data();
-    const predictions = (data.predictions ?? {}) as Record<string, string>;
     let points = 0;
 
-    for (const match of matches) {
-      if (predictions[match.id] === match.result) points++;
-    }
+    if (data.scheduleStatus === "accettata") {
+      const predictions = (data.predictions ?? {}) as Record<string, string>;
 
-    if (gameData?.topScorer && data.topScorerPick === gameData.topScorer) points++;
-    if (gameData?.winner && data.winnerPick === gameData.winner) points++;
+      for (const match of matches) {
+        if (predictions[match.id] === match.result) points++;
+      }
+
+      if (gameData?.topScorer && data.topScorerPick === gameData.topScorer) points++;
+      if (gameData?.winner && data.winnerPick === gameData.winner) points++;
+    }
 
     batch.update(playerDoc.ref, { points });
   }

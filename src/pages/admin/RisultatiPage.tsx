@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import type { Match, Sign } from "../../lib/types";
@@ -31,6 +32,10 @@ export default function RisultatiPage({ matches, gameId }: Props) {
     <div className="space-y-6 animate-in">
       {/* Header */}
       <h1 className="text-2xl font-black" style={{ fontFamily: 'Outfit, sans-serif' }}>Gestione Risultati</h1>
+
+      <Link to="/admin" className="block text-center text-sm transition-colors" style={{ color: 'var(--text-muted)' }}>
+        ← Admin
+      </Link>
 
       {Object.entries(groupedByPhase).map(([phase, phaseMatches]) => (
         <div key={phase} className="space-y-2">

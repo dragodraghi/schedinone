@@ -22,6 +22,7 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
   const [topScorerPick, setTopScorerPick] = useState(player.topScorerPick || "");
   const [winnerPick, setWinnerPick] = useState(player.winnerPick || "");
   const [localStatus, setLocalStatus] = useState(player.scheduleStatus);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const status = localStatus;
   const isReadOnly = status === "inviata" || status === "accettata";
@@ -213,18 +214,59 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
         </div>
       </div>
 
+      {/* Confirmation modal */}
+      {showConfirmModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ background: 'rgba(4, 8, 16, 0.85)', backdropFilter: 'blur(8px)' }}
+        >
+          <div
+            className="glass rounded-2xl p-6 w-full max-w-sm space-y-4 animate-in"
+            style={{ border: '1px solid rgba(0,212,255,0.3)', boxShadow: '0 0 40px rgba(0,212,255,0.1)' }}
+          >
+            <h2 className="text-lg font-black" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--text-primary)' }}>
+              Conferma invio
+            </h2>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+              Sei sicuro? Dopo l'invio non potrai modificare la schedina.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="flex-1 py-2.5 rounded-xl font-bold text-sm glass transition-all"
+                style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--text-muted)' }}
+              >
+                Annulla
+              </button>
+              <button
+                onClick={() => { setShowConfirmModal(false); handleSave(); }}
+                className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all"
+                style={{
+                  fontFamily: 'Outfit, sans-serif',
+                  background: 'linear-gradient(135deg, #00d4ff, #0099cc)',
+                  color: '#040810',
+                  boxShadow: '0 0 20px rgba(0,212,255,0.2)',
+                }}
+              >
+                Conferma
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Save button — hidden when read-only */}
       {!isReadOnly && (
         <button
-          onClick={handleSave}
-          disabled={saving || !allFilled}
+          onClick={() => setShowConfirmModal(true)}
+          disabled={saving || filledCount === 0}
           className={`btn-glow w-full py-3.5 rounded-xl font-bold text-sm tracking-widest uppercase transition-all duration-300 ${allFilled ? "pulse-ring" : ""}`}
           style={{
             fontFamily: "Outfit, sans-serif",
             background: "linear-gradient(135deg, #00d4ff, #0099cc)",
             color: "#040810",
             boxShadow: "0 0 30px rgba(0, 212, 255, 0.15)",
-            opacity: saving || !allFilled ? 0.6 : 1,
+            opacity: saving ? 0.6 : 1,
           }}
         >
           {saving ? "Invio in corso..." : "SALVA E INVIA AL COMITATO"}

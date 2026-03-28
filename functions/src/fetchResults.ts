@@ -8,6 +8,63 @@ interface ApiFixture {
   goals: { home: number | null; away: number | null };
 }
 
+const teamNameMap: Record<string, string[]> = {
+  "USA": ["United States", "USA"],
+  "Messico": ["Mexico"],
+  "Canada": ["Canada"],
+  "Marocco": ["Morocco"],
+  "Italia": ["Italy"],
+  "Brasile": ["Brazil"],
+  "Argentina": ["Argentina"],
+  "Germania": ["Germany"],
+  "Francia": ["France"],
+  "Spagna": ["Spain"],
+  "Inghilterra": ["England"],
+  "Portogallo": ["Portugal"],
+  "Olanda": ["Netherlands", "Holland"],
+  "Giappone": ["Japan"],
+  "Senegal": ["Senegal"],
+  "Ecuador": ["Ecuador"],
+  "Belgio": ["Belgium"],
+  "Colombia": ["Colombia"],
+  "Uruguay": ["Uruguay"],
+  "Corea del Sud": ["South Korea", "Korea Republic"],
+  "Croazia": ["Croatia"],
+  "Danimarca": ["Denmark"],
+  "Serbia": ["Serbia"],
+  "Australia": ["Australia"],
+  "Svizzera": ["Switzerland"],
+  "Nigeria": ["Nigeria"],
+  "Camerun": ["Cameroon"],
+  "Costa Rica": ["Costa Rica"],
+  "Polonia": ["Poland"],
+  "Egitto": ["Egypt"],
+  "Tunisia": ["Tunisia"],
+  "Arabia Saudita": ["Saudi Arabia"],
+  "Galles": ["Wales"],
+  "Iran": ["Iran"],
+  "Ghana": ["Ghana"],
+  "Panama": ["Panama"],
+  "Scozia": ["Scotland"],
+  "Perù": ["Peru"],
+  "Algeria": ["Algeria"],
+  "Honduras": ["Honduras"],
+  "Norvegia": ["Norway"],
+  "Cile": ["Chile"],
+  "Paraguay": ["Paraguay"],
+  "Nuova Zelanda": ["New Zealand"],
+  "Svezia": ["Sweden"],
+  "Turchia": ["Turkey", "Türkiye"],
+  "Venezuela": ["Venezuela"],
+  "Israele": ["Israel"],
+};
+
+function matchesTeam(firestoreName: string, apiName: string): boolean {
+  const aliases = teamNameMap[firestoreName];
+  if (!aliases) return firestoreName.toLowerCase() === apiName.toLowerCase();
+  return aliases.some(a => a.toLowerCase() === apiName.toLowerCase());
+}
+
 function scoreToSign(homeGoals: number, awayGoals: number): "1" | "X" | "2" {
   if (homeGoals > awayGoals) return "1";
   if (homeGoals === awayGoals) return "X";
@@ -45,8 +102,8 @@ export async function fetchAndUpdateResults(apiKey: string) {
       const matchData = matchDoc.data();
       const apiMatch = finishedFixtures.find(
         (f) =>
-          f.teams.home.name.toLowerCase().includes(matchData.homeTeam.toLowerCase()) ||
-          matchData.homeTeam.toLowerCase().includes(f.teams.home.name.toLowerCase())
+          matchesTeam(matchData.homeTeam, f.teams.home.name) &&
+          matchesTeam(matchData.awayTeam, f.teams.away.name)
       );
 
       if (apiMatch && apiMatch.goals.home !== null && apiMatch.goals.away !== null) {
