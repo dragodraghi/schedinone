@@ -10,6 +10,7 @@ import { useGame } from "./hooks/useGame";
 import { useMatches } from "./hooks/useMatches";
 import { usePlayers } from "./hooks/usePlayers";
 import Layout from "./components/Layout";
+import SplashScreen from "./components/SplashScreen";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import SchedinaPage from "./pages/SchedinaPage";
@@ -29,6 +30,7 @@ export default function App() {
   const { matches } = useMatches(GAME_ID);
   const { players } = usePlayers(GAME_ID);
   const [loggedIn, setLoggedIn] = useState(false);
+  const [showSplash, setShowSplash] = useState(false);
 
   const currentPlayer = players.find((p) => p.id === user?.uid) ?? null;
   const isAdmin = game?.admins.includes(user?.uid ?? "") ?? false;
@@ -67,6 +69,7 @@ export default function App() {
     }
 
     setLoggedIn(true);
+    setShowSplash(true);
   };
 
   const handleLogout = async () => {
@@ -101,6 +104,10 @@ export default function App() {
 
   if (!loggedIn || !currentPlayer) {
     return <LoginPage onLogin={handleLogin} />;
+  }
+
+  if (showSplash) {
+    return <SplashScreen onComplete={() => setShowSplash(false)} />;
   }
 
   return (
