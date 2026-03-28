@@ -18,6 +18,7 @@ import ProfiloPage from "./pages/ProfiloPage";
 import AdminPage from "./pages/admin/AdminPage";
 import RisultatiPage from "./pages/admin/RisultatiPage";
 import GiocatoriPage from "./pages/admin/GiocatoriPage";
+import RiepilogoPage from "./pages/admin/RiepilogoPage";
 
 const GAME_ID = import.meta.env.VITE_GAME_ID || "schedinone-2026";
 
@@ -113,6 +114,7 @@ export default function App() {
               <Route path="/admin" element={<AdminPage game={game} players={players} matches={matches} onLogout={handleLogout} />} />
               <Route path="/admin/risultati" element={<RisultatiPage matches={matches} gameId={GAME_ID} />} />
               <Route path="/admin/giocatori" element={<GiocatoriPage players={players} gameId={GAME_ID} />} />
+              <Route path="/admin/riepilogo" element={<RiepilogoPage game={game} players={players} matches={matches} />} />
             </>
           )}
           <Route path="*" element={<Navigate to="/" replace />} />

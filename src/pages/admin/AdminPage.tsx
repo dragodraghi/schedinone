@@ -19,6 +19,7 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
   ];
 
   const actions = [
+    { to: "/admin/riepilogo", label: "Riepilogo Schedine", icon: "📊" },
     { to: "/admin/risultati", label: "Gestisci Risultati", icon: "🔄" },
     { to: "/admin/giocatori", label: "Gestisci Giocatori", icon: "👥" },
   ];
