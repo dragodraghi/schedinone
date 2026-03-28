@@ -8,9 +8,10 @@ interface Props {
   players: Player[];
   matches: Match[];
   isAdmin: boolean;
+  onLogout: () => void;
 }
 
-export default function ProfiloPage({ game, player, players, matches, isAdmin }: Props) {
+export default function ProfiloPage({ game, player, players, matches, isAdmin, onLogout }: Props) {
   const [tab, setTab] = useState<"stats" | "confronto">("stats");
   const [compareWith, setCompareWith] = useState<string>("");
 
@@ -37,74 +38,160 @@ export default function ProfiloPage({ game, player, players, matches, isAdmin }:
   };
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold">{player.name}</h1>
+    <div className="space-y-4 animate-in">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-black" style={{ fontFamily: 'Outfit, sans-serif' }}>{player.name}</h1>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{player.points} punti totali</p>
+      </div>
+
+      {/* Tab buttons */}
       <div className="flex gap-2">
-        <button onClick={() => setTab("stats")} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors ${tab === "stats" ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-400"}`}>Statistiche</button>
-        <button onClick={() => setTab("confronto")} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors ${tab === "confronto" ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-400"}`}>Confronto</button>
+        <button
+          onClick={() => setTab("stats")}
+          className="flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200 glass"
+          style={{
+            fontFamily: 'Outfit, sans-serif',
+            color: tab === "stats" ? 'var(--accent)' : 'var(--text-muted)',
+            borderColor: tab === "stats" ? 'var(--accent)' : 'var(--border)',
+            boxShadow: tab === "stats" ? '0 0 12px var(--accent-glow)' : 'none',
+          }}
+        >
+          Statistiche
+        </button>
+        <button
+          onClick={() => setTab("confronto")}
+          className="flex-1 py-2 rounded-lg text-sm font-bold transition-all duration-200 glass"
+          style={{
+            fontFamily: 'Outfit, sans-serif',
+            color: tab === "confronto" ? 'var(--accent)' : 'var(--text-muted)',
+            borderColor: tab === "confronto" ? 'var(--accent)' : 'var(--border)',
+            boxShadow: tab === "confronto" ? '0 0 12px var(--accent-glow)' : 'none',
+          }}
+        >
+          Confronto
+        </button>
       </div>
 
       {tab === "stats" && (
-        <div className="space-y-4">
-          <div className="bg-slate-800 rounded-xl p-4">
-            <p className="text-xs text-slate-400">% Azzecco</p>
-            <p className="text-3xl font-bold text-green-500">{accuracy}%</p>
-            <div className="bg-slate-700 rounded-full h-2 mt-2">
-              <div className="bg-green-500 h-2 rounded-full transition-all" style={{ width: `${accuracy}%` }} />
+        <div className="space-y-3">
+          {/* Accuracy card */}
+          <div className="glass rounded-xl p-4">
+            <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>% Azzecco</p>
+            <p className="text-4xl font-black" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--correct)' }}>{accuracy}%</p>
+            <div className="mt-3 rounded-full h-2" style={{ background: 'rgba(255,255,255,0.07)' }}>
+              <div
+                className="h-2 rounded-full transition-all duration-700"
+                style={{ width: `${accuracy}%`, background: 'linear-gradient(90deg, var(--correct), #00cc6a)' }}
+              />
             </div>
+            <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>{correctPredictions} di {finishedMatches.length} pronostici corretti</p>
           </div>
-          <div className="bg-slate-800 rounded-xl p-4">
-            <p className="text-xs text-slate-400">Media gruppo</p>
-            <p className="text-xl font-bold">{groupAccuracy}%</p>
+
+          {/* Group average */}
+          <div className="glass rounded-xl p-4">
+            <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Media gruppo</p>
+            <p className="text-2xl font-black" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--accent)' }}>{groupAccuracy}%</p>
           </div>
-          <div className="bg-slate-800 rounded-xl p-4 space-y-1">
-            <p className="text-xs text-slate-400">Le tue scelte speciali</p>
-            <p className="text-sm">Capocannoniere: <span className="font-bold">{player.topScorerPick || "—"}</span></p>
-            <p className="text-sm">Vincitrice: <span className="font-bold">{player.winnerPick || "—"}</span></p>
+
+          {/* Special picks */}
+          <div className="glass rounded-xl p-4 space-y-2">
+            <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: 'var(--gold)', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Scelte speciali</p>
+            <div className="flex justify-between items-center">
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Capocannoniere</span>
+              <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{player.topScorerPick || "—"}</span>
+            </div>
+            <div className="h-px" style={{ background: 'var(--border)' }} />
+            <div className="flex justify-between items-center">
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Vincitrice</span>
+              <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{player.winnerPick || "—"}</span>
+            </div>
           </div>
         </div>
       )}
 
       {tab === "confronto" && (
-        <div className="space-y-4">
-          <select value={compareWith} onChange={(e) => setCompareWith(e.target.value)} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500">
-            <option value="">Seleziona giocatore...</option>
+        <div className="space-y-3">
+          {/* Player selector */}
+          <select
+            value={compareWith}
+            onChange={(e) => setCompareWith(e.target.value)}
+            className="w-full px-3 py-2.5 rounded-lg text-sm focus:outline-none transition-all glass"
+            style={{
+              color: 'var(--text-primary)',
+              borderColor: compareWith ? 'var(--accent)' : 'var(--border)',
+              background: 'var(--bg-card)',
+            }}
+          >
+            <option value="" style={{ background: '#0f172a' }}>Seleziona giocatore...</option>
             {players.filter((p) => p.id !== player.id).map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
+              <option key={p.id} value={p.id} style={{ background: '#0f172a' }}>{p.name}</option>
             ))}
           </select>
+
           {otherPlayer && (
-            <div className="bg-slate-800 rounded-xl p-4 space-y-3">
-              <p className="text-xs text-slate-400">{player.name} vs {otherPlayer.name}</p>
+            <div className="glass rounded-xl p-4 space-y-3">
+              <p className="text-xs font-bold" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>
+                {player.name} <span style={{ color: 'var(--accent)' }}>vs</span> {otherPlayer.name}
+              </p>
               {game.phases.map((phase) => {
                 const myPts = getPointsByPhase(player)[phase];
                 const theirPts = getPointsByPhase(otherPlayer)[phase];
                 if (myPts === 0 && theirPts === 0) return null;
                 return (
-                  <div key={phase} className="flex justify-between text-sm">
-                    <span className="capitalize">{phase}</span>
-                    <span className={myPts > theirPts ? "text-green-500" : myPts < theirPts ? "text-red-500" : "text-slate-400"}>{myPts}-{theirPts}</span>
+                  <div key={phase} className="flex justify-between items-center text-sm">
+                    <span className="capitalize" style={{ color: 'var(--text-muted)' }}>{phase}</span>
+                    <span className="font-bold" style={{ color: myPts > theirPts ? 'var(--correct)' : myPts < theirPts ? 'var(--wrong)' : 'var(--text-muted)' }}>
+                      {myPts}–{theirPts}
+                    </span>
                   </div>
                 );
               })}
-              <div className="flex justify-between text-sm font-bold border-t border-slate-700 pt-2">
+              <div className="h-px" style={{ background: 'var(--border)' }} />
+              <div className="flex justify-between items-center text-sm font-black" style={{ fontFamily: 'Outfit, sans-serif' }}>
                 <span>Totale</span>
-                <span>{player.points}-{otherPlayer.points}</span>
+                <span style={{ color: 'var(--accent)' }}>{player.points}–{otherPlayer.points}</span>
               </div>
-              <div className="flex justify-between text-xs text-slate-400">
-                <span>Capocannoniere</span>
-                <span>{player.topScorerPick || "—"} vs {otherPlayer.topScorerPick || "—"}</span>
+              <div className="flex justify-between items-center text-xs">
+                <span style={{ color: 'var(--text-muted)' }}>Capocannoniere</span>
+                <span style={{ color: 'var(--text-primary)' }}>{player.topScorerPick || "—"} vs {otherPlayer.topScorerPick || "—"}</span>
               </div>
             </div>
           )}
         </div>
       )}
 
+      {/* Admin link */}
       {isAdmin && (
-        <Link to="/admin" className="block w-full py-3 bg-yellow-600 hover:bg-yellow-700 text-white text-center font-bold rounded-xl transition-colors">
-          Pannello COMITATO
+        <Link
+          to="/admin"
+          className="btn-glow block w-full py-3 text-center font-black rounded-xl transition-all"
+          style={{
+            fontFamily: 'Outfit, sans-serif',
+            fontSize: '0.875rem',
+            letterSpacing: '0.05em',
+            background: 'linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,215,0,0.05))',
+            border: '1px solid rgba(255,215,0,0.4)',
+            color: 'var(--gold)',
+          }}
+        >
+          ⚙️ Pannello COMITATO
         </Link>
       )}
+
+      {/* Logout */}
+      <button
+        onClick={onLogout}
+        className="glass w-full py-3 font-bold rounded-xl transition-all duration-200 hover:bg-red-600/10"
+        style={{
+          fontFamily: 'Outfit, sans-serif',
+          fontSize: '0.875rem',
+          color: 'var(--wrong)',
+          borderColor: 'rgba(255,51,102,0.4)',
+        }}
+      >
+        Esci
+      </button>
     </div>
   );
 }

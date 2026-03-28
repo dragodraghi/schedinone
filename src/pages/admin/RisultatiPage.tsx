@@ -28,38 +28,110 @@ export default function RisultatiPage({ matches, gameId }: Props) {
   }, {});
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-bold">Gestione Risultati</h1>
+    <div className="space-y-6 animate-in">
+      {/* Header */}
+      <h1 className="text-2xl font-black" style={{ fontFamily: 'Outfit, sans-serif' }}>Gestione Risultati</h1>
+
       {Object.entries(groupedByPhase).map(([phase, phaseMatches]) => (
         <div key={phase} className="space-y-2">
-          <h2 className="text-sm font-bold text-slate-400 uppercase">{phase}</h2>
+          <h2
+            className="group-header text-[11px] uppercase tracking-wider"
+            style={{ color: 'var(--accent)' }}
+          >
+            {phase}
+          </h2>
           {phaseMatches.map((match) => (
-            <div key={match.id} className="bg-slate-800 rounded-xl p-4 space-y-2">
+            <div key={match.id} className="glass rounded-xl p-4 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm">{match.homeTeam} vs {match.awayTeam}</span>
+                <span className="text-sm font-medium" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                  {match.homeTeam} vs {match.awayTeam}
+                </span>
                 {match.result && editingId !== match.id && (
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400">{match.score}</span>
-                    <span className="px-2 py-1 bg-blue-600 rounded text-xs font-bold">{match.result}</span>
+                    {match.score && (
+                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{match.score}</span>
+                    )}
+                    <span
+                      className="px-2 py-1 rounded text-xs font-black"
+                      style={{
+                        fontFamily: 'Outfit, sans-serif',
+                        background: 'rgba(0, 212, 255, 0.15)',
+                        color: 'var(--accent)',
+                        border: '1px solid rgba(0, 212, 255, 0.3)',
+                      }}
+                    >
+                      {match.result}
+                    </span>
                   </div>
                 )}
               </div>
+
               {editingId === match.id ? (
                 <div className="space-y-2">
-                  <input type="text" placeholder="Punteggio (es. 2-1)" value={editScore} onChange={(e) => setEditScore(e.target.value)} className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:border-blue-500" />
+                  <input
+                    type="text"
+                    placeholder="Punteggio (es. 2-1)"
+                    value={editScore}
+                    onChange={(e) => setEditScore(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none transition-all"
+                    style={{
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text-primary)',
+                      fontFamily: 'DM Sans, sans-serif',
+                    }}
+                    onFocus={(e) => e.currentTarget.style.borderColor = 'var(--accent)'}
+                    onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+                  />
                   <div className="flex gap-2">
                     {signs.map((s) => (
-                      <button key={s} onClick={() => setEditResult(s)} className={`flex-1 py-2 rounded-lg text-sm font-bold ${editResult === s ? "bg-blue-600 text-white" : "bg-slate-700 text-slate-300"}`}>{s}</button>
+                      <button
+                        key={s}
+                        onClick={() => setEditResult(s)}
+                        className="flex-1 py-2 rounded-lg text-sm font-black transition-all"
+                        style={{
+                          fontFamily: 'Outfit, sans-serif',
+                          background: editResult === s ? 'rgba(0,212,255,0.2)' : 'rgba(255,255,255,0.05)',
+                          color: editResult === s ? 'var(--accent)' : 'var(--text-muted)',
+                          border: `1px solid ${editResult === s ? 'rgba(0,212,255,0.4)' : 'var(--border)'}`,
+                          boxShadow: editResult === s ? '0 0 12px var(--accent-glow)' : 'none',
+                        }}
+                      >
+                        {s}
+                      </button>
                     ))}
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => handleSave(match.id)} disabled={!editResult} className="flex-1 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-700 text-white rounded-lg text-sm font-bold">Salva</button>
-                    <button onClick={() => setEditingId(null)} className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm">Annulla</button>
+                    <button
+                      onClick={() => handleSave(match.id)}
+                      disabled={!editResult}
+                      className="flex-1 py-2 rounded-lg text-sm font-bold transition-all"
+                      style={{
+                        fontFamily: 'Outfit, sans-serif',
+                        background: editResult ? 'linear-gradient(135deg, var(--correct), #00cc6a)' : 'rgba(255,255,255,0.05)',
+                        color: editResult ? '#040810' : 'var(--text-muted)',
+                        opacity: editResult ? 1 : 0.5,
+                        cursor: editResult ? 'pointer' : 'not-allowed',
+                      }}
+                    >
+                      Salva
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="flex-1 py-2 rounded-lg text-sm transition-all glass hover:bg-white/5"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      Annulla
+                    </button>
                   </div>
                 </div>
               ) : (
-                <button onClick={() => { setEditingId(match.id); setEditScore(match.score ?? ""); setEditResult(match.result); }} className="w-full py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-xs">
-                  ✏️ {match.result ? "Correggi" : "Inserisci risultato"}
+                <button
+                  onClick={() => { setEditingId(match.id); setEditScore(match.score ?? ""); setEditResult(match.result); }}
+                  className="w-full py-2 rounded-lg text-xs transition-all glass hover:bg-white/5"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  ✏️ {match.result ? "Correggi risultato" : "Inserisci risultato"}
                 </button>
               )}
             </div>

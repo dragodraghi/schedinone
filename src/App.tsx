@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
 import { db } from "./lib/firebase";
+import { auth } from "./lib/firebase";
+import { signOut } from "firebase/auth";
 import { loginAnonymously } from "./lib/auth";
 import { useAuth } from "./hooks/useAuth";
 import { useGame } from "./hooks/useGame";
@@ -64,18 +66,32 @@ export default function App() {
     setLoggedIn(true);
   };
 
+  const handleLogout = async () => {
+    await signOut(auth);
+    setLoggedIn(false);
+  };
+
   if (authLoading || gameLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-white text-xl animate-pulse">SCHEDINONE</div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-deep)' }}>
+        <div className="text-center animate-in">
+          <div className="text-4xl mb-4 shimmer">⚽</div>
+          <h1 className="text-3xl font-black" style={{ fontFamily: 'Outfit, sans-serif', background: 'linear-gradient(135deg, #00d4ff, #ffd700)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            SCHEDINONE
+          </h1>
+        </div>
       </div>
     );
   }
 
   if (!game) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <p className="text-red-400">Gioco non trovato</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-deep)' }}>
+        <div className="glass rounded-2xl p-8 text-center animate-in mx-4">
+          <div className="text-3xl mb-3">⚠️</div>
+          <p className="font-bold" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--wrong)' }}>Gioco non trovato</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Controlla la configurazione</p>
+        </div>
       </div>
     );
   }
@@ -86,15 +102,15 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Layout>
+      <Layout isAdmin={isAdmin}>
         <Routes>
           <Route path="/" element={<DashboardPage game={game} player={currentPlayer} players={players} matches={matches} />} />
           <Route path="/schedina" element={<SchedinaPage game={game} player={currentPlayer} matches={matches} gameId={GAME_ID} />} />
           <Route path="/classifica" element={<ClassificaPage game={game} player={currentPlayer} players={players} />} />
-          <Route path="/profilo" element={<ProfiloPage game={game} player={currentPlayer} players={players} matches={matches} isAdmin={isAdmin} />} />
+          <Route path="/profilo" element={<ProfiloPage game={game} player={currentPlayer} players={players} matches={matches} isAdmin={isAdmin} onLogout={handleLogout} />} />
           {isAdmin && (
             <>
-              <Route path="/admin" element={<AdminPage game={game} players={players} matches={matches} />} />
+              <Route path="/admin" element={<AdminPage game={game} players={players} matches={matches} onLogout={handleLogout} />} />
               <Route path="/admin/risultati" element={<RisultatiPage matches={matches} gameId={GAME_ID} />} />
               <Route path="/admin/giocatori" element={<GiocatoriPage players={players} gameId={GAME_ID} />} />
             </>
