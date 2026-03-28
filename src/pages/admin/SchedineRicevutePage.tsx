@@ -77,9 +77,14 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
 
   const updateStatus = async (playerId: string, status: ScheduleStatus) => {
     setUpdating(playerId + status);
-    const ref = doc(db, "games", gameId, "players", playerId);
-    await updateDoc(ref, { scheduleStatus: status });
-    setUpdating(null);
+    try {
+      const ref = doc(db, "games", gameId, "players", playerId);
+      await updateDoc(ref, { scheduleStatus: status });
+    } catch (err) {
+      console.error("Update status error:", err);
+    } finally {
+      setUpdating(null);
+    }
   };
 
   const pendingPlayers = submitted.filter((p) => p.scheduleStatus === "inviata");
@@ -87,13 +92,18 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
   const acceptAll = async () => {
     if (pendingPlayers.length === 0) return;
     setAcceptingAll(true);
-    const batch = writeBatch(db);
-    for (const p of pendingPlayers) {
-      const ref = doc(db, "games", gameId, "players", p.id);
-      batch.update(ref, { scheduleStatus: "accettata" });
+    try {
+      const batch = writeBatch(db);
+      for (const p of pendingPlayers) {
+        const ref = doc(db, "games", gameId, "players", p.id);
+        batch.update(ref, { scheduleStatus: "accettata" });
+      }
+      await batch.commit();
+    } catch (err) {
+      console.error("Accept all error:", err);
+    } finally {
+      setAcceptingAll(false);
     }
-    await batch.commit();
-    setAcceptingAll(false);
   };
 
   return (

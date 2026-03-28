@@ -72,17 +72,30 @@ function scoreToSign(homeGoals: number, awayGoals: number): "1" | "X" | "2" {
 }
 
 export async function fetchAndUpdateResults(apiKey: string) {
-  const today = new Date().toISOString().split("T")[0];
+  const now = new Date();
+  const today = now.toISOString().split("T")[0];
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
-  const response = await fetch(
-    `https://v3.football.api-sports.io/fixtures?date=${today}&league=1&season=2026`,
-    { headers: { "x-apisports-key": apiKey } }
-  );
+  // Fetch both days to handle timezone boundaries
+  const [todayRes, yesterdayRes] = await Promise.all([
+    fetch(`https://v3.football.api-sports.io/fixtures?date=${today}&league=1&season=2026`, { headers: { "x-apisports-key": apiKey } }),
+    fetch(`https://v3.football.api-sports.io/fixtures?date=${yesterday}&league=1&season=2026`, { headers: { "x-apisports-key": apiKey } }),
+  ]);
 
-  const data = await response.json();
-  const fixtures: ApiFixture[] = data.response ?? [];
+  const todayData = await todayRes.json();
+  const yesterdayData = await yesterdayRes.json();
 
-  const finishedFixtures = fixtures.filter(
+  // Merge and deduplicate by fixture ID
+  const seenIds = new Set<number>();
+  const allFixtures: ApiFixture[] = [];
+  for (const f of [...(todayData.response ?? []), ...(yesterdayData.response ?? [])]) {
+    if (!seenIds.has(f.fixture.id)) {
+      seenIds.add(f.fixture.id);
+      allFixtures.push(f);
+    }
+  }
+
+  const finishedFixtures = allFixtures.filter(
     (f) => f.fixture.status.short === "FT" && f.goals.home !== null && f.goals.away !== null
   );
 

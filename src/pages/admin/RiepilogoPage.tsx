@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import type { Game, Player, Match } from "../../lib/types";
 import { getFlag } from "../../lib/flags";
@@ -248,9 +248,9 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
 
           <tbody>
             {sortedGroupKeys.map((groupKey) => (
-              <>
+              <React.Fragment key={groupKey}>
                 {/* Group header row */}
-                <tr key={`group-${groupKey}`}>
+                <tr>
                   <td
                     colSpan={totalCols}
                     style={{
@@ -374,7 +374,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                     })}
                   </tr>
                 ))}
-              </>
+              </React.Fragment>
             ))}
 
             {/* Special rows: Capocannoniere + Vincitrice */}

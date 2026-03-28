@@ -17,9 +17,13 @@ export default function RisultatiPage({ matches, gameId }: Props) {
   const [editResult, setEditResult] = useState<Sign | null>(null);
 
   const handleSave = async (matchId: string) => {
-    const ref = doc(db, "games", gameId, "matches", matchId);
-    await updateDoc(ref, { result: editResult, score: editScore, resultSource: "manual" });
-    setEditingId(null);
+    try {
+      const ref = doc(db, "games", gameId, "matches", matchId);
+      await updateDoc(ref, { result: editResult, score: editScore, resultSource: "manual" });
+      setEditingId(null);
+    } catch (err) {
+      console.error("Save result error:", err);
+    }
   };
 
   const groupedByPhase = matches.reduce<Record<string, Match[]>>((acc, m) => {

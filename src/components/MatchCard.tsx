@@ -1,5 +1,4 @@
 import type { Match, Sign } from "../lib/types";
-import { getFlag } from "../lib/flags";
 
 const signs: Sign[] = ["1", "X", "2"];
 

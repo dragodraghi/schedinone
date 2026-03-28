@@ -49,9 +49,11 @@ export default function LoginPage({ onLogin, error }: Props) {
 
         <div className="space-y-3">
           <input type="text" placeholder="Il tuo nome" value={name} onChange={(e) => setName(e.target.value)}
+            maxLength={30}
             className="w-full px-4 py-3.5 glass rounded-xl text-white placeholder-[#475569] focus:outline-none transition-all duration-200"
             style={{ borderColor: name ? 'rgba(0, 212, 255, 0.3)' : 'var(--border)' }} />
           <input type="text" placeholder="Codice gioco" value={code} onChange={(e) => setCode(e.target.value)}
+            maxLength={30}
             className="w-full px-4 py-3.5 glass rounded-xl text-white placeholder-[#475569] focus:outline-none transition-all duration-200"
             style={{ borderColor: code ? 'rgba(0, 212, 255, 0.3)' : 'var(--border)' }} />
         </div>

@@ -16,11 +16,16 @@ service cloud.firestore {
         allow read: if request.auth != null;
         allow create: if request.auth != null
           && request.auth.uid == playerId;
-        // Player can update own doc, but not points, paid, or scheduleStatus
+        // Player can update own doc, but not points or paid
+        // Player CAN set scheduleStatus only to "inviata"
         allow update: if request.auth != null
           && request.auth.uid == playerId
-          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['points', 'paid', 'scheduleStatus']);
-        // Admins can update any player (for paid toggle, removal, points)
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['points', 'paid'])
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['scheduleStatus'])
+            || request.resource.data.scheduleStatus == 'inviata'
+          );
+        // Admins can update/delete any player
         allow update, delete: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.admins;
       }

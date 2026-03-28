@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
 import { db } from "./lib/firebase";
@@ -26,9 +26,10 @@ const GAME_ID = import.meta.env.VITE_GAME_ID || "schedinone-2026";
 
 export default function App() {
   const { user, loading: authLoading } = useAuth();
+  const authReady = !authLoading && !!user;
   const { game, loading: gameLoading } = useGame(GAME_ID);
-  const { matches } = useMatches(GAME_ID);
-  const { players } = usePlayers(GAME_ID);
+  const { matches } = useMatches(GAME_ID, authReady);
+  const { players } = usePlayers(GAME_ID, authReady);
   const [loggedIn, setLoggedIn] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
   const [loginError, setLoginError] = useState("");
@@ -40,6 +41,9 @@ export default function App() {
     if (currentPlayer) setLoggedIn(true);
   }, [currentPlayer]);
 
+  // NOTE: Access codes are visible in the game document. This is acceptable for a
+  // private game among friends. For a public-facing app, move code validation to
+  // a Cloud Function to prevent code exposure.
   const handleLogin = async (name: string, code: string) => {
     if (!game) return;
     setLoginError("");
@@ -80,8 +84,13 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    await signOut(auth);
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
     setLoggedIn(false);
+    setLoginError("");
   };
 
   if (authLoading || gameLoading) {
@@ -113,8 +122,10 @@ export default function App() {
     return <LoginPage onLogin={handleLogin} error={loginError} />;
   }
 
+  const handleSplashComplete = useCallback(() => setShowSplash(false), []);
+
   if (showSplash) {
-    return <SplashScreen onComplete={() => setShowSplash(false)} />;
+    return <SplashScreen onComplete={handleSplashComplete} />;
   }
 
   const safePlayer = currentPlayer ?? {

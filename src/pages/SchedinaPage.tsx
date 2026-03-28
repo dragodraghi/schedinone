@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import MatchCard from "../components/MatchCard";
@@ -23,6 +23,13 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
   const [winnerPick, setWinnerPick] = useState(player.winnerPick || "");
   const [localStatus, setLocalStatus] = useState(player.scheduleStatus);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  useEffect(() => {
+    setPredictions(player.predictions);
+    setTopScorerPick(player.topScorerPick || "");
+    setWinnerPick(player.winnerPick || "");
+    setLocalStatus(player.scheduleStatus);
+  }, [player.predictions, player.topScorerPick, player.winnerPick, player.scheduleStatus]);
 
   const status = localStatus;
   const isReadOnly = status === "inviata" || status === "accettata";
@@ -53,21 +60,32 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
 
   const handleSave = async () => {
     setSaving(true);
-    const ref = doc(db, "games", gameId, "players", player.id);
-    await updateDoc(ref, {
-      predictions,
-      topScorerPick,
-      winnerPick,
-      scheduleStatus: "inviata",
-    });
-    setLocalStatus("inviata");
-    setSaving(false);
-    showToastMsg(
-      "Schedina inviata al Comitato!",
-      "var(--accent)",
-      "rgba(0,212,255,0.12)",
-      "rgba(0,212,255,0.4)"
-    );
+    try {
+      const ref = doc(db, "games", gameId, "players", player.id);
+      await updateDoc(ref, {
+        predictions,
+        topScorerPick,
+        winnerPick,
+        scheduleStatus: "inviata",
+      });
+      setLocalStatus("inviata");
+      showToastMsg(
+        "Schedina inviata al Comitato!",
+        "var(--accent)",
+        "rgba(0,212,255,0.12)",
+        "rgba(0,212,255,0.4)"
+      );
+    } catch (err) {
+      console.error("Save error:", err);
+      showToastMsg(
+        "Errore nell'invio. Riprova.",
+        "var(--wrong)",
+        "rgba(255,51,102,0.12)",
+        "rgba(255,51,102,0.4)"
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const filledCount = phaseMatches.filter((m) => predictions[m.id]).length;
@@ -195,6 +213,7 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
             value={topScorerPick}
             onChange={(e) => { if (!isReadOnly) setTopScorerPick(e.target.value); }}
             placeholder="Nome giocatore"
+            maxLength={40}
             disabled={isReadOnly}
             className="w-full mt-1 px-2 py-1.5 bg-white/5 border rounded text-sm text-white placeholder-[#475569] focus:outline-none transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
             style={{ borderColor: topScorerPick ? "rgba(255, 215, 0, 0.3)" : "var(--border)" }}
@@ -207,6 +226,7 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
             value={winnerPick}
             onChange={(e) => { if (!isReadOnly) setWinnerPick(e.target.value); }}
             placeholder="Nome squadra"
+            maxLength={40}
             disabled={isReadOnly}
             className="w-full mt-1 px-2 py-1.5 bg-white/5 border rounded text-sm text-white placeholder-[#475569] focus:outline-none transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
             style={{ borderColor: winnerPick ? "rgba(255, 215, 0, 0.3)" : "var(--border)" }}

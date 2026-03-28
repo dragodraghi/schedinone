@@ -40,19 +40,29 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
   const handlePhaseChange = async (newPhase: Phase) => {
     if (newPhase === game.currentPhase) return;
     setSavingPhase(true);
-    const gameRef = doc(db, "games", game.id);
-    await updateDoc(gameRef, { currentPhase: newPhase });
-    setSavingPhase(false);
+    try {
+      const gameRef = doc(db, "games", game.id);
+      await updateDoc(gameRef, { currentPhase: newPhase });
+    } catch (err) {
+      console.error("Phase change error:", err);
+    } finally {
+      setSavingPhase(false);
+    }
   };
 
   const handleSaveSpecial = async () => {
     setSavingSpecial(true);
-    const gameRef = doc(db, "games", game.id);
-    await updateDoc(gameRef, {
-      topScorer: topScorerInput.trim() || null,
-      winner: winnerInput.trim() || null,
-    });
-    setSavingSpecial(false);
+    try {
+      const gameRef = doc(db, "games", game.id);
+      await updateDoc(gameRef, {
+        topScorer: topScorerInput.trim() || null,
+        winner: winnerInput.trim() || null,
+      });
+    } catch (err) {
+      console.error("Save special error:", err);
+    } finally {
+      setSavingSpecial(false);
+    }
   };
 
   return (

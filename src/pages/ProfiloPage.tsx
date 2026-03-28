@@ -21,11 +21,12 @@ export default function ProfiloPage({ game, player, players, matches, isAdmin, o
   const correctPredictions = finishedMatches.filter((m) => player.predictions[m.id] === m.result).length;
   const accuracy = finishedMatches.length > 0 ? Math.round((correctPredictions / finishedMatches.length) * 100) : 0;
 
-  const groupAccuracy = players.length > 0
-    ? Math.round(players.reduce((sum, p) => {
+  const acceptedPlayers = players.filter((p) => p.scheduleStatus === "accettata");
+  const groupAccuracy = acceptedPlayers.length > 0
+    ? Math.round(acceptedPlayers.reduce((sum, p) => {
         const correct = finishedMatches.filter((m) => p.predictions[m.id] === m.result).length;
         return sum + (finishedMatches.length > 0 ? correct / finishedMatches.length : 0);
-      }, 0) / players.length * 100)
+      }, 0) / acceptedPlayers.length * 100)
     : 0;
 
   const otherPlayer = players.find((p) => p.id === compareWith);
