@@ -7,14 +7,17 @@ interface Props {
   game: Game;
   players: Player[];
   matches: Match[];
+  currentPlayer?: Player;
 }
 
 // Solid background colors for sticky cells (no transparency bleed-through)
 const BG_DEEP = "#040810";
 const BG_CARD = "rgba(15, 23, 42, 1)"; // opaque version of --bg-card
 
-export default function RiepilogoPage({ game, players, matches }: Props) {
+export default function RiepilogoPage({ game, players, matches, currentPlayer }: Props) {
   const [groupFilter, setGroupFilter] = useState<string>("Tutti");
+
+  const isPlayerView = !!currentPlayer;
 
   // Collect unique groups from gironi matches
   const groups = useMemo(() => {
@@ -25,10 +28,18 @@ export default function RiepilogoPage({ game, players, matches }: Props) {
     return Array.from(seen).sort();
   }, [matches]);
 
+  // Only show accepted players when accessed from player view; admin sees all
+  const visiblePlayers = useMemo(() => {
+    if (isPlayerView) {
+      return players.filter((p) => p.scheduleStatus === "accettata");
+    }
+    return players;
+  }, [players, isPlayerView]);
+
   // Sort players by points descending
   const sortedPlayers = useMemo(
-    () => [...players].sort((a, b) => b.points - a.points),
-    [players]
+    () => [...visiblePlayers].sort((a, b) => b.points - a.points),
+    [visiblePlayers]
   );
 
   // Group matches by group (gironi) then others
@@ -90,18 +101,18 @@ export default function RiepilogoPage({ game, players, matches }: Props) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black" style={{ fontFamily: "Outfit, sans-serif" }}>
-            📊 Riepilogo Schedine
+            {isPlayerView ? "📊 Griglione" : "📊 Riepilogo Schedine"}
           </h1>
           <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
             {sortedPlayers.length} giocatori · {matches.length} partite
           </p>
         </div>
         <Link
-          to="/admin"
+          to={isPlayerView ? "/" : "/admin"}
           className="text-xs transition-colors px-3 py-1.5 rounded-lg glass"
           style={{ color: "var(--text-muted)" }}
         >
-          ← Admin
+          {isPlayerView ? "← Home" : "← Admin"}
         </Link>
       </div>
 
@@ -192,41 +203,46 @@ export default function RiepilogoPage({ game, players, matches }: Props) {
                 </span>
               </th>
               {/* One column per player */}
-              {sortedPlayers.map((player) => (
-                <th
-                  key={player.id}
-                  style={{
-                    position: "sticky",
-                    top: 0,
-                    zIndex: 20,
-                    background: BG_CARD,
-                    borderBottom: "1px solid var(--border)",
-                    borderRight: "1px solid var(--border)",
-                    padding: "6px 6px",
-                    textAlign: "center",
-                    minWidth: 52,
-                    maxWidth: 72,
-                  }}
-                >
-                  <div
-                    className="text-[11px] font-bold truncate"
+              {sortedPlayers.map((player) => {
+                const isMe = currentPlayer?.id === player.id;
+                return (
+                  <th
+                    key={player.id}
                     style={{
-                      fontFamily: "Outfit, sans-serif",
-                      color: "var(--text-primary)",
-                      maxWidth: 64,
+                      position: "sticky",
+                      top: 0,
+                      zIndex: 20,
+                      background: isMe ? "rgba(0,212,255,0.08)" : BG_CARD,
+                      borderBottom: isMe ? "2px solid rgba(0,212,255,0.5)" : "1px solid var(--border)",
+                      borderRight: "1px solid var(--border)",
+                      padding: "6px 6px",
+                      textAlign: "center",
+                      minWidth: 52,
+                      maxWidth: 72,
+                      boxShadow: isMe ? "0 0 12px rgba(0,212,255,0.15)" : "none",
                     }}
-                    title={player.name}
                   >
-                    {player.name.split(" ")[0]}
-                  </div>
-                  <div
-                    className="text-[10px] font-black"
-                    style={{ color: "var(--gold)" }}
-                  >
-                    {player.points}pt
-                  </div>
-                </th>
-              ))}
+                    <div
+                      className="text-[11px] font-bold truncate"
+                      style={{
+                        fontFamily: "Outfit, sans-serif",
+                        color: isMe ? "var(--accent)" : "var(--text-primary)",
+                        maxWidth: 64,
+                      }}
+                      title={player.name}
+                    >
+                      {player.name.split(" ")[0]}
+                      {isMe && <span className="ml-0.5 text-[8px]">★</span>}
+                    </div>
+                    <div
+                      className="text-[10px] font-black"
+                      style={{ color: "var(--gold)" }}
+                    >
+                      {player.points}pt
+                    </div>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
 
@@ -332,6 +348,7 @@ export default function RiepilogoPage({ game, players, matches }: Props) {
                     {sortedPlayers.map((player) => {
                       const { text, color } = cellText(player, match);
                       const style = cellStyle(player, match);
+                      const isMe = currentPlayer?.id === player.id;
                       return (
                         <td
                           key={player.id}
@@ -339,9 +356,11 @@ export default function RiepilogoPage({ game, players, matches }: Props) {
                             ...style,
                             borderRight: "1px solid var(--border)",
                             borderBottom: "1px solid var(--border)",
+                            borderLeft: isMe ? "1px solid rgba(0,212,255,0.3)" : undefined,
                             padding: "4px 6px",
                             textAlign: "center",
                             minWidth: 52,
+                            background: isMe && !style.background ? "rgba(0,212,255,0.04)" : style.background,
                           }}
                         >
                           <span

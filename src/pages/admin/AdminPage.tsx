@@ -12,14 +12,18 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
   const paidCount = players.filter((p) => p.paid).length;
   const prize = game.entryFee * paidCount;
 
+  const pendingCount = players.filter((p) => p.scheduleStatus === "inviata").length;
+
   const kpis = [
     { label: "Iscritti", value: players.length, color: 'var(--accent)' },
     { label: "Montepremi", value: `€${prize}`, color: 'var(--gold)' },
     { label: "Partite", value: matches.length, color: 'var(--correct)' },
+    { label: "In attesa", value: pendingCount, color: 'var(--gold)' },
   ];
 
   const actions = [
     { to: "/admin/riepilogo", label: "Riepilogo Schedine", icon: "📊" },
+    { to: "/admin/schedine", label: "Schedine Ricevute", icon: "📬" },
     { to: "/admin/risultati", label: "Gestisci Risultati", icon: "🔄" },
     { to: "/admin/giocatori", label: "Gestisci Giocatori", icon: "👥" },
   ];
@@ -33,7 +37,7 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         {kpis.map((kpi) => (
           <div key={kpi.label} className="glass rounded-xl p-3 text-center">
             <p className="text-2xl font-black" style={{ fontFamily: 'Outfit, sans-serif', color: kpi.color }}>{kpi.value}</p>

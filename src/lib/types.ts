@@ -1,5 +1,7 @@
 export type Sign = "1" | "X" | "2";
 
+export type ScheduleStatus = "bozza" | "inviata" | "accettata" | "rifiutata";
+
 export type Phase = "gironi" | "ottavi" | "quarti" | "semifinali" | "finale";
 
 export interface Game {
@@ -36,4 +38,5 @@ export interface Player {
   winnerPick: string;
   points: number;
   paid: boolean;
+  scheduleStatus: ScheduleStatus;
 }

@@ -13,6 +13,7 @@ export function usePlayers(gameId: string) {
     const unsubscribe = onSnapshot(q, (snap) => {
       const data = snap.docs.map((d) => ({
         id: d.id,
+        scheduleStatus: "bozza",
         ...d.data(),
         joinedAt: d.data().joinedAt?.toDate(),
       })) as Player[];

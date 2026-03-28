@@ -19,6 +19,7 @@ import AdminPage from "./pages/admin/AdminPage";
 import RisultatiPage from "./pages/admin/RisultatiPage";
 import GiocatoriPage from "./pages/admin/GiocatoriPage";
 import RiepilogoPage from "./pages/admin/RiepilogoPage";
+import SchedineRicevutePage from "./pages/admin/SchedineRicevutePage";
 
 const GAME_ID = import.meta.env.VITE_GAME_ID || "schedinone-2026";
 
@@ -56,6 +57,7 @@ export default function App() {
         winnerPick: "",
         points: 0,
         paid: false,
+        scheduleStatus: "bozza",
       });
     }
 
@@ -109,12 +111,14 @@ export default function App() {
           <Route path="/schedina" element={<SchedinaPage game={game} player={currentPlayer} matches={matches} gameId={GAME_ID} />} />
           <Route path="/classifica" element={<ClassificaPage game={game} player={currentPlayer} players={players} />} />
           <Route path="/profilo" element={<ProfiloPage game={game} player={currentPlayer} players={players} matches={matches} isAdmin={isAdmin} onLogout={handleLogout} />} />
+          <Route path="/griglione" element={<RiepilogoPage game={game} players={players} matches={matches} currentPlayer={currentPlayer} />} />
           {isAdmin && (
             <>
               <Route path="/admin" element={<AdminPage game={game} players={players} matches={matches} onLogout={handleLogout} />} />
               <Route path="/admin/risultati" element={<RisultatiPage matches={matches} gameId={GAME_ID} />} />
               <Route path="/admin/giocatori" element={<GiocatoriPage players={players} gameId={GAME_ID} />} />
               <Route path="/admin/riepilogo" element={<RiepilogoPage game={game} players={players} matches={matches} />} />
+              <Route path="/admin/schedine" element={<SchedineRicevutePage players={players} matches={matches} gameId={GAME_ID} game={game} />} />
             </>
           )}
           <Route path="*" element={<Navigate to="/" replace />} />
