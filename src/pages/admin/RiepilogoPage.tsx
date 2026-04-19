@@ -1,7 +1,10 @@
-import React, { useState, useMemo } from "react";
+import React, { useRef, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import type { Game, Player, Match } from "../../lib/types";
 import Flag from "../../components/Flag";
+import Toast, { type ToastData } from "../../components/Toast";
+import { exportElementAsPdf, timestampSlug } from "../../lib/pdfExport";
+import { vibrate } from "../../lib/haptic";
 
 interface Props {
   game: Game;
@@ -16,8 +19,40 @@ const BG_CARD = "rgba(15, 23, 42, 1)"; // opaque version of --bg-card
 
 export default function RiepilogoPage({ game, players, matches, currentPlayer }: Props) {
   const [groupFilter, setGroupFilter] = useState<string>("Tutti");
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [toast, setToast] = useState<ToastData | null>(null);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
 
   const isPlayerView = !!currentPlayer;
+
+  const handleExportPdf = async () => {
+    if (!tableContainerRef.current) return;
+    setExportingPdf(true);
+    vibrate("tap");
+    try {
+      // Temporarily unconstrain the max-height so the full grid is rendered
+      const container = tableContainerRef.current;
+      const prevMaxHeight = container.style.maxHeight;
+      const prevOverflow = container.style.overflow;
+      container.style.maxHeight = "none";
+      container.style.overflow = "visible";
+
+      const orientation = players.length > 6 ? "landscape" : "portrait";
+      await exportElementAsPdf(container, {
+        filename: `griglione-schedinone-${timestampSlug()}.pdf`,
+        orientation,
+      });
+
+      container.style.maxHeight = prevMaxHeight;
+      container.style.overflow = prevOverflow;
+      setToast({ message: "Griglione scaricato!", type: "success" });
+    } catch (err) {
+      console.error("PDF export error:", err);
+      setToast({ message: "Errore nel download del PDF", type: "error" });
+    } finally {
+      setExportingPdf(false);
+    }
+  };
 
   // Collect unique groups from gironi matches
   const groups = useMemo(() => {
@@ -97,8 +132,9 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
 
   return (
     <div className="space-y-4 animate-in">
+      <Toast toast={toast} onDone={() => setToast(null)} />
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-black" style={{ fontFamily: "Outfit, sans-serif" }}>
             {isPlayerView ? "📊 Griglione" : "📊 Riepilogo Schedine"}
@@ -107,13 +143,29 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
             {sortedPlayers.length} giocatori · {matches.length} partite
           </p>
         </div>
-        <Link
-          to={isPlayerView ? "/" : "/admin"}
-          className="text-xs transition-colors px-3 py-1.5 rounded-lg glass"
-          style={{ color: "var(--text-muted)" }}
-        >
-          {isPlayerView ? "← Home" : "← Admin"}
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleExportPdf}
+            disabled={exportingPdf || sortedPlayers.length === 0}
+            className="text-xs transition-all px-3 py-1.5 rounded-lg glass"
+            style={{
+              fontFamily: "Outfit, sans-serif",
+              color: exportingPdf ? "var(--text-muted)" : "var(--gold)",
+              borderColor: "rgba(255,215,0,0.4)",
+              opacity: exportingPdf ? 0.6 : 1,
+            }}
+            title="Scarica il griglione in PDF"
+          >
+            {exportingPdf ? "..." : "📄 PDF"}
+          </button>
+          <Link
+            to={isPlayerView ? "/" : "/admin"}
+            className="text-xs transition-colors px-3 py-1.5 rounded-lg glass"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {isPlayerView ? "← Home" : "← Admin"}
+          </Link>
+        </div>
       </div>
 
       {/* Group filter pills */}
@@ -139,8 +191,9 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
         ))}
       </div>
 
-      {/* Scrollable grid */}
+      {/* Scrollable grid — ref is used to rasterize the whole grid for PDF export */}
       <div
+        ref={tableContainerRef}
         className="glass rounded-xl"
         style={{ overflowX: "auto", overflowY: "auto", maxHeight: "70vh" }}
       >

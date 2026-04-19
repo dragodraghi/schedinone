@@ -2,10 +2,12 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { vibrate } from "../lib/haptic";
+import { exportElementAsPdf, timestampSlug } from "../lib/pdfExport";
 import MatchCard from "../components/MatchCard";
 import Toast, { type ToastData } from "../components/Toast";
 import EmptyState from "../components/EmptyState";
 import Confetti from "../components/Confetti";
+import SchedinaPrintable from "../components/SchedinaPrintable";
 import type { Game, Match, Player, Sign } from "../lib/types";
 
 interface Props {
@@ -26,9 +28,30 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
   const [celebrate, setCelebrate] = useState(false);
   const [draftSaved, setDraftSaved] = useState(false);
   const [autoSaving, setAutoSaving] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const prevStatusRef = useRef(player.scheduleStatus);
   const hydratedRef = useRef(false);
+  const printableRef = useRef<HTMLDivElement>(null);
   const clearToast = useCallback(() => setToast(null), []);
+
+  const handleExportPdf = async () => {
+    if (!printableRef.current) return;
+    setExportingPdf(true);
+    vibrate("tap");
+    try {
+      const safeName = player.name.replace(/[^a-zA-Z0-9]+/g, "_");
+      await exportElementAsPdf(printableRef.current, {
+        filename: `schedina-${safeName}-${timestampSlug()}.pdf`,
+        orientation: "portrait",
+      });
+      setToast({ message: "PDF scaricato!", type: "success" });
+    } catch (err) {
+      console.error("PDF export error:", err);
+      setToast({ message: "Errore nel download del PDF", type: "error" });
+    } finally {
+      setExportingPdf(false);
+    }
+  };
 
   useEffect(() => {
     setPredictions(player.predictions);
@@ -373,6 +396,46 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
           })}`;
         })()}
       </p>
+
+      {/* Download PDF — available once the schedina has at least one prediction */}
+      {filledCount > 0 && (
+        <button
+          onClick={handleExportPdf}
+          disabled={exportingPdf}
+          className="glass w-full py-3 rounded-xl font-bold text-sm transition-all"
+          style={{
+            fontFamily: "Outfit, sans-serif",
+            color: exportingPdf ? "var(--text-muted)" : "var(--gold)",
+            borderColor: "rgba(255,215,0,0.4)",
+            opacity: exportingPdf ? 0.6 : 1,
+          }}
+        >
+          {exportingPdf ? "Generazione PDF..." : "📄 Scarica la mia schedina in PDF"}
+        </button>
+      )}
+
+      {/* Hidden printable snapshot, rendered offscreen for html2canvas to rasterize */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          top: 0,
+          left: -10000,
+          pointerEvents: "none",
+          opacity: 0,
+          zIndex: -1,
+        }}
+      >
+        <SchedinaPrintable
+          ref={printableRef}
+          game={game}
+          player={player}
+          matches={matches}
+          predictions={predictions}
+          topScorerPick={topScorerPick}
+          winnerPick={winnerPick}
+        />
+      </div>
     </div>
   );
 }

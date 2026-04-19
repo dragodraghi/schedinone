@@ -316,6 +316,32 @@ html {
   font-variant-numeric: tabular-nums;
 }
 
+/* PDF export overrides — applied to the cloned DOM that html2canvas rasterizes.
+   Switches the dark theme to a light, printable one (saves ink + higher
+   contrast on paper). Also hides elements that shouldn't appear in the PDF. */
+body.pdf-export {
+  background: #ffffff !important;
+  color: #040810 !important;
+}
+body.pdf-export * {
+  color: #040810 !important;
+  box-shadow: none !important;
+  animation: none !important;
+  text-shadow: none !important;
+}
+body.pdf-export .glass {
+  background: #ffffff !important;
+  border-color: #c7d2e1 !important;
+  backdrop-filter: none !important;
+}
+body.pdf-export .shimmer { opacity: 1 !important; }
+/* Keep the signature bits colored for branding even on paper */
+body.pdf-export .pdf-accent { color: #0099cc !important; }
+body.pdf-export .pdf-gold { color: #b8860b !important; }
+body.pdf-export .pdf-correct { color: #008a4a !important; }
+body.pdf-export .pdf-wrong { color: #c11f44 !important; }
+body.pdf-export .pdf-hide { display: none !important; }
+
 /* Chatbot typing indicator */
 @keyframes typingBlink {
   0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
