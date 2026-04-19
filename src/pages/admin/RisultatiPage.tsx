@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { getFlag } from "../../lib/flags";
+import Toast, { type ToastData } from "../../components/Toast";
 import type { Match, Sign } from "../../lib/types";
 
 interface Props {
@@ -15,14 +17,18 @@ export default function RisultatiPage({ matches, gameId }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editScore, setEditScore] = useState("");
   const [editResult, setEditResult] = useState<Sign | null>(null);
+  const [toast, setToast] = useState<ToastData | null>(null);
+  const clearToast = useCallback(() => setToast(null), []);
 
   const handleSave = async (matchId: string) => {
     try {
       const ref = doc(db, "games", gameId, "matches", matchId);
       await updateDoc(ref, { result: editResult, score: editScore, resultSource: "manual" });
       setEditingId(null);
+      setToast({ message: "Risultato salvato!", type: "success" });
     } catch (err) {
       console.error("Save result error:", err);
+      setToast({ message: "Errore nel salvataggio", type: "error" });
     }
   };
 
@@ -34,6 +40,7 @@ export default function RisultatiPage({ matches, gameId }: Props) {
 
   return (
     <div className="space-y-6 animate-in">
+      <Toast toast={toast} onDone={clearToast} />
       {/* Header */}
       <h1 className="text-2xl font-black" style={{ fontFamily: 'Outfit, sans-serif' }}>Gestione Risultati</h1>
 
@@ -53,7 +60,7 @@ export default function RisultatiPage({ matches, gameId }: Props) {
             <div key={match.id} className="glass rounded-xl p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                  {match.homeTeam} vs {match.awayTeam}
+                  {getFlag(match.homeTeam)} {match.homeTeam} vs {match.awayTeam} {getFlag(match.awayTeam)}
                 </span>
                 {match.result && editingId !== match.id && (
                   <div className="flex items-center gap-2">

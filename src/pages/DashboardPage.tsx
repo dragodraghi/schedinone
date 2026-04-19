@@ -48,7 +48,7 @@ export default function DashboardPage({ game, player, players, matches }: Props)
           <Link
             key={card.to}
             to={card.to}
-            className="glass rounded-xl p-4 text-center transition-all duration-200 hover:scale-[1.02] group"
+            className="glass rounded-xl p-4 text-center transition-all duration-200 hover:scale-[1.02] card-tap group"
             style={{ borderColor: 'var(--border)' }}
           >
             <span className="text-2xl block group-hover:scale-110 transition-transform duration-200">{card.icon}</span>

@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import MatchCard from "../components/MatchCard";
+import Toast, { type ToastData } from "../components/Toast";
 import type { Game, Match, Player, Sign } from "../lib/types";
 
 interface Props {
@@ -14,15 +15,12 @@ interface Props {
 export default function SchedinaPage({ game, player, matches, gameId }: Props) {
   const [predictions, setPredictions] = useState<Record<string, Sign>>(player.predictions);
   const [saving, setSaving] = useState(false);
-  const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
-  const [toastColor, setToastColor] = useState("var(--correct)");
-  const [toastBg, setToastBg] = useState("rgba(0,255,136,0.12)");
-  const [toastBorder, setToastBorder] = useState("rgba(0,255,136,0.4)");
+  const [toast, setToast] = useState<ToastData | null>(null);
   const [topScorerPick, setTopScorerPick] = useState(player.topScorerPick || "");
   const [winnerPick, setWinnerPick] = useState(player.winnerPick || "");
   const [localStatus, setLocalStatus] = useState(player.scheduleStatus);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const clearToast = useCallback(() => setToast(null), []);
 
   useEffect(() => {
     setPredictions(player.predictions);
@@ -49,15 +47,6 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
     setPredictions((prev) => ({ ...prev, [matchId]: sign }));
   };
 
-  const showToastMsg = (msg: string, color: string, bg: string, border: string) => {
-    setToastMessage(msg);
-    setToastColor(color);
-    setToastBg(bg);
-    setToastBorder(border);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
-  };
-
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -69,20 +58,10 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
         scheduleStatus: "inviata",
       });
       setLocalStatus("inviata");
-      showToastMsg(
-        "Schedina inviata al Comitato!",
-        "var(--accent)",
-        "rgba(0,212,255,0.12)",
-        "rgba(0,212,255,0.4)"
-      );
+      setToast({ message: "Schedina inviata al Comitato!", type: "info" });
     } catch (err) {
       console.error("Save error:", err);
-      showToastMsg(
-        "Errore nell'invio. Riprova.",
-        "var(--wrong)",
-        "rgba(255,51,102,0.12)",
-        "rgba(255,51,102,0.4)"
-      );
+      setToast({ message: "Errore nell'invio. Riprova.", type: "error" });
     } finally {
       setSaving(false);
     }
@@ -93,23 +72,7 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
 
   return (
     <div className="space-y-4 animate-in">
-      {/* Toast notification */}
-      {showToast && (
-        <div
-          className="fixed top-4 left-1/2 z-50 px-5 py-3 rounded-xl text-sm font-bold animate-in"
-          style={{
-            transform: "translateX(-50%)",
-            fontFamily: "Outfit, sans-serif",
-            background: toastBg,
-            border: `1px solid ${toastBorder}`,
-            color: toastColor,
-            backdropFilter: "blur(12px)",
-            boxShadow: `0 0 20px ${toastBg}`,
-          }}
-        >
-          ✓ {toastMessage}
-        </div>
-      )}
+      <Toast toast={toast} onDone={clearToast} />
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -188,7 +151,7 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
             className="space-y-1.5 animate-in"
             style={{ animationDelay: `${i * 50}ms` }}
           >
-            <h2 className="group-header text-[11px] uppercase tracking-wider" style={{ color: "var(--accent)" }}>
+            <h2 className="group-header sticky-group text-[11px] uppercase tracking-wider" style={{ color: "var(--accent)" }}>
               {game.currentPhase === "gironi" ? `Gruppo ${groupName}` : groupName}
             </h2>
             {groupMatches.map((match) => (

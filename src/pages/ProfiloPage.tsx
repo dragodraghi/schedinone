@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { getFlag } from "../lib/flags";
 import type { Game, Player, Match } from "../lib/types";
 
 interface Props {
@@ -107,7 +108,7 @@ export default function ProfiloPage({ game, player, players, matches, isAdmin, o
             <div className="h-px" style={{ background: 'var(--border)' }} />
             <div className="flex justify-between items-center">
               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Vincitrice</span>
-              <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{player.winnerPick || "—"}</span>
+              <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{player.winnerPick ? `${getFlag(player.winnerPick)} ${player.winnerPick}` : "—"}</span>
             </div>
           </div>
         </div>
@@ -158,6 +159,12 @@ export default function ProfiloPage({ game, player, players, matches, isAdmin, o
               <div className="flex justify-between items-center text-xs">
                 <span style={{ color: 'var(--text-muted)' }}>Capocannoniere</span>
                 <span style={{ color: 'var(--text-primary)' }}>{player.topScorerPick || "—"} vs {otherPlayer.topScorerPick || "—"}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span style={{ color: 'var(--text-muted)' }}>Vincitrice</span>
+                <span style={{ color: 'var(--text-primary)' }}>
+                  {player.winnerPick ? `${getFlag(player.winnerPick)} ${player.winnerPick}` : "—"} vs {otherPlayer.winnerPick ? `${getFlag(otherPlayer.winnerPick)} ${otherPlayer.winnerPick}` : "—"}
+                </span>
               </div>
             </div>
           )}

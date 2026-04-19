@@ -33,6 +33,7 @@ export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
   const [loginError, setLoginError] = useState("");
+  const handleSplashComplete = useCallback(() => setShowSplash(false), []);
 
   const currentPlayer = players.find((p) => p.id === user?.uid) ?? null;
   const isAdmin = game?.admins.includes(user?.uid ?? "") ?? false;
@@ -121,8 +122,6 @@ export default function App() {
   if (!loggedIn) {
     return <LoginPage onLogin={handleLogin} error={loginError} />;
   }
-
-  const handleSplashComplete = useCallback(() => setShowSplash(false), []);
 
   if (showSplash) {
     return <SplashScreen onComplete={handleSplashComplete} />;
