@@ -1,7 +1,16 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link } from "react-router-dom";
-import { doc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDocs,
+  updateDoc,
+  writeBatch,
+  Timestamp,
+} from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { buildWC2026Matches, WC2026_GROUPS } from "../../lib/worldcup2026";
+import Toast, { type ToastData } from "../../components/Toast";
 import type { Game, Player, Match, Phase } from "../../lib/types";
 
 interface Props {
@@ -18,6 +27,10 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
   const [topScorerInput, setTopScorerInput] = useState(game.topScorer ?? "");
   const [winnerInput, setWinnerInput] = useState(game.winner ?? "");
   const [savingSpecial, setSavingSpecial] = useState(false);
+  const [seeding, setSeeding] = useState(false);
+  const [showSeedConfirm, setShowSeedConfirm] = useState(false);
+  const [toast, setToast] = useState<ToastData | null>(null);
+  const clearToast = useCallback(() => setToast(null), []);
 
   const paidCount = players.filter((p) => p.paid).length;
   const prize = game.entryFee * paidCount;
@@ -65,8 +78,61 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
     }
   };
 
+  /**
+   * Destructive: deletes every existing match doc and re-seeds with the real
+   * FIFA World Cup 2026 group stage (72 matches across 12 groups).
+   * Firestore writeBatch limit is 500 ops per batch — we're at 72 delete + 72
+   * create = 144 well under that, but we still split safely.
+   */
+  const handleSeedWorldCup = async () => {
+    setShowSeedConfirm(false);
+    setSeeding(true);
+    try {
+      const matchesRef = collection(db, "games", game.id, "matches");
+
+      // 1. Delete all existing matches
+      const existingSnap = await getDocs(matchesRef);
+      const deleteBatch = writeBatch(db);
+      existingSnap.docs.forEach((d) => deleteBatch.delete(d.ref));
+      await deleteBatch.commit();
+
+      // 2. Insert the 72 real matches
+      const newMatches = buildWC2026Matches();
+      const writeBatchRef = writeBatch(db);
+      for (const m of newMatches) {
+        const ref = doc(db, "games", game.id, "matches", m.id);
+        writeBatchRef.set(ref, {
+          phase: m.phase,
+          group: m.group,
+          homeTeam: m.homeTeam,
+          awayTeam: m.awayTeam,
+          kickoff: Timestamp.fromDate(m.kickoff),
+          result: null,
+          score: null,
+          locked: false,
+        });
+      }
+      await writeBatchRef.commit();
+
+      setToast({
+        message: `${newMatches.length} partite caricate dal draw reale`,
+        type: "success",
+      });
+    } catch (err) {
+      console.error("Seed error:", err);
+      setToast({ message: "Errore nel caricamento. Controlla i permessi.", type: "error" });
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const hasRealSchedule = matches.length >= 72 && matches.some(
+    (m) => WC2026_GROUPS.some((g) => g.teams.includes(m.homeTeam))
+  );
+
   return (
     <div className="space-y-6 animate-in">
+      <Toast toast={toast} onDone={clearToast} />
       {/* Header */}
       <div>
         <h1 className="text-2xl font-black" style={{ fontFamily: 'Outfit, sans-serif' }}>Pannello COMITATO</h1>
@@ -114,6 +180,85 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
           })}
         </div>
       </div>
+
+      {/* World Cup 2026 seed */}
+      <div className="glass rounded-xl p-4 space-y-3" style={{ border: '1px solid rgba(255, 215, 0, 0.25)' }}>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--gold)', fontFamily: 'Outfit, sans-serif', fontWeight: 700 }}>
+              🌍 Calendario Mondiali 2026
+            </p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+              {hasRealSchedule ? "Calendario reale caricato — 48 squadre, 72 partite" : "Calendario placeholder — carica quello reale"}
+            </p>
+          </div>
+          {hasRealSchedule && <span className="text-lg">✅</span>}
+        </div>
+        <button
+          onClick={() => setShowSeedConfirm(true)}
+          disabled={seeding}
+          className="btn-glow w-full py-3 rounded-lg font-bold text-sm transition-all"
+          style={{
+            fontFamily: 'Outfit, sans-serif',
+            background: hasRealSchedule
+              ? 'rgba(255,255,255,0.05)'
+              : 'linear-gradient(135deg, rgba(255,215,0,0.25), rgba(255,215,0,0.1))',
+            color: hasRealSchedule ? 'var(--text-muted)' : 'var(--gold)',
+            border: `1px solid ${hasRealSchedule ? 'var(--border)' : 'rgba(255,215,0,0.5)'}`,
+            opacity: seeding ? 0.6 : 1,
+          }}
+        >
+          {seeding ? "Caricamento in corso..." : hasRealSchedule ? "Ricarica draw reale (sostituisce tutto)" : "Carica draw ufficiale 5 dicembre 2025"}
+        </button>
+      </div>
+
+      {/* Confirm seed modal */}
+      {showSeedConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ background: 'rgba(4, 8, 16, 0.85)', backdropFilter: 'blur(8px)' }}
+        >
+          <div
+            className="glass rounded-2xl p-6 w-full max-w-sm space-y-4 animate-in"
+            style={{ border: '1px solid rgba(255,215,0,0.3)', boxShadow: '0 0 40px rgba(255,215,0,0.1)' }}
+          >
+            <h2 className="text-lg font-black" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--gold)' }}>
+              🌍 Caricare il calendario reale?
+            </h2>
+            <div className="text-sm space-y-2" style={{ color: 'var(--text-muted)' }}>
+              <p>Verranno <strong style={{ color: 'var(--wrong)' }}>cancellate tutte le partite esistenti</strong> e ricreate con il draw ufficiale del 5 dicembre 2025:</p>
+              <ul className="text-xs space-y-0.5 pl-4" style={{ color: 'var(--text-primary)' }}>
+                <li>• 48 squadre qualificate reali</li>
+                <li>• 12 gironi (A–L)</li>
+                <li>• 72 partite della fase a gironi</li>
+                <li>• Date provvisorie 11–27 giugno 2026</li>
+              </ul>
+              <p className="text-xs mt-2">Se i giocatori hanno già inserito pronostici, <strong style={{ color: 'var(--wrong)' }}>andranno persi</strong>.</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowSeedConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl font-bold text-sm glass transition-all"
+                style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--text-muted)' }}
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleSeedWorldCup}
+                className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all"
+                style={{
+                  fontFamily: 'Outfit, sans-serif',
+                  background: 'linear-gradient(135deg, #ffd700, #f59e0b)',
+                  color: '#040810',
+                  boxShadow: '0 0 20px rgba(255,215,0,0.25)',
+                }}
+              >
+                Sì, carica
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Action links */}
       <div className="space-y-3">
