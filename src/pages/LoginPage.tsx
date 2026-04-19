@@ -10,7 +10,6 @@ export default function LoginPage({ onLogin, error }: Props) {
   const [code, setCode] = useState("");
   const [showHelp, setShowHelp] = useState(false);
   const [showCode, setShowCode] = useState(false);
-  const [mode, setMode] = useState<"giocatore" | "comitato">("giocatore");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,39 +108,18 @@ export default function LoginPage({ onLogin, error }: Props) {
           </div>
         </div>
 
-        {/* Mode toggle */}
-        <div className="flex gap-2">
-          <button type="button" onClick={() => { setMode("giocatore"); setShowCode(false); }}
-            className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all glass"
-            style={{
-              fontFamily: 'Outfit, sans-serif',
-              color: mode === "giocatore" ? 'var(--accent)' : 'var(--text-muted)',
-              borderColor: mode === "giocatore" ? 'rgba(0, 212, 255, 0.4)' : 'var(--border)',
-              boxShadow: mode === "giocatore" ? '0 0 12px rgba(0, 212, 255, 0.15)' : 'none',
-            }}>
-            ⚽ Giocatore
-          </button>
-          <button type="button" onClick={() => { setMode("comitato"); setShowCode(false); }}
-            className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all glass"
-            style={{
-              fontFamily: 'Outfit, sans-serif',
-              color: mode === "comitato" ? 'var(--gold)' : 'var(--text-muted)',
-              borderColor: mode === "comitato" ? 'rgba(255, 215, 0, 0.4)' : 'var(--border)',
-              boxShadow: mode === "comitato" ? '0 0 12px rgba(255, 215, 0, 0.15)' : 'none',
-            }}>
-            ⚙️ Comitato
-          </button>
-        </div>
-
+        {/* Unified login — no visible "Comitato" toggle. The admin code still
+            works when typed into the code field; players just never see an
+            "admin" option to try guessing. */}
         <div className="space-y-3">
-          <input type="text" placeholder={mode === "comitato" ? "Il tuo nome" : "Il tuo nome squadra"} value={name} onChange={(e) => setName(e.target.value)}
+          <input type="text" placeholder="Il tuo nome" value={name} onChange={(e) => setName(e.target.value)}
             maxLength={30}
             className="w-full px-4 py-3.5 glass rounded-xl text-white placeholder-[#475569] focus:outline-none transition-all duration-200"
-            style={{ borderColor: name ? (mode === "comitato" ? 'rgba(255, 215, 0, 0.3)' : 'rgba(0, 212, 255, 0.3)') : 'var(--border)' }} />
+            style={{ borderColor: name ? 'rgba(0, 212, 255, 0.3)' : 'var(--border)' }} />
           <input type="text" placeholder="Codice gioco" value={code} onChange={(e) => setCode(e.target.value)}
             maxLength={30}
             className="w-full px-4 py-3.5 glass rounded-xl text-white placeholder-[#475569] focus:outline-none transition-all duration-200"
-            style={{ borderColor: code ? (mode === "comitato" ? 'rgba(255, 215, 0, 0.3)' : 'rgba(0, 212, 255, 0.3)') : 'var(--border)' }} />
+            style={{ borderColor: code ? 'rgba(0, 212, 255, 0.3)' : 'var(--border)' }} />
         </div>
 
         {error && (
@@ -163,15 +141,10 @@ export default function LoginPage({ onLogin, error }: Props) {
         </button>
 
         <div className="flex gap-3">
-          <button type="button" onClick={() => { if (mode === "giocatore") setShowCode(!showCode); }}
+          <button type="button" onClick={() => setShowCode(!showCode)}
             className="btn-glow flex-1 py-3 rounded-xl font-bold tracking-wider transition-all glass text-center"
-            style={{ fontFamily: 'Outfit, sans-serif', color: mode === "comitato" ? 'var(--gold)' : 'var(--accent)', borderColor: mode === "comitato" ? 'rgba(255, 215, 0, 0.3)' : 'rgba(0, 212, 255, 0.3)' }}>
-            {mode === "comitato" ? (
-              <div>
-                <div className="text-sm uppercase">Codice riservato</div>
-                <div className="text-[8px] mt-0.5 normal-case tracking-normal" style={{ color: 'var(--text-muted)' }}>Usa il codice che conosci</div>
-              </div>
-            ) : showCode ? (
+            style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--accent)', borderColor: 'rgba(0, 212, 255, 0.3)' }}>
+            {showCode ? (
               <div>
                 <div className="text-sm font-black" style={{ color: 'var(--accent)' }}>GIOCA2026</div>
                 <div className="text-[8px] mt-0.5 normal-case tracking-normal" style={{ color: 'var(--text-muted)' }}>Copia e incolla sopra</div>
