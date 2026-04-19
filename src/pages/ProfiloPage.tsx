@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import EmptyState from "../components/EmptyState";
 import Flag from "../components/Flag";
+import ComparisonTable from "../components/ComparisonTable";
 import type { Game, Player, Match } from "../lib/types";
 
 interface Props {
@@ -16,7 +17,7 @@ export default function ProfiloPage({ game, player, players, matches, onLogout }
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") === "confronto" ? "confronto" : "stats";
   const [tab, setTab] = useState<"stats" | "confronto">(initialTab);
-  const [compareWith, setCompareWith] = useState<string>("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const finishedMatches = matches.filter((m) => m.result !== null);
   const correctPredictions = finishedMatches.filter((m) => player.predictions[m.id] === m.result).length;
@@ -30,16 +31,21 @@ export default function ProfiloPage({ game, player, players, matches, onLogout }
       }, 0) / acceptedPlayers.length * 100)
     : 0;
 
-  const otherPlayer = players.find((p) => p.id === compareWith);
-
-  const getPointsByPhase = (p: Player) => {
-    const result: Record<string, number> = {};
-    for (const phase of game.phases) {
-      const phaseMatches = finishedMatches.filter((m) => m.phase === phase);
-      result[phase] = phaseMatches.filter((m) => p.predictions[m.id] === m.result).length;
-    }
-    return result;
+  const togglePlayer = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
+
+  // Comparison list = current player always first, then every selected opponent
+  const comparisonPlayers = [
+    player,
+    ...players.filter((p) => p.id !== player.id && selectedIds.has(p.id)),
+  ];
+  const opponents = players.filter((p) => p.id !== player.id);
 
   return (
     <div className="space-y-4 animate-in">
@@ -118,68 +124,86 @@ export default function ProfiloPage({ game, player, players, matches, onLogout }
 
       {tab === "confronto" && (
         <div className="space-y-3">
-          {/* Player selector */}
-          <select
-            value={compareWith}
-            onChange={(e) => setCompareWith(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-lg text-sm focus:outline-none transition-all glass"
-            style={{
-              color: 'var(--text-primary)',
-              borderColor: compareWith ? 'var(--accent)' : 'var(--border)',
-              background: 'var(--bg-card)',
-            }}
-          >
-            <option value="" style={{ background: '#0f172a' }}>Seleziona giocatore...</option>
-            {players.filter((p) => p.id !== player.id).map((p) => (
-              <option key={p.id} value={p.id} style={{ background: '#0f172a' }}>{p.name}</option>
-            ))}
-          </select>
-
-          {!otherPlayer && (
+          {opponents.length === 0 ? (
             <EmptyState
               icon="⚔️"
-              title="Scegli un avversario"
-              description="Seleziona un giocatore dal menu sopra per vedere il confronto testa a testa fase per fase."
-              accent="blue"
+              title="Ancora nessun avversario"
+              description="Quando altri giocatori si iscriveranno potrai confrontarti con loro."
+              accent="muted"
             />
-          )}
-
-          {otherPlayer && (
-            <div className="glass rounded-xl p-4 space-y-3">
-              <p className="text-xs font-bold" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>
-                {player.name} <span style={{ color: 'var(--accent)' }}>vs</span> {otherPlayer.name}
-              </p>
-              {game.phases.map((phase) => {
-                const myPts = getPointsByPhase(player)[phase];
-                const theirPts = getPointsByPhase(otherPlayer)[phase];
-                if (myPts === 0 && theirPts === 0) return null;
-                return (
-                  <div key={phase} className="flex justify-between items-center text-sm">
-                    <span className="capitalize" style={{ color: 'var(--text-muted)' }}>{phase}</span>
-                    <span className="font-bold" style={{ color: myPts > theirPts ? 'var(--correct)' : myPts < theirPts ? 'var(--wrong)' : 'var(--text-muted)' }}>
-                      {myPts}–{theirPts}
-                    </span>
+          ) : (
+            <>
+              <div className="glass rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p
+                    className="text-[10px] uppercase tracking-wider"
+                    style={{
+                      color: "var(--text-muted)",
+                      fontFamily: "Outfit, sans-serif",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Scegli avversari ({selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"})
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSelectedIds(new Set(opponents.map((p) => p.id)))}
+                      className="text-[10px] font-bold"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      Tutti
+                    </button>
+                    <button
+                      onClick={() => setSelectedIds(new Set())}
+                      className="text-[10px] font-bold"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      Nessuno
+                    </button>
                   </div>
-                );
-              })}
-              <div className="h-px" style={{ background: 'var(--border)' }} />
-              <div className="flex justify-between items-center text-sm font-black" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                <span>Totale</span>
-                <span style={{ color: 'var(--accent)' }}>{player.points}–{otherPlayer.points}</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {opponents.map((p) => {
+                    const active = selectedIds.has(p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => togglePlayer(p.id)}
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all"
+                        style={{
+                          fontFamily: "Outfit, sans-serif",
+                          background: active
+                            ? "rgba(0, 212, 255, 0.2)"
+                            : "rgba(255, 255, 255, 0.05)",
+                          color: active ? "var(--accent)" : "var(--text-muted)",
+                          border: `1px solid ${active ? "rgba(0,212,255,0.4)" : "var(--border)"}`,
+                          boxShadow: active ? "0 0 8px rgba(0,212,255,0.25)" : "none",
+                        }}
+                      >
+                        {active && "✓ "}
+                        {p.name}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="flex justify-between items-center text-xs">
-                <span style={{ color: 'var(--text-muted)' }}>Capocannoniere</span>
-                <span style={{ color: 'var(--text-primary)' }}>{player.topScorerPick || "—"} vs {otherPlayer.topScorerPick || "—"}</span>
-              </div>
-              <div className="flex justify-between items-center text-xs gap-2">
-                <span style={{ color: 'var(--text-muted)' }}>Vincitrice</span>
-                <span className="inline-flex items-center gap-1" style={{ color: 'var(--text-primary)' }}>
-                  {player.winnerPick ? (<><Flag team={player.winnerPick} size={10} />{player.winnerPick}</>) : "—"}
-                  <span style={{ color: 'var(--text-muted)', margin: '0 4px' }}>vs</span>
-                  {otherPlayer.winnerPick ? (<><Flag team={otherPlayer.winnerPick} size={10} />{otherPlayer.winnerPick}</>) : "—"}
-                </span>
-              </div>
-            </div>
+
+              {selectedIds.size === 0 ? (
+                <EmptyState
+                  icon="⚔️"
+                  title="Seleziona uno o piu' avversari"
+                  description="Tocca i nomi sopra per costruire il confronto. Puoi confrontarti con quanti vuoi."
+                  accent="blue"
+                />
+              ) : (
+                <ComparisonTable
+                  players={comparisonPlayers}
+                  matches={matches}
+                  game={game}
+                  highlightId={player.id}
+                />
+              )}
+            </>
           )}
         </div>
       )}

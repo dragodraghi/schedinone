@@ -24,6 +24,7 @@ const RisultatiPage = lazy(() => import("./pages/admin/RisultatiPage"));
 const GiocatoriPage = lazy(() => import("./pages/admin/GiocatoriPage"));
 const RiepilogoPage = lazy(() => import("./pages/admin/RiepilogoPage"));
 const SchedineRicevutePage = lazy(() => import("./pages/admin/SchedineRicevutePage"));
+const ConfrontoPage = lazy(() => import("./pages/admin/ConfrontoPage"));
 
 const GAME_ID = import.meta.env.VITE_GAME_ID || "schedinone-2026";
 
@@ -193,6 +194,7 @@ export default function App() {
                 <Route path="/admin/giocatori" element={<GiocatoriPage players={players} gameId={GAME_ID} />} />
                 <Route path="/admin/riepilogo" element={<RiepilogoPage game={game} players={players} matches={matches} />} />
                 <Route path="/admin/schedine" element={<SchedineRicevutePage players={players} matches={matches} gameId={GAME_ID} game={game} />} />
+                <Route path="/admin/confronto" element={<ConfrontoPage game={game} players={players} matches={matches} />} />
               </>
             )}
             <Route path="*" element={<Navigate to="/" replace />} />
