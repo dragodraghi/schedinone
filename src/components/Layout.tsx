@@ -2,6 +2,7 @@ import { useCallback, type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { usePullToRefresh } from "../hooks/usePullToRefresh";
 import { vibrate } from "../lib/haptic";
+import Chatbot from "./Chatbot";
 
 const baseTabs = [
   { to: "/", label: "Home", icon: "⚡" },
@@ -93,6 +94,9 @@ export default function Layout({ children, isAdmin }: { children: ReactNode; isA
           ))}
         </div>
       </nav>
+
+      {/* Floating chatbot — available from any page */}
+      <Chatbot />
     </div>
   );
 }
