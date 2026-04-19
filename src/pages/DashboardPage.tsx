@@ -12,8 +12,12 @@ interface Props {
 }
 
 export default function DashboardPage({ game, player, players, matches }: Props) {
-  const totalMatches = matches.length;
-  const filledPredictions = Object.keys(player.predictions).length;
+  // Only count matches of the CURRENT phase for the "X/Y pronostici" counter.
+  // Otherwise, once we advance from gironi to ottavi, the counter includes
+  // stale predictions for deleted/replaced matches and shows nonsense.
+  const phaseMatches = matches.filter((m) => m.phase === game.currentPhase);
+  const totalMatches = phaseMatches.length;
+  const filledPredictions = phaseMatches.filter((m) => player.predictions[m.id]).length;
   const rank = players.findIndex((p) => p.id === player.id) + 1;
   const paidPlayers = players.filter((p) => p.paid).length;
 

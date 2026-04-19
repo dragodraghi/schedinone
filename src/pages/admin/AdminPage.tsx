@@ -130,6 +130,12 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
     (m) => WC2026_GROUPS.some((g) => g.teams.includes(m.homeTeam))
   );
 
+  // Count players who will lose data if we reseed
+  const atRiskPlayers = players.filter(
+    (p) => p.scheduleStatus === "inviata" || p.scheduleStatus === "accettata" ||
+      (p.predictions && Object.keys(p.predictions).length > 0)
+  ).length;
+
   return (
     <div className="space-y-6 animate-in">
       <Toast toast={toast} onDone={clearToast} />
@@ -233,7 +239,26 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
                 <li>• 72 partite della fase a gironi</li>
                 <li>• Date provvisorie 11–27 giugno 2026</li>
               </ul>
-              <p className="text-xs mt-2">Se i giocatori hanno già inserito pronostici, <strong style={{ color: 'var(--wrong)' }}>andranno persi</strong>.</p>
+              {atRiskPlayers > 0 ? (
+                <div
+                  className="rounded-lg p-3 mt-3"
+                  style={{
+                    background: 'rgba(255, 51, 102, 0.1)',
+                    border: '1px solid rgba(255, 51, 102, 0.4)',
+                  }}
+                >
+                  <p className="text-xs font-black mb-1" style={{ color: 'var(--wrong)', fontFamily: 'Outfit, sans-serif' }}>
+                    ⚠️ ATTENZIONE: {atRiskPlayers} giocator{atRiskPlayers === 1 ? 'e ha' : 'i hanno'} già pronostici salvati
+                  </p>
+                  <p className="text-[11px]" style={{ color: 'var(--text-primary)' }}>
+                    I loro pronostici saranno persi definitivamente. Procedi solo se sei sicuro al 100%.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs mt-2" style={{ color: 'var(--correct)' }}>
+                  ✓ Nessun giocatore ha ancora inserito pronostici — operazione sicura.
+                </p>
+              )}
             </div>
             <div className="flex gap-3">
               <button

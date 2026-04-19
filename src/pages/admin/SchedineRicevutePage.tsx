@@ -53,6 +53,7 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
   const [activeTab, setActiveTab] = useState<FilterTab>("Tutte");
   const [updating, setUpdating] = useState<string | null>(null);
   const [acceptingAll, setAcceptingAll] = useState(false);
+  const [showAcceptAllConfirm, setShowAcceptAllConfirm] = useState(false);
 
   const totalMatches = matches.filter((m) => m.phase === game.currentPhase).length;
 
@@ -130,7 +131,7 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
       {/* Accetta Tutte button */}
       {pendingPlayers.length > 0 && (
         <button
-          onClick={acceptAll}
+          onClick={() => setShowAcceptAllConfirm(true)}
           disabled={acceptingAll}
           className="w-full py-3 rounded-xl font-bold text-sm transition-all"
           style={{
@@ -144,6 +145,50 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
         >
           {acceptingAll ? "Accettando..." : `✓ Accetta Tutte (${pendingPlayers.length})`}
         </button>
+      )}
+
+      {/* Confirm bulk accept modal */}
+      {showAcceptAllConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ background: "rgba(4, 8, 16, 0.85)", backdropFilter: "blur(8px)" }}
+        >
+          <div
+            className="glass rounded-2xl p-6 w-full max-w-sm space-y-4 animate-in"
+            style={{ border: "1px solid rgba(0,255,136,0.3)", boxShadow: "0 0 40px rgba(0,255,136,0.1)" }}
+          >
+            <h2 className="text-lg font-black" style={{ fontFamily: "Outfit, sans-serif", color: "var(--correct)" }}>
+              ✓ Accettare {pendingPlayers.length} schedin{pendingPlayers.length === 1 ? "a" : "e"}?
+            </h2>
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+              Tutte le schedine "in attesa" verranno contrassegnate come <strong style={{ color: "var(--correct)" }}>accettate</strong> e i pronostici saranno visibili nel Griglione. L'operazione si può annullare rifiutandole una per una.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowAcceptAllConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl font-bold text-sm glass transition-all"
+                style={{ fontFamily: "Outfit, sans-serif", color: "var(--text-muted)" }}
+              >
+                Annulla
+              </button>
+              <button
+                onClick={() => {
+                  setShowAcceptAllConfirm(false);
+                  acceptAll();
+                }}
+                className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all"
+                style={{
+                  fontFamily: "Outfit, sans-serif",
+                  background: "linear-gradient(135deg, var(--correct), #00cc6a)",
+                  color: "#040810",
+                  boxShadow: "0 0 20px rgba(0,255,136,0.25)",
+                }}
+              >
+                Sì, accetta tutte
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Filter tabs */}

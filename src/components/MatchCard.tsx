@@ -17,7 +17,7 @@ export default function MatchCard({ match, prediction, onPredict, disabled }: Pr
   const status = getMatchStatus(match);
 
   return (
-    <div className="match-row glass rounded-lg px-3 py-2.5 flex items-center gap-2 relative">
+    <div className="match-row glass rounded-lg px-3 py-2.5 space-y-2 relative">
       {status === "live" && (
         <span
           className="live-badge absolute -top-1.5 -left-1.5 px-1.5 py-0.5 rounded text-[9px] font-black tracking-wider"
@@ -32,28 +32,39 @@ export default function MatchCard({ match, prediction, onPredict, disabled }: Pr
           LIVE
         </span>
       )}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between text-xs">
-          <span className="font-medium truncate flex items-center gap-1.5" style={{ fontFamily: 'Outfit, sans-serif' }}>
-            <Flag team={match.homeTeam} size={14} />
-            {match.homeTeam}
-          </span>
-          <span className="font-mono mx-1.5 text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>
-            {match.score ?? "vs"}
-          </span>
-          <span className="font-medium truncate text-right flex items-center gap-1.5 justify-end" style={{ fontFamily: 'Outfit, sans-serif' }}>
-            {match.awayTeam}
-            <Flag team={match.awayTeam} size={14} />
-          </span>
-        </div>
+
+      {/* Teams row */}
+      <div className="flex items-center gap-1.5 text-xs">
+        <span
+          className="flex items-center gap-1.5 flex-1 min-w-0"
+          style={{ fontFamily: "Outfit, sans-serif", fontWeight: 600 }}
+        >
+          <Flag team={match.homeTeam} size={14} />
+          <span className="truncate">{match.homeTeam}</span>
+        </span>
+        <span
+          className="font-mono text-[10px] px-1 shrink-0"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {match.score ?? "vs"}
+        </span>
+        <span
+          className="flex items-center gap-1.5 flex-1 min-w-0 justify-end"
+          style={{ fontFamily: "Outfit, sans-serif", fontWeight: 600 }}
+        >
+          <span className="truncate text-right">{match.awayTeam}</span>
+          <Flag team={match.awayTeam} size={14} />
+        </span>
       </div>
-      <div className="flex gap-1.5 shrink-0">
+
+      {/* Buttons row */}
+      <div className="flex gap-1.5">
         {signs.map((sign) => {
           const isSelected = prediction === sign;
           const isCorrect = isFinished && prediction === sign && match.result === sign;
           const isWrong = isFinished && prediction === sign && match.result !== sign;
 
-          let classes = "sign-btn min-w-[44px] min-h-[44px] rounded-lg text-xs ";
+          let classes = "sign-btn flex-1 min-h-[40px] rounded-lg text-xs ";
           if (isCorrect) classes += "correct bg-[#00ff88]/20 text-[#00ff88] border border-[#00ff88]/50";
           else if (isWrong) classes += "wrong bg-[#ff3366]/20 text-[#ff3366] border border-[#ff3366]/50";
           else if (isSelected) classes += "selected bg-[#00d4ff]/20 text-[#00d4ff] border border-[#00d4ff]/50";
@@ -63,7 +74,10 @@ export default function MatchCard({ match, prediction, onPredict, disabled }: Pr
             <button
               key={sign}
               disabled={match.locked || disabled}
-              onClick={() => { vibrate("tap"); onPredict(match.id, sign); }}
+              onClick={() => {
+                vibrate("tap");
+                onPredict(match.id, sign);
+              }}
               className={classes}
             >
               {sign}

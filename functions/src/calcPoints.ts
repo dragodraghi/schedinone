@@ -19,7 +19,12 @@ export async function recalculatePoints(gameId: string) {
     const data = playerDoc.data();
     let points = 0;
 
-    if (data.scheduleStatus === "accettata") {
+    // Count points for schedine that were submitted (inviata) OR accepted
+    // (accettata). If the Comitato forgot to accept a schedina before the
+    // first kickoff, we don't want the player to lose ALL their points.
+    // Only "bozza" (never sent) and "rifiutata" (explicitly rejected) score 0.
+    const eligible = data.scheduleStatus === "accettata" || data.scheduleStatus === "inviata";
+    if (eligible) {
       const predictions = (data.predictions ?? {}) as Record<string, string>;
 
       for (const match of matches) {

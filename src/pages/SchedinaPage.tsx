@@ -67,12 +67,19 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
       try {
         setAutoSaving(true);
         const ref = doc(db, "games", gameId, "players", player.id);
-        await updateDoc(ref, {
+        // If the Comitato rifiutata the schedina, keep that status — we only
+        // want to save the edits so the player can re-submit manually.
+        // Writing "bozza" here would overwrite the rejection (and the Firestore
+        // rule forbids some transitions, silently failing).
+        const updates: Record<string, unknown> = {
           predictions,
           topScorerPick,
           winnerPick,
-          scheduleStatus: "bozza",
-        });
+        };
+        if (status === "bozza") {
+          updates.scheduleStatus = "bozza";
+        }
+        await updateDoc(ref, updates);
         setDraftSaved(true);
         // Fade the "Salvato" pill out after ~2s
         setTimeout(() => setDraftSaved(false), 2000);
@@ -84,7 +91,7 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
     }, 800);
 
     return () => clearTimeout(handle);
-  }, [predictions, topScorerPick, winnerPick, isEditable, gameId, player.id]);
+  }, [predictions, topScorerPick, winnerPick, isEditable, status, gameId, player.id]);
 
   const phaseMatches = matches.filter((m) => m.phase === game.currentPhase);
 
@@ -318,26 +325,53 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
         </div>
       )}
 
-      {/* Save button — hidden when read-only */}
+      {/* Save button — hidden when read-only. Disabled until ALL predictions
+          + capocannoniere + vincitrice are filled, to avoid sending a
+          half-complete schedina that locks the player out. */}
       {!isReadOnly && (
-        <button
-          onClick={() => setShowConfirmModal(true)}
-          disabled={saving || filledCount === 0}
-          className={`btn-glow w-full py-3.5 rounded-xl font-bold text-sm tracking-widest uppercase transition-all duration-300 ${allFilled ? "pulse-ring" : ""}`}
-          style={{
-            fontFamily: "Outfit, sans-serif",
-            background: "linear-gradient(135deg, #00d4ff, #0099cc)",
-            color: "#040810",
-            boxShadow: "0 0 30px rgba(0, 212, 255, 0.15)",
-            opacity: saving ? 0.6 : 1,
-          }}
-        >
-          {saving ? "Invio in corso..." : "SALVA E INVIA AL COMITATO"}
-        </button>
+        <>
+          <button
+            onClick={() => setShowConfirmModal(true)}
+            disabled={saving || !allFilled}
+            className={`btn-glow w-full py-3.5 rounded-xl font-bold text-sm tracking-widest uppercase transition-all duration-300 ${allFilled && !saving ? "pulse-ring" : ""}`}
+            style={{
+              fontFamily: "Outfit, sans-serif",
+              background: allFilled
+                ? "linear-gradient(135deg, #00d4ff, #0099cc)"
+                : "rgba(255,255,255,0.05)",
+              color: allFilled ? "#040810" : "var(--text-muted)",
+              boxShadow: allFilled ? "0 0 30px rgba(0, 212, 255, 0.15)" : "none",
+              border: allFilled ? "none" : "1px solid var(--border)",
+              opacity: saving ? 0.6 : 1,
+              cursor: allFilled ? "pointer" : "not-allowed",
+            }}
+          >
+            {saving
+              ? "Invio in corso..."
+              : allFilled
+              ? "SALVA E INVIA AL COMITATO"
+              : `Mancano ${phaseMatches.length - filledCount} pronostic${phaseMatches.length - filledCount === 1 ? "o" : "i"}${!topScorerPick ? " + capocannoniere" : ""}${!winnerPick ? " + vincitrice" : ""}`}
+          </button>
+        </>
       )}
 
       <p className="text-[10px] text-center pb-2" style={{ color: "var(--text-muted)" }}>
-        I pronostici si chiudono 1 giorno prima del calcio d'inizio
+        {(() => {
+          // Find the earliest kickoff in the current phase — that's when the
+          // schedina effectively closes (24h before).
+          const firstMatch = phaseMatches
+            .filter((m) => m.kickoff)
+            .sort((a, b) => a.kickoff.getTime() - b.kickoff.getTime())[0];
+          if (!firstMatch) return "I pronostici si chiudono 1 giorno prima del calcio d'inizio";
+          const closeAt = new Date(firstMatch.kickoff.getTime() - 24 * 60 * 60 * 1000);
+          return `La schedina si chiude ${closeAt.toLocaleString("it-IT", {
+            weekday: "long",
+            day: "2-digit",
+            month: "long",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}`;
+        })()}
       </p>
     </div>
   );

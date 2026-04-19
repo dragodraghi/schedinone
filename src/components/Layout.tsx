@@ -3,18 +3,26 @@ import { NavLink } from "react-router-dom";
 import { usePullToRefresh } from "../hooks/usePullToRefresh";
 import { vibrate } from "../lib/haptic";
 
-const playerTabs = [
+const baseTabs = [
   { to: "/", label: "Home", icon: "⚡" },
   { to: "/schedina", label: "Schedina", icon: "📋" },
   { to: "/classifica", label: "Ranking", icon: "🏆" },
+];
+
+const playerExtraTabs = [
   { to: "/griglione", label: "Griglione", icon: "📊" },
   { to: "/profilo", label: "Profilo", icon: "👤" },
 ];
 
-const adminTab = { to: "/admin", label: "Admin", icon: "⚙️" };
+// Admin sees Admin tab in place of Griglione (which is reachable from the
+// admin panel as "Riepilogo Schedine"). Keeps the tab bar at 5 items total.
+const adminExtraTabs = [
+  { to: "/profilo", label: "Profilo", icon: "👤" },
+  { to: "/admin", label: "Admin", icon: "⚙️" },
+];
 
 export default function Layout({ children, isAdmin }: { children: ReactNode; isAdmin?: boolean }) {
-  const tabs = isAdmin ? [...playerTabs, adminTab] : playerTabs;
+  const tabs = isAdmin ? [...baseTabs, ...adminExtraTabs] : [...baseTabs, ...playerExtraTabs];
 
   // Firestore listeners already push realtime updates; a refresh is essentially a soft reload
   // to re-trigger hydration and show "fresh" state affirmation to the user.

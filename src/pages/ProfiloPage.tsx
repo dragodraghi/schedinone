@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import EmptyState from "../components/EmptyState";
 import Flag from "../components/Flag";
 import type { Game, Player, Match } from "../lib/types";
@@ -9,11 +9,10 @@ interface Props {
   player: Player;
   players: Player[];
   matches: Match[];
-  isAdmin: boolean;
   onLogout: () => void;
 }
 
-export default function ProfiloPage({ game, player, players, matches, isAdmin, onLogout }: Props) {
+export default function ProfiloPage({ game, player, players, matches, onLogout }: Props) {
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") === "confronto" ? "confronto" : "stats";
   const [tab, setTab] = useState<"stats" | "confronto">(initialTab);
@@ -183,24 +182,6 @@ export default function ProfiloPage({ game, player, players, matches, isAdmin, o
             </div>
           )}
         </div>
-      )}
-
-      {/* Admin link */}
-      {isAdmin && (
-        <Link
-          to="/admin"
-          className="btn-glow block w-full py-3 text-center font-black rounded-xl transition-all"
-          style={{
-            fontFamily: 'Outfit, sans-serif',
-            fontSize: '0.875rem',
-            letterSpacing: '0.05em',
-            background: 'linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,215,0,0.05))',
-            border: '1px solid rgba(255,215,0,0.4)',
-            color: 'var(--gold)',
-          }}
-        >
-          ⚙️ Pannello COMITATO
-        </Link>
       )}
 
       {/* Logout */}

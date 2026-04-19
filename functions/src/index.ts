@@ -1,44 +1,61 @@
 import * as admin from "firebase-admin";
-import * as functions from "firebase-functions";
+import { onDocumentUpdated } from "firebase-functions/v2/firestore";
+import { onSchedule } from "firebase-functions/v2/scheduler";
+import { defineSecret } from "firebase-functions/params";
+import { logger } from "firebase-functions";
 import { recalculatePoints } from "./calcPoints";
 import { lockUpcomingMatches } from "./lockMatches";
 import { fetchAndUpdateResults } from "./fetchResults";
 
 admin.initializeApp();
 
-export const onMatchResultUpdate = functions.firestore
-  .document("games/{gameId}/matches/{matchId}")
-  .onUpdate(async (change, context) => {
-    const before = change.before.data();
-    const after = change.after.data();
+// API-Football key stored as a secret — set with:
+//   firebase functions:secrets:set FOOTBALL_API_KEY
+const footballApiKey = defineSecret("FOOTBALL_API_KEY");
+
+export const onMatchResultUpdate = onDocumentUpdated(
+  "games/{gameId}/matches/{matchId}",
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    if (!before || !after) return;
     if (before.result !== after.result) {
-      await recalculatePoints(context.params.gameId);
+      await recalculatePoints(event.params.gameId);
     }
-  });
+  }
+);
 
-export const onGameUpdate = functions.firestore
-  .document("games/{gameId}")
-  .onUpdate(async (change, context) => {
-    const before = change.before.data();
-    const after = change.after.data();
+export const onGameUpdate = onDocumentUpdated(
+  "games/{gameId}",
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    if (!before || !after) return;
     if (before.topScorer !== after.topScorer || before.winner !== after.winner) {
-      await recalculatePoints(context.params.gameId);
+      await recalculatePoints(event.params.gameId);
     }
-  });
+  }
+);
 
-export const scheduledLockMatches = functions.pubsub
-  .schedule("every 15 minutes")
-  .onRun(async () => {
+export const scheduledLockMatches = onSchedule(
+  { schedule: "every 15 minutes", timeZone: "Europe/Rome" },
+  async () => {
     await lockUpcomingMatches();
-  });
+  }
+);
 
-export const scheduledFetchResults = functions.pubsub
-  .schedule("every 15 minutes")
-  .onRun(async () => {
-    const apiKey = process.env.FOOTBALL_API_KEY;
+export const scheduledFetchResults = onSchedule(
+  {
+    schedule: "every 15 minutes",
+    timeZone: "Europe/Rome",
+    secrets: [footballApiKey],
+  },
+  async () => {
+    const apiKey = footballApiKey.value();
     if (!apiKey) {
-      console.error("FOOTBALL_API_KEY not set");
+      logger.error("FOOTBALL_API_KEY not set");
       return;
     }
     await fetchAndUpdateResults(apiKey);
-  });
+  }
+);

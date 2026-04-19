@@ -61,7 +61,21 @@ export default function App() {
       const playerRef = doc(db, "games", GAME_ID, "players", firebaseUser.uid);
       const existing = await getDoc(playerRef);
 
+      // Reject duplicate names across different UIDs to prevent accidental
+      // multiple entries (e.g. same person logging in from incognito or another
+      // device). The user is told to pick a different name or ask the Comitato
+      // to remove the stale duplicate.
       if (!existing.exists()) {
+        const normalized = name.trim().toLowerCase();
+        const duplicate = players.find(
+          (p) => p.name.trim().toLowerCase() === normalized && p.id !== firebaseUser.uid
+        );
+        if (duplicate) {
+          setLoginError(
+            `Il nome "${name}" è già usato. Scegli un nome diverso (es. aggiungi un'iniziale: "${name} M.") oppure chiedi al Comitato di rimuovere il vecchio.`
+          );
+          return;
+        }
         await setDoc(playerRef, {
           name,
           joinedAt: serverTimestamp(),
@@ -153,7 +167,7 @@ export default function App() {
             <Route path="/" element={<DashboardPage game={game} player={safePlayer} players={players} matches={matches} />} />
             <Route path="/schedina" element={<SchedinaPage game={game} player={safePlayer} matches={matches} gameId={GAME_ID} />} />
             <Route path="/classifica" element={<ClassificaPage game={game} player={safePlayer} players={players} />} />
-            <Route path="/profilo" element={<ProfiloPage game={game} player={safePlayer} players={players} matches={matches} isAdmin={isAdmin} onLogout={handleLogout} />} />
+            <Route path="/profilo" element={<ProfiloPage game={game} player={safePlayer} players={players} matches={matches} onLogout={handleLogout} />} />
             <Route path="/griglione" element={<RiepilogoPage game={game} players={players} matches={matches} currentPlayer={currentPlayer ?? undefined} />} />
             {isAdmin && (
               <>
