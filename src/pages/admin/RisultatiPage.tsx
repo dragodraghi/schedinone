@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { getFlag } from "../../lib/flags";
+import Flag from "../../components/Flag";
 import Toast, { type ToastData } from "../../components/Toast";
 import type { Match, Sign } from "../../lib/types";
 
@@ -59,8 +59,10 @@ export default function RisultatiPage({ matches, gameId }: Props) {
           {phaseMatches.map((match) => (
             <div key={match.id} className="glass rounded-xl p-4 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                  {getFlag(match.homeTeam)} {match.homeTeam} vs {match.awayTeam} {getFlag(match.awayTeam)}
+                <span className="text-sm font-medium inline-flex items-center gap-1.5" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                  <Flag team={match.homeTeam} size={12} /> {match.homeTeam}
+                  <span style={{ color: 'var(--text-muted)', margin: '0 2px' }}>vs</span>
+                  {match.awayTeam} <Flag team={match.awayTeam} size={12} />
                 </span>
                 {match.result && editingId !== match.id && (
                   <div className="flex items-center gap-2">

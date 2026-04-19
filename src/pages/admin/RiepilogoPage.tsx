@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import type { Game, Player, Match } from "../../lib/types";
-import { getFlag } from "../../lib/flags";
+import Flag from "../../components/Flag";
 
 interface Props {
   game: Game;
@@ -291,19 +291,19 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                       }}
                     >
                       <div
-                        className="text-[11px] font-medium"
+                        className="text-[11px] font-medium flex items-center gap-1"
                         style={{ color: "var(--text-primary)" }}
                       >
-                        {getFlag(match.homeTeam)}{" "}
+                        <Flag team={match.homeTeam} size={12} />
                         <span style={{ fontFamily: "Outfit, sans-serif", fontWeight: 700, fontSize: 10 }}>
                           {match.homeTeam}
                         </span>
                       </div>
                       <div
-                        className="text-[11px] font-medium"
+                        className="text-[11px] font-medium flex items-center gap-1"
                         style={{ color: "var(--text-primary)" }}
                       >
-                        {getFlag(match.awayTeam)}{" "}
+                        <Flag team={match.awayTeam} size={12} />
                         <span style={{ fontFamily: "Outfit, sans-serif", fontWeight: 700, fontSize: 10 }}>
                           {match.awayTeam}
                         </span>
@@ -501,8 +501,8 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                   🏆 Vincitrice
                 </div>
                 {game.winner && (
-                  <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-                    {getFlag(game.winner)} {game.winner}
+                  <div className="text-[10px] flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
+                    <Flag team={game.winner} size={10} /> {game.winner}
                   </div>
                 )}
               </td>
@@ -549,13 +549,18 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                     }}
                   >
                     <span
-                      className="text-[10px] font-medium"
+                      className="text-[10px] font-medium inline-flex items-center gap-0.5"
                       style={{ color }}
                       title={pick}
                     >
-                      {pick === "—"
-                        ? "—"
-                        : `${getFlag(pick)} ${pick.length > 6 ? pick.slice(0, 5) + "…" : pick}`}
+                      {pick === "—" ? (
+                        "—"
+                      ) : (
+                        <>
+                          <Flag team={pick} size={10} />
+                          {pick.length > 6 ? pick.slice(0, 5) + "…" : pick}
+                        </>
+                      )}
                     </span>
                   </td>
                 );

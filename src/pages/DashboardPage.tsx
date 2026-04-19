@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getFlag } from "../lib/flags";
+import Flag from "../components/Flag";
 import { getNextMatch, formatCountdown, getMatchStatus } from "../lib/matchStatus";
 import type { Game, Player, Match } from "../lib/types";
 
@@ -70,8 +70,10 @@ export default function DashboardPage({ game, player, players, matches }: Props)
             LIVE
           </span>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-black truncate" style={{ fontFamily: 'Outfit, sans-serif' }}>
-              {getFlag(liveMatch.homeTeam)} {liveMatch.homeTeam} <span style={{ color: 'var(--text-muted)' }}>vs</span> {liveMatch.awayTeam} {getFlag(liveMatch.awayTeam)}
+            <div className="text-sm font-black truncate flex items-center gap-1.5" style={{ fontFamily: 'Outfit, sans-serif' }}>
+              <Flag team={liveMatch.homeTeam} size={14} /> {liveMatch.homeTeam}
+              <span style={{ color: 'var(--text-muted)' }}>vs</span>
+              {liveMatch.awayTeam} <Flag team={liveMatch.awayTeam} size={14} />
             </div>
             <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--wrong)', fontFamily: 'Outfit, sans-serif', fontWeight: 700 }}>
               Si sta giocando ora
@@ -87,8 +89,10 @@ export default function DashboardPage({ game, player, players, matches }: Props)
         >
           <span className="text-2xl shrink-0" aria-hidden="true">⏱️</span>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-black truncate" style={{ fontFamily: 'Outfit, sans-serif' }}>
-              {getFlag(nextMatch.homeTeam)} {nextMatch.homeTeam} <span style={{ color: 'var(--text-muted)' }}>vs</span> {nextMatch.awayTeam} {getFlag(nextMatch.awayTeam)}
+            <div className="text-sm font-black truncate flex items-center gap-1.5" style={{ fontFamily: 'Outfit, sans-serif' }}>
+              <Flag team={nextMatch.homeTeam} size={14} /> {nextMatch.homeTeam}
+              <span style={{ color: 'var(--text-muted)' }}>vs</span>
+              {nextMatch.awayTeam} <Flag team={nextMatch.awayTeam} size={14} />
             </div>
             <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--accent)', fontFamily: 'Outfit, sans-serif', fontWeight: 700 }}>
               Prossima partita fra {formatCountdown(remainingMs)}

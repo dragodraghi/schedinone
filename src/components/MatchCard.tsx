@@ -1,4 +1,4 @@
-import { getFlag } from "../lib/flags";
+import Flag from "./Flag";
 import { getMatchStatus } from "../lib/matchStatus";
 import { vibrate } from "../lib/haptic";
 import type { Match, Sign } from "../lib/types";
@@ -35,7 +35,7 @@ export default function MatchCard({ match, prediction, onPredict, disabled }: Pr
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between text-xs">
           <span className="font-medium truncate flex items-center gap-1.5" style={{ fontFamily: 'Outfit, sans-serif' }}>
-            <span className="text-sm shrink-0">{getFlag(match.homeTeam)}</span>
+            <Flag team={match.homeTeam} size={14} />
             {match.homeTeam}
           </span>
           <span className="font-mono mx-1.5 text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>
@@ -43,7 +43,7 @@ export default function MatchCard({ match, prediction, onPredict, disabled }: Pr
           </span>
           <span className="font-medium truncate text-right flex items-center gap-1.5 justify-end" style={{ fontFamily: 'Outfit, sans-serif' }}>
             {match.awayTeam}
-            <span className="text-sm shrink-0">{getFlag(match.awayTeam)}</span>
+            <Flag team={match.awayTeam} size={14} />
           </span>
         </div>
       </div>

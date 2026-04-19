@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { getFlag } from "../lib/flags";
 import EmptyState from "../components/EmptyState";
+import Flag from "../components/Flag";
 import type { Game, Player, Match } from "../lib/types";
 
 interface Props {
@@ -109,7 +109,9 @@ export default function ProfiloPage({ game, player, players, matches, isAdmin, o
             <div className="h-px" style={{ background: 'var(--border)' }} />
             <div className="flex justify-between items-center">
               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Vincitrice</span>
-              <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{player.winnerPick ? `${getFlag(player.winnerPick)} ${player.winnerPick}` : "—"}</span>
+              <span className="text-sm font-bold inline-flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                {player.winnerPick ? (<><Flag team={player.winnerPick} size={12} />{player.winnerPick}</>) : "—"}
+              </span>
             </div>
           </div>
         </div>
@@ -170,10 +172,12 @@ export default function ProfiloPage({ game, player, players, matches, isAdmin, o
                 <span style={{ color: 'var(--text-muted)' }}>Capocannoniere</span>
                 <span style={{ color: 'var(--text-primary)' }}>{player.topScorerPick || "—"} vs {otherPlayer.topScorerPick || "—"}</span>
               </div>
-              <div className="flex justify-between items-center text-xs">
+              <div className="flex justify-between items-center text-xs gap-2">
                 <span style={{ color: 'var(--text-muted)' }}>Vincitrice</span>
-                <span style={{ color: 'var(--text-primary)' }}>
-                  {player.winnerPick ? `${getFlag(player.winnerPick)} ${player.winnerPick}` : "—"} vs {otherPlayer.winnerPick ? `${getFlag(otherPlayer.winnerPick)} ${otherPlayer.winnerPick}` : "—"}
+                <span className="inline-flex items-center gap-1" style={{ color: 'var(--text-primary)' }}>
+                  {player.winnerPick ? (<><Flag team={player.winnerPick} size={10} />{player.winnerPick}</>) : "—"}
+                  <span style={{ color: 'var(--text-muted)', margin: '0 4px' }}>vs</span>
+                  {otherPlayer.winnerPick ? (<><Flag team={otherPlayer.winnerPick} size={10} />{otherPlayer.winnerPick}</>) : "—"}
                 </span>
               </div>
             </div>
