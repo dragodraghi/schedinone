@@ -9,8 +9,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { buildWC2026Matches, WC2026_GROUPS } from "../../lib/worldcup2026";
-import { syncFixturesFromApi, type SyncReport } from "../../lib/syncFixtures";
+import { buildWC2026Matches, WC2026_GROUPS, countRealKickoffs } from "../../lib/worldcup2026";
 import Toast, { type ToastData } from "../../components/Toast";
 import type { Game, Player, Match, Phase } from "../../lib/types";
 
@@ -33,18 +32,6 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
   const [toast, setToast] = useState<ToastData | null>(null);
   const clearToast = useCallback(() => setToast(null), []);
 
-  // Sync state (client-side API-Football sync)
-  const [apiKey, setApiKey] = useState(
-    () => localStorage.getItem("schedinone_api_key") ?? (import.meta.env.VITE_FOOTBALL_API_KEY ?? "")
-  );
-  const [syncing, setSyncing] = useState(false);
-  const [syncReport, setSyncReport] = useState<SyncReport | null>(null);
-  const [showApiKey, setShowApiKey] = useState(false);
-
-  const manualKickoffs = matches.filter((m) => m.kickoffSource === "manual").length;
-  const syntheticKickoffs = matches.filter(
-    (m) => !m.kickoffSource || m.kickoffSource === "synthetic"
-  ).length;
 
   const paidCount = players.filter((p) => p.paid).length;
   const prize = game.entryFee * paidCount;
@@ -92,46 +79,6 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
     }
   };
 
-  /**
-   * Fetch real fixtures from API-Football and update every match whose
-   * kickoff isn't manually set. Also backfills finished results.
-   * Admin-only (enforced by Firestore rules).
-   */
-  const handleSyncFixtures = async () => {
-    const key = apiKey.trim();
-    if (!key) {
-      setToast({
-        message: "Inserisci la chiave API-Football (apisports.com) prima di sincronizzare",
-        type: "error",
-      });
-      return;
-    }
-    localStorage.setItem("schedinone_api_key", key);
-    setSyncing(true);
-    setSyncReport(null);
-    try {
-      const report = await syncFixturesFromApi(key, game.id);
-      setSyncReport(report);
-      if (report.errors.length > 0) {
-        setToast({ message: report.errors[0], type: "error" });
-      } else if (report.updatedKickoffs === 0 && report.updatedResults === 0) {
-        setToast({ message: "Tutto gia' aggiornato. Niente da cambiare.", type: "info" });
-      } else {
-        setToast({
-          message: `${report.updatedKickoffs} date + ${report.updatedResults} risultati aggiornati`,
-          type: "success",
-        });
-      }
-    } catch (err) {
-      console.error("Sync error:", err);
-      setToast({
-        message: err instanceof Error ? err.message : "Errore durante la sincronizzazione",
-        type: "error",
-      });
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   /**
    * Destructive: deletes every existing match doc and re-seeds with the real
@@ -151,11 +98,21 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
       existingSnap.docs.forEach((d) => deleteBatch.delete(d.ref));
       await deleteBatch.commit();
 
-      // 2. Insert the 72 real matches (dates are synthetic placeholders
-      //    until we sync with the real FIFA schedule via API-Football).
+      // 2. Insert the 72 matches with REAL FIFA kickoff dates (hardcoded
+      //    from the published schedule — see worldcup2026.ts REAL_KICKOFFS_UTC).
+      //    Matches with real kickoffs are marked "api" (so manual sync won't
+      //    overwrite); if any kickoff falls back to synthetic we mark it so.
       const newMatches = buildWC2026Matches();
       const writeBatchRef = writeBatch(db);
+      // REAL_KICKOFFS_UTC is an ISO date 2026-06-11 onwards; we know a
+      // kickoff is real if it's before July 2026 and came from the lookup.
+      // Simpler: the build function returns real-or-synthetic, so we do a
+      // shallow check on what synthetic dates look like.
+      const REAL_WINDOW_START = Date.UTC(2026, 5, 11, 0, 0); // 11 Jun
+      const REAL_WINDOW_END = Date.UTC(2026, 5, 30, 0, 0);   // 30 Jun
       for (const m of newMatches) {
+        const ms = m.kickoff.getTime();
+        const isReal = ms >= REAL_WINDOW_START && ms <= REAL_WINDOW_END;
         const ref = doc(db, "games", game.id, "matches", m.id);
         writeBatchRef.set(ref, {
           phase: m.phase,
@@ -163,7 +120,7 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
           homeTeam: m.homeTeam,
           awayTeam: m.awayTeam,
           kickoff: Timestamp.fromDate(m.kickoff),
-          kickoffSource: "synthetic",
+          kickoffSource: isReal ? "api" : "synthetic",
           result: null,
           score: null,
           locked: false,
@@ -275,130 +232,6 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
         </button>
       </div>
 
-      {/* Sync from API-Football */}
-      <div className="glass rounded-xl p-4 space-y-3" style={{ border: '1px solid rgba(0, 212, 255, 0.25)' }}>
-        <div>
-          <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--accent)', fontFamily: 'Outfit, sans-serif', fontWeight: 700 }}>
-            🔄 Sincronizza calendario FIFA
-          </p>
-          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-            Aggiorna date e orari reali delle partite da API-Football. Non tocca quello che hai modificato a mano.
-          </p>
-        </div>
-
-        {/* Counters */}
-        <div className="grid grid-cols-2 gap-2 text-center">
-          <div className="rounded-lg py-2" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
-            <div className="text-lg font-black" style={{ fontFamily: 'Outfit, sans-serif', color: syntheticKickoffs > 0 ? 'var(--gold)' : 'var(--correct)' }}>
-              {syntheticKickoffs}
-            </div>
-            <div className="text-[9px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-              Date placeholder
-            </div>
-          </div>
-          <div className="rounded-lg py-2" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
-            <div className="text-lg font-black" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--text-primary)' }}>
-              {manualKickoffs}
-            </div>
-            <div className="text-[9px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-              Date manuali (protette)
-            </div>
-          </div>
-        </div>
-
-        {/* API key input */}
-        <div>
-          <label className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>
-            Chiave API-Football
-          </label>
-          <div className="flex gap-2 mt-1">
-            <input
-              type={showApiKey ? "text" : "password"}
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Incolla qui la tua chiave"
-              autoComplete="off"
-              className="flex-1 px-3 py-2 bg-white/5 border rounded-lg text-sm text-white placeholder-[#475569] focus:outline-none transition-all"
-              style={{ borderColor: apiKey ? 'rgba(0,212,255,0.3)' : 'var(--border)', fontFamily: 'monospace' }}
-            />
-            <button
-              type="button"
-              onClick={() => setShowApiKey((v) => !v)}
-              className="px-3 rounded-lg glass text-xs"
-              style={{ color: 'var(--text-muted)' }}
-              title={showApiKey ? "Nascondi" : "Mostra"}
-            >
-              {showApiKey ? "🙈" : "👁️"}
-            </button>
-          </div>
-          <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
-            Registrati gratis su <span style={{ color: 'var(--accent)' }}>api-football.com</span> → Dashboard → copia la chiave
-          </p>
-        </div>
-
-        <button
-          onClick={handleSyncFixtures}
-          disabled={syncing || !apiKey.trim()}
-          className="btn-glow w-full py-3 rounded-lg font-bold text-sm transition-all"
-          style={{
-            fontFamily: 'Outfit, sans-serif',
-            background: !apiKey.trim() || syncing
-              ? 'rgba(255,255,255,0.05)'
-              : 'linear-gradient(135deg, rgba(0,212,255,0.25), rgba(0,212,255,0.1))',
-            color: !apiKey.trim() || syncing ? 'var(--text-muted)' : 'var(--accent)',
-            border: `1px solid ${!apiKey.trim() || syncing ? 'var(--border)' : 'rgba(0,212,255,0.5)'}`,
-          }}
-        >
-          {syncing ? "Sincronizzazione in corso..." : "Sincronizza ora"}
-        </button>
-
-        {/* Report */}
-        {syncReport && (
-          <div
-            className="rounded-lg p-3 text-xs space-y-1"
-            style={{
-              background: 'rgba(0, 212, 255, 0.05)',
-              border: '1px solid rgba(0, 212, 255, 0.2)',
-              color: 'var(--text-primary)',
-            }}
-          >
-            <div className="flex justify-between">
-              <span style={{ color: 'var(--text-muted)' }}>Partite nell'API</span>
-              <span className="font-bold">{syncReport.totalFixtures}</span>
-            </div>
-            <div className="flex justify-between">
-              <span style={{ color: 'var(--text-muted)' }}>Date aggiornate</span>
-              <span className="font-bold" style={{ color: syncReport.updatedKickoffs > 0 ? 'var(--correct)' : 'var(--text-primary)' }}>
-                {syncReport.updatedKickoffs}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span style={{ color: 'var(--text-muted)' }}>Risultati aggiornati</span>
-              <span className="font-bold" style={{ color: syncReport.updatedResults > 0 ? 'var(--correct)' : 'var(--text-primary)' }}>
-                {syncReport.updatedResults}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span style={{ color: 'var(--text-muted)' }}>Saltate (manuali)</span>
-              <span className="font-bold">{syncReport.skippedManual}</span>
-            </div>
-            {syncReport.unmatched > 0 && (
-              <div className="flex justify-between">
-                <span style={{ color: 'var(--wrong)' }}>Non riconosciute</span>
-                <span className="font-bold" style={{ color: 'var(--wrong)' }}>{syncReport.unmatched}</span>
-              </div>
-            )}
-            {syncReport.errors.length > 0 && (
-              <div className="mt-2 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
-                {syncReport.errors.map((e, i) => (
-                  <p key={i} className="text-[11px]" style={{ color: 'var(--wrong)' }}>⚠️ {e}</p>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
       {/* Confirm seed modal */}
       {showSeedConfirm && (
         <div
@@ -418,7 +251,7 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
                 <li>• 48 squadre qualificate reali</li>
                 <li>• 12 gironi (A–L)</li>
                 <li>• 72 partite della fase a gironi</li>
-                <li>• Date provvisorie 11–27 giugno 2026</li>
+                <li>• <strong style={{ color: 'var(--correct)' }}>{countRealKickoffs()}/72 date reali FIFA</strong> (11–28 giugno 2026)</li>
               </ul>
               {atRiskPlayers > 0 ? (
                 <div
