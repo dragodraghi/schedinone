@@ -86,10 +86,21 @@ export const FAQ_LIST: FaqEntry[] = [
     answer:
       "È semplice:\n\n" +
       "• +1 punto per ogni risultato azzeccato (1, X o 2)\n" +
-      "• +1 punto extra se indovini il Capocannoniere del torneo\n" +
-      "• +1 punto extra se indovini la Squadra Vincitrice\n\n" +
-      "Chi totalizza più punti a fine torneo vince il montepremi.",
-    followups: ["compilare", "classifica"],
+      "• Niente altri punti in classifica\n\n" +
+      "Chi totalizza più punti a fine torneo vince il MONTEPREMI principale.\n\n" +
+      "Attenzione: Capocannoniere e Squadra Vincitrice NON danno punti — fanno parte di premi in denaro separati (vedi 'premi speciali').",
+    followups: ["premi-speciali", "classifica"],
+  },
+  {
+    id: "premi-speciali",
+    keywords: ["premi", "premio", "capocannoniere", "vincitrice", "vincente", "bonus", "speciali", "soldi"],
+    question: "💰 Premi speciali Capocannoniere / Vincitrice",
+    answer:
+      "Oltre al montepremi principale (che va a chi fa più punti in classifica), ci sono DUE premi in DENARO separati:\n\n" +
+      "⚽ Premio Capocannoniere — diviso fra tutti i giocatori che hanno indovinato il capocannoniere del torneo\n\n" +
+      "🏆 Premio Squadra Vincitrice — diviso fra tutti i giocatori che hanno indovinato chi vince il Mondiale\n\n" +
+      "I premi non danno punti in classifica. Vengono gestiti offline dal Comitato a fine torneo.",
+    followups: ["punti", "quota"],
   },
   {
     id: "modificare",

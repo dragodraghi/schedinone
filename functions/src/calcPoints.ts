@@ -23,17 +23,21 @@ export async function recalculatePoints(gameId: string) {
     // (accettata). If the Comitato forgot to accept a schedina before the
     // first kickoff, we don't want the player to lose ALL their points.
     // Only "bozza" (never sent) and "rifiutata" (explicitly rejected) score 0.
+    //
+    // Rule clarification: Capocannoniere and Squadra Vincitrice do NOT give
+    // game points. They are SEPARATE cash prizes split among the players
+    // who guess them right. The Comitato handles those payouts offline.
+    // The app only tracks predictions (topScorerPick, winnerPick) for
+    // bookkeeping; it doesn't add them to the "points" leaderboard.
     const eligible = data.scheduleStatus === "accettata" || data.scheduleStatus === "inviata";
     if (eligible) {
       const predictions = (data.predictions ?? {}) as Record<string, string>;
-
       for (const match of matches) {
         if (predictions[match.id] === match.result) points++;
       }
-
-      if (gameData?.topScorer && data.topScorerPick === gameData.topScorer) points++;
-      if (gameData?.winner && data.winnerPick === gameData.winner) points++;
     }
+    // gameData intentionally unused here for scoring (see note above)
+    void gameData;
 
     batch.update(playerDoc.ref, { points });
   }

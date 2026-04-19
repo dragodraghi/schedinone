@@ -56,10 +56,17 @@ Questa guida ti spiega tutto quello che ti serve per partecipare.
 | Pronostico | Punti |
 |---|---|
 | Risultato azzeccato (1, X, o 2) | **1 punto** per partita |
-| Capocannoniere indovinato | **1 punto** |
-| Vincitrice del Mondiale indovinata | **1 punto** |
 
-Chi ha più punti vince il montepremi! 💰
+Chi ha più punti vince il **MONTEPREMI** principale 💰
+
+### 💸 Premi speciali (in denaro, a parte)
+
+Capocannoniere e Squadra Vincitrice **NON danno punti in classifica**. Danno due premi in denaro separati:
+
+- ⚽ **Premio Capocannoniere** — diviso tra tutti i giocatori che lo hanno azzeccato
+- 🏆 **Premio Squadra Vincitrice** — diviso tra tutti i giocatori che hanno azzeccato chi vince il Mondiale
+
+I premi sono gestiti offline dal Comitato a fine torneo.
 
 ---
 

@@ -56,7 +56,12 @@ export default function LoginPage({ onLogin, error }: Props) {
 
               <div>
                 <h3 className="font-bold mb-1" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--gold)' }}>4. Punteggio</h3>
-                <p style={{ color: 'var(--text-muted)' }}><strong style={{ color: 'var(--correct)' }}>1 punto</strong> per ogni risultato azzeccato (1, X o 2). 1 punto extra se indovini il Capocannoniere e 1 punto extra se indovini la Vincitrice. Chi ha piu' punti vince il montepremi!</p>
+                <p style={{ color: 'var(--text-muted)' }}><strong style={{ color: 'var(--correct)' }}>1 punto</strong> per ogni risultato azzeccato (1, X o 2). Chi ha piu' punti vince il <strong>MONTEPREMI</strong>.</p>
+              </div>
+
+              <div>
+                <h3 className="font-bold mb-1" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--gold)' }}>4bis. Premi speciali (in denaro, a parte)</h3>
+                <p style={{ color: 'var(--text-muted)' }}>Capocannoniere e Squadra Vincitrice <strong>non danno punti in classifica</strong>. Danno due premi in denaro separati, divisi fra tutti quelli che li azzeccano. Gestiti dal Comitato a fine torneo.</p>
               </div>
 
               <div>
