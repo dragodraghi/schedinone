@@ -337,7 +337,7 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
       )}
 
       <p className="text-[10px] text-center pb-2" style={{ color: "var(--text-muted)" }}>
-        I pronostici si chiudono 1 ora prima del calcio d'inizio
+        I pronostici si chiudono 1 giorno prima del calcio d'inizio
       </p>
     </div>
   );

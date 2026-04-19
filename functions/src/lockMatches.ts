@@ -2,9 +2,13 @@ import * as admin from "firebase-admin";
 
 const db = admin.firestore();
 
+// Lock predictions 1 day (24h) before kickoff. Keep in sync with
+// SchedinaPage UI message "I pronostici si chiudono 1 giorno prima".
+const LOCK_LEAD_MS = 24 * 60 * 60 * 1000;
+
 export async function lockUpcomingMatches() {
   const now = new Date();
-  const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000);
+  const lockThreshold = new Date(now.getTime() + LOCK_LEAD_MS);
 
   const gamesSnap = await db.collection("games").get();
 
@@ -12,7 +16,7 @@ export async function lockUpcomingMatches() {
     const matchesSnap = await db
       .collection(`games/${gameDoc.id}/matches`)
       .where("locked", "==", false)
-      .where("kickoff", "<=", admin.firestore.Timestamp.fromDate(oneHourFromNow))
+      .where("kickoff", "<=", admin.firestore.Timestamp.fromDate(lockThreshold))
       .get();
 
     const batch = db.batch();
