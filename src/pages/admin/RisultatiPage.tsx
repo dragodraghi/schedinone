@@ -4,6 +4,7 @@ import { doc, Timestamp, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import Flag from "../../components/Flag";
 import Toast, { type ToastData } from "../../components/Toast";
+import { recalcPointsClient } from "../../lib/recalcPoints";
 import type { Match, Sign } from "../../lib/types";
 
 interface Props {
@@ -54,7 +55,15 @@ export default function RisultatiPage({ matches, gameId }: Props) {
         resultSource: "manual",
       });
       setEditingId(null);
-      setToast({ message: "Risultato salvato!", type: "success" });
+      // Client-side auto-recalc (replaces what the Cloud Function would do
+      // on a Blaze plan). Admins have write permission on player docs.
+      const report = await recalcPointsClient(gameId);
+      setToast({
+        message: `Risultato salvato · ${report.playersUpdated} giocator${
+          report.playersUpdated === 1 ? "e" : "i"
+        } aggiornat${report.playersUpdated === 1 ? "o" : "i"}`,
+        type: "success",
+      });
     } catch (err) {
       console.error("Save result error:", err);
       setToast({ message: "Errore nel salvataggio", type: "error" });

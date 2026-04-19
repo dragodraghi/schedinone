@@ -10,6 +10,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { buildWC2026Matches, WC2026_GROUPS, countRealKickoffs } from "../../lib/worldcup2026";
+import { recalcPointsClient } from "../../lib/recalcPoints";
 import Toast, { type ToastData } from "../../components/Toast";
 import QrCodeCard from "../../components/QrCodeCard";
 import type { Game, Player, Match, Phase } from "../../lib/types";
@@ -30,8 +31,27 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
   const [savingSpecial, setSavingSpecial] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [showSeedConfirm, setShowSeedConfirm] = useState(false);
+  const [recalcing, setRecalcing] = useState(false);
   const [toast, setToast] = useState<ToastData | null>(null);
   const clearToast = useCallback(() => setToast(null), []);
+
+  const handleRecalcPoints = async () => {
+    setRecalcing(true);
+    try {
+      const report = await recalcPointsClient(game.id);
+      setToast({
+        message: report.playersUpdated === 0
+          ? `Tutto gia' aggiornato (${report.matchesCounted} partite concluse)`
+          : `${report.playersUpdated} giocator${report.playersUpdated === 1 ? "e" : "i"} aggiornat${report.playersUpdated === 1 ? "o" : "i"}`,
+        type: "success",
+      });
+    } catch (err) {
+      console.error("Recalc error:", err);
+      setToast({ message: "Errore nel ricalcolo. Riprova.", type: "error" });
+    } finally {
+      setRecalcing(false);
+    }
+  };
 
 
   const paidCount = players.filter((p) => p.paid).length;
@@ -320,6 +340,23 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
             {action.icon} {action.label}
           </Link>
         ))}
+
+        {/* Manual recalc — normally not needed (it runs automatically when
+            you save a result), but useful as a safety net or after bulk edits */}
+        <button
+          onClick={handleRecalcPoints}
+          disabled={recalcing}
+          className="glass w-full py-3 rounded-xl text-center font-bold transition-all hover:bg-white/5"
+          style={{
+            fontFamily: 'Outfit, sans-serif',
+            fontSize: '0.8125rem',
+            color: recalcing ? 'var(--text-muted)' : 'var(--correct)',
+            borderColor: 'rgba(0,255,136,0.3)',
+            opacity: recalcing ? 0.6 : 1,
+          }}
+        >
+          {recalcing ? "Ricalcolo in corso..." : "🧮 Ricalcola punti classifica"}
+        </button>
       </div>
 
       {/* TopScorer / Winner settings */}

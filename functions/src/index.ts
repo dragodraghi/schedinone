@@ -1,20 +1,17 @@
 import * as admin from "firebase-admin";
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { defineSecret } from "firebase-functions/params";
-import { logger } from "firebase-functions";
 import { recalculatePoints } from "./calcPoints";
 import { lockUpcomingMatches } from "./lockMatches";
-import { fetchAndUpdateResults } from "./fetchResults";
 
 admin.initializeApp();
 
-// API-Football key stored as a secret — set with:
-//   firebase functions:secrets:set FOOTBALL_API_KEY
-const footballApiKey = defineSecret("FOOTBALL_API_KEY");
-
+/**
+ * When the Comitato enters or corrects a match result, recompute every
+ * player's total points.
+ */
 export const onMatchResultUpdate = onDocumentUpdated(
-  "games/{gameId}/matches/{matchId}",
+  { document: "games/{gameId}/matches/{matchId}", region: "europe-west1" },
   async (event) => {
     const before = event.data?.before.data();
     const after = event.data?.after.data();
@@ -25,8 +22,13 @@ export const onMatchResultUpdate = onDocumentUpdated(
   }
 );
 
+/**
+ * When the Comitato sets the tournament top scorer or winner, recompute
+ * points. (Currently these don't grant points — see calcPoints.ts — but
+ * keeping the trigger in case the rules evolve.)
+ */
 export const onGameUpdate = onDocumentUpdated(
-  "games/{gameId}",
+  { document: "games/{gameId}", region: "europe-west1" },
   async (event) => {
     const before = event.data?.before.data();
     const after = event.data?.after.data();
@@ -37,25 +39,19 @@ export const onGameUpdate = onDocumentUpdated(
   }
 );
 
+/**
+ * Lock match predictions 24h before kickoff. Runs every 15 minutes.
+ * Timezone is Europe/Rome so the schedule text is human-readable — the
+ * actual lock logic uses UTC timestamps, so timezone doesn't affect correctness.
+ */
 export const scheduledLockMatches = onSchedule(
-  { schedule: "every 15 minutes", timeZone: "Europe/Rome" },
+  { schedule: "every 15 minutes", timeZone: "Europe/Rome", region: "europe-west1" },
   async () => {
     await lockUpcomingMatches();
   }
 );
 
-export const scheduledFetchResults = onSchedule(
-  {
-    schedule: "every 15 minutes",
-    timeZone: "Europe/Rome",
-    secrets: [footballApiKey],
-  },
-  async () => {
-    const apiKey = footballApiKey.value();
-    if (!apiKey) {
-      logger.error("FOOTBALL_API_KEY not set");
-      return;
-    }
-    await fetchAndUpdateResults(apiKey);
-  }
-);
+// NOTE: the API-Football automatic result fetcher has been removed — the
+// free plan doesn't include WC 2026 season data, so the function had no
+// real effect. The Comitato enters results manually from the admin panel;
+// the onMatchResultUpdate trigger above then recalculates points instantly.
