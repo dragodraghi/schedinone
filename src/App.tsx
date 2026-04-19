@@ -185,7 +185,7 @@ export default function App() {
             <Route path="/" element={<DashboardPage game={game} player={safePlayer} players={players} matches={matches} />} />
             <Route path="/schedina" element={<SchedinaPage game={game} player={safePlayer} matches={matches} gameId={GAME_ID} />} />
             <Route path="/classifica" element={<ClassificaPage game={game} player={safePlayer} players={players} />} />
-            <Route path="/profilo" element={<ProfiloPage game={game} player={safePlayer} players={players} matches={matches} onLogout={handleLogout} />} />
+            <Route path="/profilo" element={<ProfiloPage game={game} player={safePlayer} players={players} matches={matches} isAdmin={isAdmin} onLogout={handleLogout} />} />
             <Route path="/griglione" element={<RiepilogoPage game={game} players={players} matches={matches} currentPlayer={currentPlayer ?? undefined} />} />
             {isAdmin && (
               <>

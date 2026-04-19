@@ -12,10 +12,11 @@ interface Props {
   player: Player;
   players: Player[];
   matches: Match[];
+  isAdmin: boolean;
   onLogout: () => void;
 }
 
-export default function ProfiloPage({ game, player, players, matches, onLogout }: Props) {
+export default function ProfiloPage({ game, player, players, matches, isAdmin, onLogout }: Props) {
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") === "confronto" ? "confronto" : "stats";
   const [tab, setTab] = useState<"stats" | "confronto">(initialTab);
@@ -254,8 +255,8 @@ export default function ProfiloPage({ game, player, players, matches, onLogout }
         </div>
       )}
 
-      {/* Invite friends */}
-      <InviteButton />
+      {/* Invite friends — admin-only (the Comitato is in charge of who joins) */}
+      {isAdmin && <InviteButton />}
 
       {/* Logout */}
       <button
