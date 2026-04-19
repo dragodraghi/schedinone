@@ -1,8 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import { vibrate } from "../lib/haptic";
 import MatchCard from "../components/MatchCard";
 import Toast, { type ToastData } from "../components/Toast";
+import EmptyState from "../components/EmptyState";
+import Confetti from "../components/Confetti";
 import type { Game, Match, Player, Sign } from "../lib/types";
 
 interface Props {
@@ -20,6 +23,11 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
   const [winnerPick, setWinnerPick] = useState(player.winnerPick || "");
   const [localStatus, setLocalStatus] = useState(player.scheduleStatus);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
+  const [autoSaving, setAutoSaving] = useState(false);
+  const prevStatusRef = useRef(player.scheduleStatus);
+  const hydratedRef = useRef(false);
   const clearToast = useCallback(() => setToast(null), []);
 
   useEffect(() => {
@@ -29,9 +37,54 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
     setLocalStatus(player.scheduleStatus);
   }, [player.predictions, player.topScorerPick, player.winnerPick, player.scheduleStatus]);
 
+  // Celebrate when the Comitato accepts the schedina
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    if (prev !== "accettata" && player.scheduleStatus === "accettata") {
+      setCelebrate(true);
+      vibrate("success");
+      const t = setTimeout(() => setCelebrate(false), 4000);
+      return () => clearTimeout(t);
+    }
+    prevStatusRef.current = player.scheduleStatus;
+  }, [player.scheduleStatus]);
+
   const status = localStatus;
   const isReadOnly = status === "inviata" || status === "accettata";
   const isRifiutata = status === "rifiutata";
+  const isEditable = !isReadOnly;
+
+  // Auto-save draft — debounced, only while the schedina is still editable (bozza or rifiutata)
+  useEffect(() => {
+    // Skip the very first render (mount / re-hydration from player prop)
+    if (!hydratedRef.current) {
+      hydratedRef.current = true;
+      return;
+    }
+    if (!isEditable) return;
+
+    const handle = setTimeout(async () => {
+      try {
+        setAutoSaving(true);
+        const ref = doc(db, "games", gameId, "players", player.id);
+        await updateDoc(ref, {
+          predictions,
+          topScorerPick,
+          winnerPick,
+          scheduleStatus: "bozza",
+        });
+        setDraftSaved(true);
+        // Fade the "Salvato" pill out after ~2s
+        setTimeout(() => setDraftSaved(false), 2000);
+      } catch (err) {
+        console.error("Auto-save error:", err);
+      } finally {
+        setAutoSaving(false);
+      }
+    }, 800);
+
+    return () => clearTimeout(handle);
+  }, [predictions, topScorerPick, winnerPick, isEditable, gameId, player.id]);
 
   const phaseMatches = matches.filter((m) => m.phase === game.currentPhase);
 
@@ -49,6 +102,7 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
 
   const handleSave = async () => {
     setSaving(true);
+    vibrate("success");
     try {
       const ref = doc(db, "games", gameId, "players", player.id);
       await updateDoc(ref, {
@@ -61,6 +115,7 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
       setToast({ message: "Schedina inviata al Comitato!", type: "info" });
     } catch (err) {
       console.error("Save error:", err);
+      vibrate("error");
       setToast({ message: "Errore nell'invio. Riprova.", type: "error" });
     } finally {
       setSaving(false);
@@ -72,6 +127,7 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
 
   return (
     <div className="space-y-4 animate-in">
+      <Confetti active={celebrate} />
       <Toast toast={toast} onDone={clearToast} />
 
       {/* Header */}
@@ -82,9 +138,25 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
             Fase: {game.currentPhase}
           </p>
         </div>
-        <div className="counter-pill px-3 py-1.5 rounded-full text-xs">
-          <span style={{ color: filledCount === phaseMatches.length ? "var(--correct)" : "var(--accent)" }}>{filledCount}</span>
-          <span style={{ color: "var(--text-muted)" }}>/{phaseMatches.length}</span>
+        <div className="flex items-center gap-2">
+          {isEditable && (autoSaving || draftSaved) && (
+            <span
+              className="text-[10px] font-bold px-2 py-1 rounded-full transition-opacity duration-300"
+              style={{
+                fontFamily: "Outfit, sans-serif",
+                color: autoSaving ? "var(--text-muted)" : "var(--correct)",
+                background: autoSaving ? "rgba(100,116,139,0.1)" : "rgba(0,255,136,0.1)",
+                border: `1px solid ${autoSaving ? "var(--border)" : "rgba(0,255,136,0.3)"}`,
+              }}
+              aria-live="polite"
+            >
+              {autoSaving ? "Salvataggio..." : "\u2713 Salvato"}
+            </span>
+          )}
+          <div className="counter-pill px-3 py-1.5 rounded-full text-xs">
+            <span style={{ color: filledCount === phaseMatches.length ? "var(--correct)" : "var(--accent)" }}>{filledCount}</span>
+            <span style={{ color: "var(--text-muted)" }}>/{phaseMatches.length}</span>
+          </div>
         </div>
       </div>
 
@@ -144,6 +216,14 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
       )}
 
       {/* Groups grid */}
+      {phaseMatches.length === 0 && (
+        <EmptyState
+          icon="📋"
+          title="Ancora nessuna partita"
+          description={`Il Comitato non ha ancora inserito le partite per la fase "${game.currentPhase}". Torna più tardi!`}
+          accent="muted"
+        />
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {Object.entries(groups).map(([groupName, groupMatches], i) => (
           <div

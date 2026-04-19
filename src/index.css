@@ -267,3 +267,78 @@ html {
 .card-tap:active {
   transform: scale(0.98);
 }
+
+/* Skeleton shimmer */
+@keyframes skeletonShimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+.skeleton {
+  display: block;
+  background: linear-gradient(
+    90deg,
+    rgba(100, 116, 139, 0.06) 0px,
+    rgba(100, 116, 139, 0.16) 100px,
+    rgba(100, 116, 139, 0.06) 200px
+  );
+  background-size: 400px 100%;
+  animation: skeletonShimmer 1.4s ease-in-out infinite;
+}
+
+/* LIVE badge pulse */
+@keyframes livePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 51, 102, 0.6); opacity: 1; }
+  50% { box-shadow: 0 0 0 8px rgba(255, 51, 102, 0); opacity: 0.8; }
+}
+.live-badge {
+  animation: livePulse 1.6s ease-in-out infinite;
+}
+
+/* Confetti */
+@keyframes confettiFall {
+  0% { transform: translate3d(var(--x, 0), -20vh, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate3d(calc(var(--x, 0) + var(--drift, 0px)), 100vh, 0) rotate(var(--rot, 720deg)); opacity: 0; }
+}
+.confetti-piece {
+  position: fixed;
+  top: 0;
+  width: 10px;
+  height: 14px;
+  pointer-events: none;
+  z-index: 100;
+  animation: confettiFall var(--dur, 2.5s) cubic-bezier(0.2, 0.6, 0.4, 1) forwards;
+  animation-delay: var(--delay, 0s);
+}
+
+/* Counter number animation helper */
+.count-up {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pull-to-refresh indicator */
+.ptr-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: height 0.2s ease;
+  color: var(--accent);
+  font-size: 12px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+@keyframes ptrSpin {
+  to { transform: rotate(360deg); }
+}
+.ptr-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(0, 212, 255, 0.2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: ptrSpin 0.8s linear infinite;
+  margin-right: 8px;
+}

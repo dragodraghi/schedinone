@@ -1,4 +1,5 @@
 import PlayerRow from "../components/PlayerRow";
+import EmptyState from "../components/EmptyState";
 import type { Game, Player } from "../lib/types";
 
 interface Props {
@@ -30,9 +31,12 @@ export default function ClassificaPage({ game, player, players }: Props) {
       </div>
 
       {players.length === 0 && (
-        <div className="glass rounded-xl p-8 text-center">
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Nessun giocatore iscritto</p>
-        </div>
+        <EmptyState
+          icon="🏆"
+          title="Nessun giocatore iscritto"
+          description="Appena i primi giocatori entreranno con il codice, li vedrai comparire qui."
+          accent="muted"
+        />
       )}
 
       {/* Montepremi card */}

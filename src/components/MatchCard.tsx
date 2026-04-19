@@ -1,4 +1,6 @@
 import { getFlag } from "../lib/flags";
+import { getMatchStatus } from "../lib/matchStatus";
+import { vibrate } from "../lib/haptic";
 import type { Match, Sign } from "../lib/types";
 
 const signs: Sign[] = ["1", "X", "2"];
@@ -12,9 +14,24 @@ interface Props {
 
 export default function MatchCard({ match, prediction, onPredict, disabled }: Props) {
   const isFinished = match.result !== null;
+  const status = getMatchStatus(match);
 
   return (
-    <div className="match-row glass rounded-lg px-3 py-2.5 flex items-center gap-2">
+    <div className="match-row glass rounded-lg px-3 py-2.5 flex items-center gap-2 relative">
+      {status === "live" && (
+        <span
+          className="live-badge absolute -top-1.5 -left-1.5 px-1.5 py-0.5 rounded text-[9px] font-black tracking-wider"
+          style={{
+            fontFamily: "Outfit, sans-serif",
+            background: "var(--wrong)",
+            color: "white",
+            letterSpacing: "0.1em",
+          }}
+          aria-label="Partita in corso"
+        >
+          LIVE
+        </span>
+      )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between text-xs">
           <span className="font-medium truncate flex items-center gap-1.5" style={{ fontFamily: 'Outfit, sans-serif' }}>
@@ -43,7 +60,12 @@ export default function MatchCard({ match, prediction, onPredict, disabled }: Pr
           else classes += "bg-white/5 text-[#64748b] border border-white/10 hover:bg-white/10 hover:text-white";
 
           return (
-            <button key={sign} disabled={match.locked || disabled} onClick={() => onPredict(match.id, sign)} className={classes}>
+            <button
+              key={sign}
+              disabled={match.locked || disabled}
+              onClick={() => { vibrate("tap"); onPredict(match.id, sign); }}
+              className={classes}
+            >
               {sign}
             </button>
           );

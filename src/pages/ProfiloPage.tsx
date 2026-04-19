@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { getFlag } from "../lib/flags";
+import EmptyState from "../components/EmptyState";
 import type { Game, Player, Match } from "../lib/types";
 
 interface Props {
@@ -132,6 +133,15 @@ export default function ProfiloPage({ game, player, players, matches, isAdmin, o
               <option key={p.id} value={p.id} style={{ background: '#0f172a' }}>{p.name}</option>
             ))}
           </select>
+
+          {!otherPlayer && (
+            <EmptyState
+              icon="⚔️"
+              title="Scegli un avversario"
+              description="Seleziona un giocatore dal menu sopra per vedere il confronto testa a testa fase per fase."
+              accent="blue"
+            />
+          )}
 
           {otherPlayer && (
             <div className="glass rounded-xl p-4 space-y-3">

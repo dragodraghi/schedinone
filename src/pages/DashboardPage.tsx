@@ -1,4 +1,7 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { getFlag } from "../lib/flags";
+import { getNextMatch, formatCountdown, getMatchStatus } from "../lib/matchStatus";
 import type { Game, Player, Match } from "../lib/types";
 
 interface Props {
@@ -16,6 +19,17 @@ export default function DashboardPage({ game, player, players, matches }: Props)
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Buongiorno" : hour < 18 ? "Buon pomeriggio" : "Buonasera";
+
+  // Countdown tick — update every 30s
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const liveMatch = matches.find((m) => getMatchStatus(m, now) === "live");
+  const nextMatch = getNextMatch(matches, now);
+  const remainingMs = nextMatch?.kickoff ? nextMatch.kickoff.getTime() - now.getTime() : 0;
 
   const cards = [
     { to: "/schedina", icon: "📋", label: "Schedina", sub: `${filledPredictions}/${totalMatches}`, accent: "#00d4ff" },
@@ -41,6 +55,47 @@ export default function DashboardPage({ game, player, players, matches }: Props)
           <div className="text-[9px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>punti</div>
         </div>
       </div>
+
+      {/* LIVE or next-match strip */}
+      {liveMatch && (
+        <Link
+          to="/schedina"
+          className="glass rounded-xl p-4 flex items-center gap-3 card-tap animate-in"
+          style={{ border: '1px solid rgba(255, 51, 102, 0.35)', background: 'rgba(255, 51, 102, 0.06)' }}
+        >
+          <span
+            className="live-badge px-2 py-0.5 rounded text-[10px] font-black shrink-0"
+            style={{ fontFamily: 'Outfit, sans-serif', background: 'var(--wrong)', color: 'white', letterSpacing: '0.1em' }}
+          >
+            LIVE
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-black truncate" style={{ fontFamily: 'Outfit, sans-serif' }}>
+              {getFlag(liveMatch.homeTeam)} {liveMatch.homeTeam} <span style={{ color: 'var(--text-muted)' }}>vs</span> {liveMatch.awayTeam} {getFlag(liveMatch.awayTeam)}
+            </div>
+            <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--wrong)', fontFamily: 'Outfit, sans-serif', fontWeight: 700 }}>
+              Si sta giocando ora
+            </div>
+          </div>
+        </Link>
+      )}
+      {!liveMatch && nextMatch && (
+        <Link
+          to="/schedina"
+          className="glass rounded-xl p-4 flex items-center gap-3 card-tap animate-in"
+          style={{ border: '1px solid rgba(0, 212, 255, 0.25)' }}
+        >
+          <span className="text-2xl shrink-0" aria-hidden="true">⏱️</span>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-black truncate" style={{ fontFamily: 'Outfit, sans-serif' }}>
+              {getFlag(nextMatch.homeTeam)} {nextMatch.homeTeam} <span style={{ color: 'var(--text-muted)' }}>vs</span> {nextMatch.awayTeam} {getFlag(nextMatch.awayTeam)}
+            </div>
+            <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--accent)', fontFamily: 'Outfit, sans-serif', fontWeight: 700 }}>
+              Prossima partita fra {formatCountdown(remainingMs)}
+            </div>
+          </div>
+        </Link>
+      )}
 
       {/* Cards grid */}
       <div className="grid grid-cols-2 gap-3">
