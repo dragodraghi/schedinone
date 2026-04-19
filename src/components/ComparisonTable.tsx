@@ -9,23 +9,18 @@ interface Props {
   highlightId?: string;
 }
 
-const BG_CARD = "rgba(15, 23, 42, 1)";
-const BG_DEEP = "#040810";
-
 /**
- * Horizontal-scroll comparison table: rows = phases + total + special picks,
- * columns = the provided players. Sticky first column with metric labels.
- * Used by both the player's Profilo Confronto tab and the admin supervision
- * page.
+ * Vertical stack of player cards — one per selected player, easy to scroll
+ * on mobile (no horizontal overflow). Each card shows points per phase,
+ * total, and special picks. "Leader" value per metric is highlighted with
+ * a crown emoji.
  */
 export default function ComparisonTable({ players, matches, game, highlightId }: Props) {
-  if (players.length === 0) {
-    return null;
-  }
+  if (players.length === 0) return null;
 
-  // Phases for which at least one selected player has non-zero points
   const finishedMatches = matches.filter((m) => m.result !== null);
 
+  // Precompute points per phase for each player
   const pointsByPhase: Record<string, Record<string, number>> = {};
   for (const p of players) {
     pointsByPhase[p.id] = {};
@@ -37,333 +32,182 @@ export default function ComparisonTable({ players, matches, game, highlightId }:
     }
   }
 
-  // Only show phases where at least one player has scored (to avoid rows of zeros)
+  // Only show phases where at least one player scored
   const visiblePhases = game.phases.filter((phase) =>
     players.some((p) => pointsByPhase[p.id][phase] > 0)
   );
 
-  // Find max value per row to highlight the leader
-  const phaseMax = (phase: string) =>
-    Math.max(...players.map((p) => pointsByPhase[p.id][phase]));
+  // Max value per metric → used to mark the leader
+  const phaseMax: Record<string, number> = {};
+  for (const phase of game.phases) {
+    phaseMax[phase] = Math.max(...players.map((p) => pointsByPhase[p.id][phase]));
+  }
   const totalMax = Math.max(...players.map((p) => p.points));
 
-  return (
-    <div
-      className="glass rounded-xl"
-      style={{ overflowX: "auto", overflowY: "auto", maxHeight: "70vh" }}
-    >
-      <table
-        style={{
-          borderCollapse: "separate",
-          borderSpacing: 0,
-          minWidth: "100%",
-          fontFamily: "DM Sans, sans-serif",
-        }}
-      >
-        {/* Header row: player names */}
-        <thead>
-          <tr>
-            <th
-              style={{
-                position: "sticky",
-                top: 0,
-                left: 0,
-                zIndex: 30,
-                background: BG_CARD,
-                borderBottom: "1px solid var(--border)",
-                borderRight: "2px solid rgba(0,212,255,0.25)",
-                padding: "8px 10px",
-                textAlign: "left",
-                minWidth: 130,
-                whiteSpace: "nowrap",
-              }}
-            >
-              <span
-                className="text-[10px] uppercase tracking-widest font-black"
-                style={{ fontFamily: "Outfit, sans-serif", color: "var(--text-muted)" }}
-              >
-                Metrica
-              </span>
-            </th>
-            {players.map((p) => {
-              const isMe = highlightId === p.id;
-              return (
-                <th
-                  key={p.id}
-                  style={{
-                    position: "sticky",
-                    top: 0,
-                    zIndex: 20,
-                    background: isMe ? "rgba(0,212,255,0.08)" : BG_CARD,
-                    borderBottom: isMe
-                      ? "2px solid rgba(0,212,255,0.5)"
-                      : "1px solid var(--border)",
-                    borderRight: "1px solid var(--border)",
-                    padding: "6px 8px",
-                    textAlign: "center",
-                    minWidth: 72,
-                    maxWidth: 100,
-                    boxShadow: isMe ? "0 0 12px rgba(0,212,255,0.15)" : "none",
-                  }}
-                >
-                  <div
-                    className="text-[11px] font-bold truncate"
-                    style={{
-                      fontFamily: "Outfit, sans-serif",
-                      color: isMe ? "var(--accent)" : "var(--text-primary)",
-                      maxWidth: 84,
-                    }}
-                    title={p.name}
-                  >
-                    {p.name}
-                    {isMe && <span className="ml-0.5 text-[8px]">★</span>}
-                  </div>
-                </th>
-              );
-            })}
-          </tr>
-        </thead>
+  // Sort players by points descending so the best is on top
+  const sorted = [...players].sort((a, b) => b.points - a.points);
 
-        <tbody>
-          {/* Phase rows */}
-          {visiblePhases.map((phase) => {
-            const max = phaseMax(phase);
-            return (
-              <tr key={phase} style={{ borderBottom: "1px solid var(--border)" }}>
-                <td
+  return (
+    <div className="space-y-3">
+      {sorted.map((p, idx) => {
+        const isMe = highlightId === p.id;
+        const isTotalLeader = p.points === totalMax && p.points > 0 && players.length > 1;
+        const rank = idx + 1;
+        const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
+
+        const hasCorrectScorer =
+          game.topScorer && p.topScorerPick === game.topScorer;
+        const hasWrongScorer =
+          game.topScorer && p.topScorerPick && p.topScorerPick !== game.topScorer;
+        const hasCorrectWinner =
+          game.winner && p.winnerPick === game.winner;
+        const hasWrongWinner =
+          game.winner && p.winnerPick && p.winnerPick !== game.winner;
+
+        return (
+          <div
+            key={p.id}
+            className="glass rounded-xl p-4 space-y-2.5"
+            style={{
+              borderColor: isMe ? "rgba(0,212,255,0.4)" : "var(--border)",
+              boxShadow: isMe ? "0 0 16px rgba(0,212,255,0.12)" : "none",
+              background: isMe ? "rgba(0,212,255,0.04)" : undefined,
+            }}
+          >
+            {/* Header: name + total */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xl shrink-0" aria-hidden="true">
+                  {medal ?? <span style={{ color: "var(--text-muted)", fontSize: 14 }}>#{rank}</span>}
+                </span>
+                <h3
+                  className="text-base font-black truncate"
                   style={{
-                    position: "sticky",
-                    left: 0,
-                    zIndex: 10,
-                    background: BG_DEEP,
-                    borderRight: "2px solid rgba(0,212,255,0.25)",
-                    borderBottom: "1px solid var(--border)",
-                    padding: "6px 10px",
-                    whiteSpace: "nowrap",
+                    fontFamily: "Outfit, sans-serif",
+                    color: isMe ? "var(--accent)" : "var(--text-primary)",
                   }}
                 >
-                  <span
-                    className="text-[11px] font-bold capitalize"
-                    style={{ fontFamily: "Outfit, sans-serif", color: "var(--text-muted)" }}
-                  >
-                    {phase}
-                  </span>
-                </td>
-                {players.map((p) => {
+                  {p.name}
+                  {isMe && <span className="ml-1 text-[10px]">★ TU</span>}
+                </h3>
+              </div>
+              <div className="flex items-baseline gap-1 shrink-0">
+                {isTotalLeader && <span className="text-sm">👑</span>}
+                <span
+                  className="text-2xl font-black"
+                  style={{
+                    fontFamily: "Outfit, sans-serif",
+                    color: isTotalLeader ? "var(--gold)" : "var(--text-primary)",
+                  }}
+                >
+                  {p.points}
+                </span>
+                <span
+                  className="text-[10px] uppercase tracking-wider"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  pt
+                </span>
+              </div>
+            </div>
+
+            {/* Phase breakdown — only shown if some phase has data */}
+            {visiblePhases.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {visiblePhases.map((phase) => {
                   const pts = pointsByPhase[p.id][phase];
-                  const isLeader = pts === max && pts > 0 && players.length > 1;
-                  const isMe = highlightId === p.id;
+                  const isLeader =
+                    pts === phaseMax[phase] && pts > 0 && players.length > 1;
                   return (
-                    <td
-                      key={p.id}
+                    <div
+                      key={phase}
+                      className="rounded-lg px-2.5 py-1 flex items-baseline gap-1.5"
                       style={{
-                        borderRight: "1px solid var(--border)",
-                        borderBottom: "1px solid var(--border)",
-                        padding: "6px 8px",
-                        textAlign: "center",
-                        background: isMe ? "rgba(0,212,255,0.04)" : undefined,
+                        background: isLeader
+                          ? "rgba(0,255,136,0.1)"
+                          : "rgba(255,255,255,0.04)",
+                        border: `1px solid ${
+                          isLeader ? "rgba(0,255,136,0.3)" : "var(--border)"
+                        }`,
                       }}
                     >
+                      <span
+                        className="text-[10px] capitalize"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        {phase}
+                      </span>
                       <span
                         className="text-xs font-black"
                         style={{
                           fontFamily: "Outfit, sans-serif",
-                          color: isLeader ? "var(--correct)" : "var(--text-primary)",
+                          color: isLeader
+                            ? "var(--correct)"
+                            : "var(--text-primary)",
                         }}
                       >
                         {pts}
+                        {isLeader && " 👑"}
                       </span>
-                    </td>
+                    </div>
                   );
                 })}
-              </tr>
-            );
-          })}
+              </div>
+            )}
 
-          {/* Totale row — always shown */}
-          <tr
-            style={{
-              borderBottom: "2px solid rgba(255,215,0,0.25)",
-              borderTop: "2px solid rgba(255,215,0,0.25)",
-              background: "rgba(255, 215, 0, 0.04)",
-            }}
-          >
-            <td
-              style={{
-                position: "sticky",
-                left: 0,
-                zIndex: 10,
-                background: BG_DEEP,
-                borderRight: "2px solid rgba(0,212,255,0.25)",
-                padding: "8px 10px",
-                whiteSpace: "nowrap",
-              }}
-            >
-              <span
-                className="text-xs font-black uppercase tracking-wider"
-                style={{ fontFamily: "Outfit, sans-serif", color: "var(--gold)" }}
-              >
-                Totale
-              </span>
-            </td>
-            {players.map((p) => {
-              const isLeader = p.points === totalMax && p.points > 0 && players.length > 1;
-              const isMe = highlightId === p.id;
-              return (
-                <td
-                  key={p.id}
+            {/* Special picks */}
+            <div className="flex flex-col gap-1.5 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-center justify-between text-xs">
+                <span style={{ color: "var(--text-muted)" }}>⚽ Capocannoniere</span>
+                <span
+                  className="font-bold truncate ml-2"
                   style={{
-                    borderRight: "1px solid var(--border)",
-                    padding: "8px 8px",
-                    textAlign: "center",
-                    background: isMe ? "rgba(0,212,255,0.04)" : undefined,
+                    color: hasCorrectScorer
+                      ? "var(--correct)"
+                      : hasWrongScorer
+                      ? "var(--wrong)"
+                      : p.topScorerPick
+                      ? "var(--text-primary)"
+                      : "var(--text-muted)",
+                    maxWidth: "60%",
                   }}
+                  title={p.topScorerPick}
                 >
-                  <span
-                    className="text-sm font-black"
-                    style={{
-                      fontFamily: "Outfit, sans-serif",
-                      color: isLeader ? "var(--gold)" : "var(--text-primary)",
-                    }}
-                  >
-                    {p.points}
-                    {isLeader && <span className="ml-1 text-[10px]">👑</span>}
-                  </span>
-                </td>
-              );
-            })}
-          </tr>
-
-          {/* Capocannoniere row */}
-          <tr style={{ borderBottom: "1px solid var(--border)" }}>
-            <td
-              style={{
-                position: "sticky",
-                left: 0,
-                zIndex: 10,
-                background: BG_DEEP,
-                borderRight: "2px solid rgba(0,212,255,0.25)",
-                borderBottom: "1px solid var(--border)",
-                padding: "6px 10px",
-                whiteSpace: "nowrap",
-              }}
-            >
-              <span
-                className="text-[11px] font-bold"
-                style={{ fontFamily: "Outfit, sans-serif", color: "var(--gold)" }}
-              >
-                ⚽ Capocannoniere
-              </span>
-            </td>
-            {players.map((p) => {
-              const isCorrect =
-                game.topScorer && p.topScorerPick && p.topScorerPick === game.topScorer;
-              const isWrong =
-                game.topScorer && p.topScorerPick && p.topScorerPick !== game.topScorer;
-              return (
-                <td
-                  key={p.id}
+                  {p.topScorerPick || "—"}
+                  {hasCorrectScorer && " ✓"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs gap-2">
+                <span style={{ color: "var(--text-muted)" }}>🏆 Vincitrice</span>
+                <span
+                  className="font-bold inline-flex items-center gap-1.5 truncate"
                   style={{
-                    borderRight: "1px solid var(--border)",
-                    borderBottom: "1px solid var(--border)",
-                    padding: "4px 6px",
-                    textAlign: "center",
-                    background: isCorrect
-                      ? "rgba(0,255,136,0.15)"
-                      : isWrong
-                      ? "rgba(255,51,102,0.15)"
-                      : undefined,
+                    color: hasCorrectWinner
+                      ? "var(--correct)"
+                      : hasWrongWinner
+                      ? "var(--wrong)"
+                      : p.winnerPick
+                      ? "var(--text-primary)"
+                      : "var(--text-muted)",
+                    maxWidth: "60%",
                   }}
-                >
-                  <span
-                    className="text-[11px]"
-                    style={{
-                      color: isCorrect
-                        ? "var(--correct)"
-                        : isWrong
-                        ? "var(--wrong)"
-                        : p.topScorerPick
-                        ? "var(--text-primary)"
-                        : "var(--text-muted)",
-                    }}
-                    title={p.topScorerPick}
-                  >
-                    {p.topScorerPick || "—"}
-                  </span>
-                </td>
-              );
-            })}
-          </tr>
-
-          {/* Vincitrice row */}
-          <tr style={{ borderBottom: "1px solid var(--border)" }}>
-            <td
-              style={{
-                position: "sticky",
-                left: 0,
-                zIndex: 10,
-                background: BG_DEEP,
-                borderRight: "2px solid rgba(0,212,255,0.25)",
-                borderBottom: "1px solid var(--border)",
-                padding: "6px 10px",
-                whiteSpace: "nowrap",
-              }}
-            >
-              <span
-                className="text-[11px] font-bold"
-                style={{ fontFamily: "Outfit, sans-serif", color: "var(--gold)" }}
-              >
-                🏆 Vincitrice
-              </span>
-            </td>
-            {players.map((p) => {
-              const isCorrect =
-                game.winner && p.winnerPick && p.winnerPick === game.winner;
-              const isWrong =
-                game.winner && p.winnerPick && p.winnerPick !== game.winner;
-              return (
-                <td
-                  key={p.id}
-                  style={{
-                    borderRight: "1px solid var(--border)",
-                    borderBottom: "1px solid var(--border)",
-                    padding: "4px 6px",
-                    textAlign: "center",
-                    background: isCorrect
-                      ? "rgba(0,255,136,0.15)"
-                      : isWrong
-                      ? "rgba(255,51,102,0.15)"
-                      : undefined,
-                  }}
+                  title={p.winnerPick}
                 >
                   {p.winnerPick ? (
-                    <span
-                      className="text-[11px] inline-flex items-center gap-1"
-                      style={{
-                        color: isCorrect
-                          ? "var(--correct)"
-                          : isWrong
-                          ? "var(--wrong)"
-                          : "var(--text-primary)",
-                      }}
-                      title={p.winnerPick}
-                    >
-                      <Flag team={p.winnerPick} size={10} />
-                      <span className="truncate" style={{ maxWidth: 60 }}>
-                        {p.winnerPick}
-                      </span>
-                    </span>
+                    <>
+                      <Flag team={p.winnerPick} size={12} />
+                      <span className="truncate">{p.winnerPick}</span>
+                      {hasCorrectWinner && " ✓"}
+                    </>
                   ) : (
-                    <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                      —
-                    </span>
+                    "—"
                   )}
-                </td>
-              );
-            })}
-          </tr>
-        </tbody>
-      </table>
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
