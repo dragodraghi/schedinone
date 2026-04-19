@@ -1,0 +1,154 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;800;900&family=DM+Sans:wght@500&display=swap" rel="stylesheet" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 1200px;
+    height: 630px;
+    overflow: hidden;
+  }
+  body {
+    background: #040810;
+    font-family: 'DM Sans', sans-serif;
+    color: #e8edf5;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.05) 1px, transparent 1px);
+    background-size: 80px 80px;
+  }
+  .glow1 {
+    position: absolute;
+    top: -300px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 900px;
+    height: 900px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0, 212, 255, 0.15), transparent 60%);
+  }
+  .glow2 {
+    position: absolute;
+    bottom: -300px;
+    right: -150px;
+    width: 800px;
+    height: 800px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 215, 0, 0.1), transparent 60%);
+  }
+  .content {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+  }
+  .ball {
+    font-size: 72px;
+    line-height: 1;
+    filter: drop-shadow(0 0 24px rgba(0, 212, 255, 0.4));
+    margin-bottom: -10px;
+  }
+  h1 {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 900;
+    font-size: 124px;
+    letter-spacing: -4px;
+    background: linear-gradient(135deg, #00d4ff 0%, #ffd700 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+    margin-bottom: 12px;
+  }
+  .subtitle {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    font-size: 28px;
+    letter-spacing: 10px;
+    color: #cbd5e1;
+    text-transform: uppercase;
+    margin-bottom: 22px;
+  }
+  .divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin: 0 0 20px;
+  }
+  .divider .line {
+    height: 2px;
+    width: 80px;
+    background: linear-gradient(to right, transparent, #00d4ff, transparent);
+  }
+  .divider .tag {
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: #00d4ff;
+    font-weight: 800;
+  }
+  .hosts {
+    font-size: 20px;
+    color: #94a3b8;
+    margin-bottom: 26px;
+    font-weight: 500;
+  }
+  .cta {
+    display: inline-block;
+    padding: 14px 44px;
+    background: linear-gradient(135deg, #00d4ff, #0099cc);
+    color: #040810;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 900;
+    font-size: 20px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    border-radius: 12px;
+    box-shadow: 0 0 40px rgba(0, 212, 255, 0.35);
+  }
+  .by {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Outfit', sans-serif;
+    font-size: 12px;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: rgba(255, 215, 0, 0.4);
+    z-index: 2;
+  }
+</style>
+</head>
+<body>
+  <div class="grid"></div>
+  <div class="glow1"></div>
+  <div class="glow2"></div>
+  <div class="content">
+    <div class="ball">⚽</div>
+    <h1>SCHEDINONE</h1>
+    <div class="subtitle">Mondiali 2026</div>
+    <div class="divider">
+      <span class="line"></span>
+      <span class="tag">Pronostici</span>
+      <span class="line"></span>
+    </div>
+    <div class="hosts">
+      FIFA World Cup 2026 &nbsp;·&nbsp; USA &nbsp;·&nbsp; Messico &nbsp;·&nbsp; Canada
+    </div>
+    <div class="cta">Entra in gioco</div>
+  </div>
+  <div class="by">by Alberto Pileri</div>
+</body>
+</html>
