@@ -70,7 +70,12 @@ export default function RisultatiPage({ matches, gameId }: Props) {
         return;
       }
       const ref = doc(db, "games", gameId, "matches", matchId);
-      await updateDoc(ref, { kickoff: Timestamp.fromDate(newDate) });
+      await updateDoc(ref, {
+        kickoff: Timestamp.fromDate(newDate),
+        // Marking as "manual" prevents the scheduled FIFA sync from
+        // overwriting this edit later.
+        kickoffSource: "manual",
+      });
       setEditingId(null);
       setToast({ message: "Orario aggiornato!", type: "success" });
     } catch (err) {

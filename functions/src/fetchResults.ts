@@ -3,7 +3,7 @@ import * as admin from "firebase-admin";
 const db = admin.firestore();
 
 interface ApiFixture {
-  fixture: { id: number; status: { short: string } };
+  fixture: { id: number; date: string; status: { short: string } };
   teams: { home: { name: string }; away: { name: string } };
   goals: { home: number | null; away: number | null };
 }
@@ -95,61 +95,71 @@ function scoreToSign(homeGoals: number, awayGoals: number): "1" | "X" | "2" {
   return "2";
 }
 
+/**
+ * Fetch the FULL FIFA WC 2026 fixture list (one API call for the whole season).
+ * Updates both:
+ *   - kickoff dates (if Firestore match has kickoffSource !== "manual")
+ *   - results (if finished and we don't have a result yet)
+ */
 export async function fetchAndUpdateResults(apiKey: string) {
-  const now = new Date();
-  const today = now.toISOString().split("T")[0];
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-
-  // Fetch both days to handle timezone boundaries
-  const [todayRes, yesterdayRes] = await Promise.all([
-    fetch(`https://v3.football.api-sports.io/fixtures?date=${today}&league=1&season=2026`, { headers: { "x-apisports-key": apiKey } }),
-    fetch(`https://v3.football.api-sports.io/fixtures?date=${yesterday}&league=1&season=2026`, { headers: { "x-apisports-key": apiKey } }),
-  ]);
-
-  const todayData = await todayRes.json();
-  const yesterdayData = await yesterdayRes.json();
-
-  // Merge and deduplicate by fixture ID
-  const seenIds = new Set<number>();
-  const allFixtures: ApiFixture[] = [];
-  for (const f of [...(todayData.response ?? []), ...(yesterdayData.response ?? [])]) {
-    if (!seenIds.has(f.fixture.id)) {
-      seenIds.add(f.fixture.id);
-      allFixtures.push(f);
-    }
-  }
-
-  const finishedFixtures = allFixtures.filter(
-    (f) => f.fixture.status.short === "FT" && f.goals.home !== null && f.goals.away !== null
+  // Single API call for the whole tournament — cheap (1/100 daily quota).
+  const res = await fetch(
+    `https://v3.football.api-sports.io/fixtures?league=1&season=2026`,
+    { headers: { "x-apisports-key": apiKey } }
   );
-
-  if (finishedFixtures.length === 0) return;
+  if (!res.ok) return;
+  const data = await res.json();
+  const allFixtures: ApiFixture[] = data.response ?? [];
+  if (allFixtures.length === 0) return;
 
   const gamesSnap = await db.collection("games").get();
 
   for (const gameDoc of gamesSnap.docs) {
     const matchesSnap = await db
       .collection(`games/${gameDoc.id}/matches`)
-      .where("result", "==", null)
       .get();
 
     const batch = db.batch();
 
     for (const matchDoc of matchesSnap.docs) {
       const matchData = matchDoc.data();
-      const apiMatch = finishedFixtures.find(
+      const apiMatch = allFixtures.find(
         (f) =>
           matchesTeam(matchData.homeTeam, f.teams.home.name) &&
           matchesTeam(matchData.awayTeam, f.teams.away.name)
       );
 
-      if (apiMatch && apiMatch.goals.home !== null && apiMatch.goals.away !== null) {
-        batch.update(matchDoc.ref, {
-          result: scoreToSign(apiMatch.goals.home, apiMatch.goals.away),
-          score: `${apiMatch.goals.home}-${apiMatch.goals.away}`,
-          locked: true,
-          resultSource: "auto",
-        });
+      if (!apiMatch) continue;
+
+      const updates: Record<string, unknown> = {};
+
+      // 1. Kickoff sync — only if not manually set by admin
+      if (matchData.kickoffSource !== "manual" && apiMatch.fixture.date) {
+        const apiKickoff = new Date(apiMatch.fixture.date);
+        const currentKickoff = matchData.kickoff?.toDate
+          ? matchData.kickoff.toDate()
+          : null;
+        if (!currentKickoff || currentKickoff.getTime() !== apiKickoff.getTime()) {
+          updates.kickoff = admin.firestore.Timestamp.fromDate(apiKickoff);
+          updates.kickoffSource = "api";
+        }
+      }
+
+      // 2. Result sync — only if match finished and we don't have a result yet
+      if (
+        matchData.result === null &&
+        apiMatch.fixture.status.short === "FT" &&
+        apiMatch.goals.home !== null &&
+        apiMatch.goals.away !== null
+      ) {
+        updates.result = scoreToSign(apiMatch.goals.home, apiMatch.goals.away);
+        updates.score = `${apiMatch.goals.home}-${apiMatch.goals.away}`;
+        updates.locked = true;
+        updates.resultSource = "auto";
+      }
+
+      if (Object.keys(updates).length > 0) {
+        batch.update(matchDoc.ref, updates);
       }
     }
 
