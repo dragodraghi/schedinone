@@ -30,7 +30,7 @@ const GAME_ID = import.meta.env.VITE_GAME_ID || "schedinone-2026";
 export default function App() {
   const { user, loading: authLoading } = useAuth();
   const authReady = !authLoading && !!user;
-  const { game, loading: gameLoading } = useGame(GAME_ID);
+  const { game, loading: gameLoading } = useGame(GAME_ID, authReady);
   const { matches } = useMatches(GAME_ID, authReady);
   const { players } = usePlayers(GAME_ID, authReady);
   const [loggedIn, setLoggedIn] = useState(false);
@@ -40,6 +40,18 @@ export default function App() {
 
   const currentPlayer = players.find((p) => p.id === user?.uid) ?? null;
   const isAdmin = game?.admins.includes(user?.uid ?? "") ?? false;
+
+  // Firestore rules require auth to read anything. Trigger an anonymous
+  // sign-in as soon as the app mounts (for first-time visitors who haven't
+  // cached an anonymous UID yet) so the game doc can be fetched before
+  // the user presses any button.
+  useEffect(() => {
+    if (!authLoading && !user) {
+      loginAnonymously().catch((err) => {
+        console.error("Auto anonymous login failed:", err);
+      });
+    }
+  }, [authLoading, user]);
 
   useEffect(() => {
     if (currentPlayer) setLoggedIn(true);
@@ -111,7 +123,12 @@ export default function App() {
     setLoginError("");
   };
 
-  if (authLoading || gameLoading) {
+  // Show the loading screen while:
+  //  - Firebase Auth is initializing
+  //  - Or we're about to auto-sign-in anonymously (auth done but no user yet)
+  //  - Or the game doc is still being fetched
+  const initializing = authLoading || !user;
+  if (initializing || gameLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-4" style={{ background: 'var(--bg-deep)' }}>
         <div className="text-center mb-6 animate-in">
