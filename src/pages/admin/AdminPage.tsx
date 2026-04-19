@@ -11,6 +11,7 @@ import {
 import { db } from "../../lib/firebase";
 import { buildWC2026Matches, WC2026_GROUPS, countRealKickoffs } from "../../lib/worldcup2026";
 import Toast, { type ToastData } from "../../components/Toast";
+import QrCodeCard from "../../components/QrCodeCard";
 import type { Game, Player, Match, Phase } from "../../lib/types";
 
 interface Props {
@@ -201,6 +202,9 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
           })}
         </div>
       </div>
+
+      {/* Condividi il gioco (QR + invite buttons) */}
+      <QrCodeCard />
 
       {/* World Cup 2026 seed */}
       <div className="glass rounded-xl p-4 space-y-3" style={{ border: '1px solid rgba(255, 215, 0, 0.25)' }}>

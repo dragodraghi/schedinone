@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import EmptyState from "../components/EmptyState";
 import Flag from "../components/Flag";
 import ComparisonTable from "../components/ComparisonTable";
+import InviteButton from "../components/InviteButton";
 import { computePlayerStats } from "../lib/playerStats";
 import type { Game, Player, Match } from "../lib/types";
 
@@ -252,6 +253,9 @@ export default function ProfiloPage({ game, player, players, matches, onLogout }
           )}
         </div>
       )}
+
+      {/* Invite friends */}
+      <InviteButton />
 
       {/* Logout */}
       <button
