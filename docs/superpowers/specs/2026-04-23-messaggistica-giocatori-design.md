@@ -26,9 +26,11 @@ Niente chat di gruppo. Solo testo (no allegati, no immagini, no link cliccabili 
 
 Stack esistente: React + TypeScript + Vite, Firebase (Firestore, Auth, Cloud Functions). Si estende lo stack attuale senza nuove dipendenze infrastrutturali: Firestore per dati, Cloud Functions per fan-out push e coerenza contatori, FCM Web per delivery.
 
+**Multi-gioco:** il progetto è scoped per `games/{gameId}` (vedi `firestore.rules` e `functions/src/index.ts`). Il "Comitato" è `gameDoc.admins: string[]`, verificato via `isAdmin(gameId)` nelle Rules. Annunci e thread vivono sotto `games/{gameId}/…`. I token FCM stanno sull'utente perché un utente può partecipare a più giochi con lo stesso device.
+
 ## Modello dati Firestore
 
-### `announcements/{announcementId}`
+### `games/{gameId}/announcements/{announcementId}`
 
 ```
 {
@@ -39,14 +41,14 @@ Stack esistente: React + TypeScript + Vite, Firebase (Firestore, Auth, Cloud Fun
   targetUids: string[] | null,     // null = broadcast; array = subset
   createdAt: Timestamp,
   publishedAt: Timestamp | null,
-  editedAt: Timestamp | null,      // popolato se modificato dopo publish
-  deletedAt: Timestamp | null      // soft-delete
+  editedAt: Timestamp | null,
+  deletedAt: Timestamp | null
 }
 ```
 
-### `threads/{uid}`
+### `games/{gameId}/threads/{uid}`
 
-Id del documento = uid del giocatore. Un solo thread per giocatore.
+Id documento = uid del giocatore. Un solo thread per giocatore per gioco.
 
 ```
 {
@@ -60,7 +62,7 @@ Id del documento = uid del giocatore. Un solo thread per giocatore.
 }
 ```
 
-### `threads/{uid}/messages/{messageId}`
+### `games/{gameId}/threads/{uid}/messages/{messageId}`
 
 ```
 {
@@ -75,67 +77,69 @@ Messaggi immutabili: niente edit, niente delete.
 
 ### `users/{uid}/fcmTokens/{token}`
 
+Nuovo doc root per i token push. Vive fuori da `games/{gameId}` perché un utente può usare lo stesso device in più giochi.
+
 ```
 { token: string, platform: 'web', createdAt: Timestamp, lastSeenAt: Timestamp }
 ```
 
-### `users/{uid}.lastAnnouncementReadAt: Timestamp`
+### `games/{gameId}/players/{uid}.lastAnnouncementReadAt: Timestamp`
 
-Nuovo campo sul doc utente. Badge annunci non-letti = count degli annunci `published` con `publishedAt > lastAnnouncementReadAt` e `deletedAt == null`, filtrando per `targetUids`.
+Nuovo campo sul doc `players` esistente. Badge annunci non-letti = count degli annunci `published` del gioco con `publishedAt > lastAnnouncementReadAt` e `deletedAt == null`, filtrati per `targetUids`.
 
 ## Security Rules
 
-- **`announcements`**
-  - read: utente autenticato se `status == 'published' && deletedAt == null && (targetUids == null || request.auth.uid in targetUids)`. Comitato legge tutto.
-  - create/update/delete: solo Comitato. Publish richiede set di `publishedAt`. Modifica su annuncio già pubblicato richiede set di `editedAt`.
+Il check "è Comitato" riusa `isAdmin(gameId)` già presente in `firestore.rules`.
 
-- **`threads/{uid}`**
-  - read: il giocatore `uid` o il Comitato.
-  - write diretto client: negato. Il doc è mantenuto solo dalla Cloud Function `onMessageCreated` e dalla callable `markThreadRead`.
+- **`games/{gameId}/announcements/{id}`**
+  - read: autenticato se `status == 'published' && deletedAt == null && (targetUids == null || request.auth.uid in targetUids)`. Admin del gioco legge tutto.
+  - create/update/delete: solo `isAdmin(gameId)`. Publish richiede set di `publishedAt`. Modifica su annuncio già `published` richiede set di `editedAt`.
 
-- **`threads/{uid}/messages`**
-  - read: il giocatore `uid` o il Comitato.
+- **`games/{gameId}/threads/{uid}`**
+  - read: `uid == request.auth.uid` oppure `isAdmin(gameId)`.
+  - write client: negato. Mantenuto solo da `onMessageCreated` e `markThreadRead`.
+
+- **`games/{gameId}/threads/{uid}/messages/{msgId}`**
+  - read: `uid == request.auth.uid` oppure `isAdmin(gameId)`.
   - create:
-    - giocatore: solo nel proprio thread (`uid == request.auth.uid`), con `from == 'player'` e `senderUid == request.auth.uid`. Rate limit: `request.time > lastMessageAt + 2s` del thread, se esistente.
-    - Comitato: in qualunque thread, con `from == 'committee'` e `senderUid == request.auth.uid`.
+    - giocatore: solo nel proprio thread (`uid == request.auth.uid`), `from == 'player'`, `senderUid == request.auth.uid`. Rate limit: `request.time > resource(thread).lastMessageAt + 2s` se il thread esiste; se non esiste, consentito.
+    - admin: qualunque thread, `from == 'committee'`, `senderUid == request.auth.uid`, con `isAdmin(gameId)`.
   - update/delete: negati.
 
 - **`users/{uid}/fcmTokens/{token}`**: read/write solo se `uid == request.auth.uid`.
 
-- **`users/{uid}.lastAnnouncementReadAt`**: update solo da parte dello stesso `uid`.
-
-Il check "è Comitato" riusa il meccanismo esistente nelle Rules del progetto (il recente commit ha reso `isAdmin` autoritativo per le invite button).
+- **`games/{gameId}/players/{uid}.lastAnnouncementReadAt`**: rientra nella regola di update esistente del doc `players` (il player può aggiornarsi finché non tocca `points`/`paid`).
 
 ## Cloud Functions
 
-Region `europe-west1`, runtime Node v2, coerente con `firebase.json` esistente.
+Region `europe-west1`, runtime Node v2, coerente con `firebase.json` e `functions/src/index.ts` esistenti.
 
 ### `onMessageCreated`
 
-Trigger: `onDocumentCreated('threads/{uid}/messages/{messageId}')`.
+Trigger: `onDocumentCreated('games/{gameId}/threads/{uid}/messages/{messageId}')`.
 
-- Aggiorna `threads/{uid}` con `lastMessageAt`, `lastMessagePreview` (primi 80 char), `lastMessageFrom`.
+- Aggiorna `games/{gameId}/threads/{uid}`: `lastMessageAt`, `lastMessagePreview`, `lastMessageFrom`.
 - Incrementa `unreadByPlayer` se `from == 'committee'`, altrimenti `unreadByCommittee`. Usa `FieldValue.increment`.
-- Se `threads/{uid}` non esiste: lo crea leggendo `playerName` da `users/{uid}`.
+- Se `threads/{uid}` non esiste: lo crea leggendo `playerName` da `games/{gameId}/players/{uid}.name`.
 - Se `from == 'player'`: aggiorna `playerName` dal profilo corrente.
-- Invia push tramite helper `sendPushToUids`:
-  - `from == 'committee'` → destinatario: `{uid}`.
-  - `from == 'player'` → destinatari: tutti i membri del Comitato.
+- Invia push via helper `sendPushToUids`:
+  - `from == 'committee'` → destinatario `uid`.
+  - `from == 'player'` → destinatari `games/{gameId}.admins`.
 
 ### `onAnnouncementPublished`
 
-Trigger: `onDocumentWritten('announcements/{id}')`.
+Trigger: `onDocumentWritten('games/{gameId}/announcements/{id}')`.
 
-- Scatta solo sulla transizione `status: draft → published` (before.status != 'published' && after.status == 'published'). Edit successivi non rinotificano.
-- Destinatari: `targetUids` se presente e non vuoto, altrimenti tutti gli uid dei giocatori iscritti. Uid non più esistenti ignorati.
+- Scatta solo sulla transizione `status: draft → published` (`before.status != 'published' && after.status == 'published'`). Edit successivi non rinotificano.
+- Destinatari: `targetUids` se presente e non vuoto, altrimenti tutti gli uid dei doc `games/{gameId}/players`. Uid non più esistenti ignorati.
 - Payload push: `title` = titolo annuncio, `body` = preview (primi ~140 char).
 
 ### `markThreadRead` (callable HTTPS)
 
-- Input: `{ threadUid: string }`.
-- Se chiamante è il giocatore del thread: `unreadByPlayer = 0`.
-- Se chiamante è Comitato: `unreadByCommittee = 0`.
-- Altri chiamanti: errore `permission-denied`.
+- Input: `{ gameId: string, threadUid: string }`.
+- Se chiamante è il giocatore del thread (`threadUid == request.auth.uid`): `unreadByPlayer = 0`.
+- Se chiamante è `isAdmin(gameId)`: `unreadByCommittee = 0`.
+- Altri: errore `permission-denied`.
 
 ### Helper `sendPushToUids(uids, payload)`
 
@@ -147,93 +151,92 @@ Trigger: `onDocumentWritten('announcements/{id}')`.
 
 ### Nuovi moduli `src/lib/`
 
-- `messaging.ts` — inizializzazione FCM (richiesta permesso, `getToken` con VAPID, persistenza token in `users/{uid}/fcmTokens/{token}`, listener `onMessage` per notifiche foreground).
-- `announcements.ts` — CRUD annunci, query "visibili all'utente corrente", calcolo badge non-letti.
-- `chat.ts` — query messaggi, invio messaggio, wrapper callable `markThreadRead`.
+- `messaging.ts` — init FCM (permesso, `getToken` con VAPID key da env, persistenza in `users/{uid}/fcmTokens/{token}`, `onMessage` foreground).
+- `announcements.ts` — CRUD annunci, query "visibili all'utente corrente nel gioco corrente", calcolo badge non-letti.
+- `chat.ts` — query messaggi, invio, wrapper callable `markThreadRead`.
 
 ### Service worker
 
-- `public/firebase-messaging-sw.js` — richiesto da FCM per push in background.
+`public/firebase-messaging-sw.js` — richiesto per push in background.
 
 ### Pagine giocatore `src/pages/`
 
-- `BachecaPage.tsx` — lista annunci `published` non eliminati ordinati per `publishedAt` desc, filtrati per `targetUids`. Mostra `(modificato)` se `editedAt != null`. All'apertura: set `users/{uid}.lastAnnouncementReadAt = serverTimestamp()`.
-- `MessaggiPage.tsx` — thread unico del giocatore. Lista messaggi cronologica + input in cima. All'apertura: chiama `markThreadRead({ threadUid: currentUid })`. Se il thread non esiste, stato vuoto "Scrivi al Comitato".
+- `BachecaPage.tsx` — annunci `published` del gioco corrente ordinati per `publishedAt` desc, filtrati per `targetUids`. Mostra `(modificato)` se `editedAt != null`. All'apertura: set `games/{gameId}/players/{uid}.lastAnnouncementReadAt = serverTimestamp()`.
+- `MessaggiPage.tsx` — thread unico del giocatore nel gioco corrente. Lista cronologica + input in cima. All'apertura: `markThreadRead({ gameId, threadUid: uid })`. Stato vuoto se thread inesistente.
 
 ### Pagine Comitato `src/pages/admin/`
 
-- `AdminAnnunciPage.tsx` — tab Draft / Pubblicati. Bottone "Nuovo". Editor modale: campi titolo, body, selettore target (radio "Tutti" / "Seleziona giocatori" con checkbox list). Azioni: Salva bozza, Pubblica, Modifica, Elimina (soft-delete).
-- `AdminMessaggiPage.tsx` — sidebar lista thread (query `threads` ordinata per `lastMessageAt` desc) con badge `unreadByCommittee`, preview, nome giocatore. Pannello destro con conversazione aperta. Bottone "Nuova conversazione" → picker giocatore → apre vista thread (che potrà non esistere ancora). All'apertura di un thread: `markThreadRead`.
+- `AdminAnnunciPage.tsx` — tab Draft / Pubblicati. Bottone "Nuovo". Editor modale: titolo, body, radio target "Tutti" / "Seleziona giocatori" + checkbox list. Azioni: Salva bozza, Pubblica, Modifica, Elimina (soft-delete).
+- `AdminMessaggiPage.tsx` — sidebar thread ordinata per `lastMessageAt` desc con badge `unreadByCommittee`. Pannello destro conversazione. Bottone "Nuova conversazione" → picker giocatore. All'apertura thread: `markThreadRead`.
 
-### Layout
+### Layout `src/components/Layout.tsx`
 
-- `src/components/Layout.tsx`: aggiungere voci di menu con badge:
-  - Giocatore: **Bacheca** (badge annunci non-letti), **Messaggi** (badge `unreadByPlayer`).
-  - Comitato: **Annunci**, **Messaggi** (badge = somma `unreadByCommittee` su tutti i thread).
+- Giocatore: voci **Bacheca** (badge non-letti annunci) e **Messaggi** (badge `unreadByPlayer`).
+- Comitato: voci **Annunci** e **Messaggi** (badge = somma `unreadByCommittee`).
 
 ### Permesso push
 
-Banner informativo al primo login post-deploy "Attiva le notifiche per ricevere annunci e messaggi" → `Notification.requestPermission()`. Se negato: app funziona lo stesso (realtime + badge); banner riattivabile da ProfiloPage.
+Banner al primo login post-deploy "Attiva le notifiche" → `Notification.requestPermission()`. Se negato: app funziona con realtime + badge; banner riattivabile da ProfiloPage.
 
 ## Flussi principali
 
 ### Pubblicazione annuncio
 
-1. Comitato crea draft → visibile solo in tab Draft.
-2. Clicca "Pubblica" → client scrive `status: 'published', publishedAt: serverTimestamp()`.
-3. `onAnnouncementPublished` rileva la transizione, risolve destinatari, invia push.
-4. Giocatori vedono l'annuncio in Bacheca via `onSnapshot` + ricevono push.
+1. Comitato crea draft → solo tab Draft.
+2. Clicca "Pubblica" → client setta `status: 'published', publishedAt: serverTimestamp()`.
+3. `onAnnouncementPublished` risolve destinatari, manda push.
+4. Giocatori vedono in Bacheca via `onSnapshot` + push.
 5. Modifica post-publish: aggiorna campi + `editedAt`. Niente nuova push. UI mostra `(modificato)`.
-6. Elimina: soft-delete (`deletedAt`), sparisce dalle query giocatore.
+6. Elimina: soft-delete, sparisce dalle query giocatore.
 
 ### Chat giocatore → Comitato
 
-1. Giocatore apre Messaggi. Se thread inesistente: stato vuoto.
-2. Invia messaggio → client crea `threads/{uid}/messages/{autoId}` con `from: 'player'`.
-3. `onMessageCreated` crea/aggiorna `threads/{uid}`, incrementa `unreadByCommittee`, push a tutti i membri del Comitato.
+1. Giocatore apre Messaggi. Thread inesistente → stato vuoto.
+2. Invia messaggio → crea `games/{gameId}/threads/{uid}/messages/{autoId}` con `from: 'player'`.
+3. `onMessageCreated` crea/aggiorna il thread, incrementa `unreadByCommittee`, push a tutti gli `admins`.
 
 ### Chat Comitato → Giocatore (nuovo thread)
 
 1. Comitato clicca "Nuova conversazione", sceglie giocatore.
-2. UI apre vista thread (anche non esistente). Invia messaggio → client crea sub-doc messaggio con `from: 'committee'`. Le Rules consentono la create anche senza thread-doc esistente.
-3. `onMessageCreated` crea `threads/{uid}` e manda push al giocatore.
+2. UI apre vista thread (anche non esistente). Invia → crea sub-doc con `from: 'committee'`. Rules consentono create anche senza thread-doc.
+3. `onMessageCreated` crea il doc thread e manda push al giocatore.
 
 ## Errori, edge case, vincoli
 
-- **Permesso notifiche negato o browser senza supporto**: no errori bloccanti; solo banner informativo.
-- **Token FCM stale**: rimossi dalla function sui codici di errore noti.
-- **Giocatore rimosso**: storico preservato; accesso client revocato dalle Rules esistenti del progetto.
-- **iOS Safari non-PWA**: push non arrivano; documentato in `GUIDA_GIOCATORE.md`.
-- **Limiti testo**: titolo annuncio ≤ 120, body ≤ 2000, messaggio chat ≤ 1000. Validazione client e Rules.
-- **Anti-spam chat giocatore**: 1 messaggio ogni 2 secondi, enforce nelle Rules via `lastMessageAt` del thread.
-- **Ordine messaggi**: `createdAt` server timestamp, tie-breaker `__name__`.
-- **Race su contatori**: `FieldValue.increment`.
-- **`targetUids` con uid obsoleti**: ignorati nel resolver.
+- Permesso notifiche negato o browser non supportato: no errori bloccanti, solo banner informativo.
+- Token FCM stale: rimossi dalla function sui codici noti.
+- Giocatore rimosso: storico preservato; accesso client revocato dalle Rules esistenti.
+- iOS Safari non-PWA: push non arrivano; documentato in `GUIDA_GIOCATORE.md`.
+- Limiti testo: titolo ≤ 120, body ≤ 2000, messaggio ≤ 1000. Validazione client e Rules.
+- Anti-spam chat giocatore: 1 messaggio ogni 2s via `lastMessageAt`.
+- Ordine messaggi: `createdAt` server timestamp, tie-breaker `__name__`.
+- Race contatori: `FieldValue.increment`.
+- `targetUids` con uid obsoleti: ignorati nel resolver.
 
 ## Criteri di successo
 
 - Annuncio pubblicato → destinatari lo vedono in Bacheca entro 1s e ricevono push se permesso concesso.
-- Messaggio chat → controparte lo vede in sidebar/thread entro 1s e riceve push.
-- Badge non-letti azzerati all'apertura della pagina corrispondente.
-- Draft invisibili ai giocatori (verificato via test Rules).
-- Test suite passa (`npm test`).
+- Messaggio chat → controparte lo vede entro 1s e riceve push.
+- Badge non-letti azzerati all'apertura della pagina.
+- Draft invisibili ai giocatori.
+- Test suite verde (`npm test`).
 
 ## Test
 
-Seguire il pattern esistente `src/lib/__tests__/`. Coperture minime:
+Seguire pattern `src/lib/__tests__/`. Coperture minime:
 
 - Rendering liste (Bacheca, Messaggi, Admin).
-- Regole di visibilità annunci: broadcast vs target; draft invisibili ai giocatori; soft-deleted invisibili.
+- Visibilità annunci: broadcast vs target; draft invisibili; soft-deleted invisibili.
 - Invio messaggio: giocatore su proprio thread OK; su thread altrui NEGATO.
 - Rate limit chat giocatore.
 - Azzeramento contatori su `markThreadRead`.
-- Transizione draft→published: trigger push una sola volta; edit successivo non rinotifica.
+- Transizione draft→published: push una sola volta; edit successivo non rinotifica.
 
 ## Fuori scopo (YAGNI)
 
-- Allegati, immagini, link cliccabili dedicati.
+- Allegati, immagini, link dedicati.
 - Chat di gruppo.
-- Reactions / thread replies / typing indicator.
-- Search nello storico annunci/messaggi.
-- Archive/mute dei thread lato Comitato.
-- Integrazione con servizi esterni (OneSignal, email, SMS).
+- Reactions / typing indicator / thread replies.
+- Search storico.
+- Archive/mute thread.
+- Servizi esterni (OneSignal, email, SMS).
