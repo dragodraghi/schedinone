@@ -38,6 +38,40 @@ service cloud.firestore {
         allow update, delete: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.admins;
       }
+
+      match /announcements/{announcementId} {
+        allow read: if request.auth != null && (
+          request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.admins
+          || (
+            resource.data.status == 'published'
+            && resource.data.deletedAt == null
+            && (resource.data.targetUids == null || request.auth.uid in resource.data.targetUids)
+          )
+        );
+        allow create: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.admins
+          && request.resource.data.authorUid == request.auth.uid
+          && request.resource.data.title is string
+          && request.resource.data.title.size() <= 120
+          && request.resource.data.body is string
+          && request.resource.data.body.size() <= 2000
+          && request.resource.data.status in ['draft', 'published']
+          && (request.resource.data.targetUids == null || request.resource.data.targetUids is list);
+        allow update: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.admins
+          && request.resource.data.title.size() <= 120
+          && request.resource.data.body.size() <= 2000
+          && (
+            (resource.data.status == 'draft' && request.resource.data.status == 'published'
+              && request.resource.data.publishedAt == request.time)
+            || (resource.data.status == 'published' && request.resource.data.status == 'published'
+              && request.resource.data.editedAt == request.time)
+            || (resource.data.status == 'draft' && request.resource.data.status == 'draft')
+            || (request.resource.data.deletedAt == request.time)
+          );
+        allow delete: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.admins;
+      }
     }
   }
 }
