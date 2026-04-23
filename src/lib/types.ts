@@ -1,3 +1,5 @@
+import type { Timestamp } from 'firebase/firestore';
+
 export type Sign = "1" | "X" | "2";
 
 export type ScheduleStatus = "bozza" | "inviata" | "accettata" | "rifiutata";
@@ -9,8 +11,9 @@ export interface Game {
   name: string;
   entryFee: number;
   admins: string[];
-  adminCode: string;
   accessCode: string;
+  adminCode?: string;
+  adminCodeHash?: string;
   phases: Phase[];
   currentPhase: Phase;
   topScorer: string | null;
@@ -49,3 +52,44 @@ export interface Player {
   paid: boolean;
   scheduleStatus: ScheduleStatus;
 }
+
+export type AnnouncementStatus = 'draft' | 'published';
+
+export type Announcement = {
+  id: string;
+  title: string;
+  body: string;
+  status: AnnouncementStatus;
+  authorUid: string;
+  targetUids: string[] | null;
+  createdAt: Timestamp;
+  publishedAt: Timestamp | null;
+  editedAt: Timestamp | null;
+  deletedAt: Timestamp | null;
+};
+
+export type ChatFrom = 'player' | 'committee';
+
+export type Thread = {
+  playerUid: string;
+  playerName: string;
+  lastMessageAt: Timestamp;
+  lastMessagePreview: string;
+  lastMessageFrom: ChatFrom;
+  unreadByPlayer: number;
+  unreadByCommittee: number;
+};
+
+export type ChatMessage = {
+  id: string;
+  text: string;
+  from: ChatFrom;
+  senderUid: string;
+  createdAt: Timestamp;
+};
+
+export const ANNOUNCEMENT_TITLE_MAX = 120;
+export const ANNOUNCEMENT_BODY_MAX = 2000;
+export const CHAT_MESSAGE_MAX = 1000;
+export const CHAT_PREVIEW_MAX = 80;
+export const PUSH_BODY_MAX = 140;
