@@ -72,6 +72,52 @@ service cloud.firestore {
         allow delete: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.admins;
       }
+
+      match /threads/{playerUid} {
+        allow read: if request.auth != null && (
+          request.auth.uid == playerUid
+          || request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.admins
+        );
+        // Maintained only by Cloud Functions and the markThreadRead callable.
+        allow write: if false;
+
+        match /messages/{messageId} {
+          allow read: if request.auth != null && (
+            request.auth.uid == playerUid
+            || request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.admins
+          );
+          allow create: if request.auth != null
+            && request.resource.data.text is string
+            && request.resource.data.text.size() > 0
+            && request.resource.data.text.size() <= 1000
+            && request.resource.data.senderUid == request.auth.uid
+            && request.resource.data.createdAt == request.time
+            && (
+              // Player in own thread with 2s rate limit (allowed if thread doesn't exist yet)
+              (
+                request.auth.uid == playerUid
+                && request.resource.data.from == 'player'
+                && (
+                  !exists(/databases/$(database)/documents/games/$(gameId)/threads/$(playerUid))
+                  || request.time > get(/databases/$(database)/documents/games/$(gameId)/threads/$(playerUid)).data.lastMessageAt + duration.value(2, 's')
+                )
+              )
+              // Admin to any thread
+              || (
+                request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.admins
+                && request.resource.data.from == 'committee'
+              )
+            );
+          allow update, delete: if false;
+        }
+      }
+    }
+
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+      match /fcmTokens/{token} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
     }
   }
 }
