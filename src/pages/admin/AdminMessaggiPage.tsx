@@ -26,18 +26,32 @@ export default function AdminMessaggiPage({ gameId, currentUid, players }: Props
     return unsub;
   }, [gameId, activeUid]);
 
+  const [lastError, setLastError] = useState<string>('');
+
   async function onSend() {
     if (!gameId || !activeUid) return;
     const t = text.trim();
     if (!t) return;
-    await sendMessage(gameId, activeUid, currentUid, 'committee', t);
-    setText('');
+    setLastError('');
+    try {
+      await sendMessage(gameId, activeUid, currentUid, 'committee', t);
+      setText('');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setLastError(msg);
+      alert('Errore invio: ' + msg);
+    }
   }
 
   const playersWithoutThread = players.filter((p) => !threads.some((t) => t.id === p.id));
 
   return (
-    <section className="flex h-full">
+    <section className="flex h-full flex-col">
+      <div style={{ background: '#fef3c7', color: '#78350f', padding: '6px 10px', fontSize: 11, fontFamily: 'monospace' }}>
+        DEBUG admin: uid={currentUid} · gameId={gameId} · threads={threads.length} · activeUid={activeUid ?? 'nessuno'}
+        {lastError && <div style={{ color: '#991b1b', marginTop: 4 }}>ULTIMO ERRORE: {lastError}</div>}
+      </div>
+      <div className="flex flex-1">
       <aside className="w-64 border-r overflow-auto">
         <h3 className="p-3 font-bold">Conversazioni</h3>
         <ul>
@@ -99,6 +113,7 @@ export default function AdminMessaggiPage({ gameId, currentUid, players }: Props
             </div>
           </>
         )}
+      </div>
       </div>
     </section>
   );
