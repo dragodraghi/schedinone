@@ -94,3 +94,13 @@ Si aggiornano automaticamente durante le partite. Vai su **Ranking** per vedere 
 ---
 
 *Buona fortuna e che vinca il migliore! ⚽🏆*
+
+## Bacheca e messaggi
+
+Nella **Bacheca** (scheda 📢 in basso) trovi tutti gli annunci del Comitato. Dall'icona 💬 in alto a destra puoi scrivere direttamente al Comitato per chiarimenti o domande — è la tua chat privata col Comitato.
+
+### Notifiche push
+
+Al primo accesso ti chiederemo il permesso per le notifiche. Se lo concedi, riceverai un avviso sul telefono quando arriva un nuovo annuncio o un nuovo messaggio.
+
+**Su iPhone/iPad:** le notifiche funzionano solo se installi Schedinone come app. Apri il sito in Safari → tocca il pulsante Condividi → "Aggiungi a Home". Apri l'app da lì e accetta le notifiche.

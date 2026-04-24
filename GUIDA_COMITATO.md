@@ -89,3 +89,8 @@ Quando i gironi finiscono e si conoscono gli accoppiamenti degli ottavi:
 ---
 
 *Per qualsiasi problema tecnico, contattate chi ha sviluppato l'app. Buon Mondiale! ⚽*
+
+## Annunci e messaggi
+
+- **Annunci** (Admin → 📢 Annunci): scrivi bozze, pubblicale a tutti i giocatori o a un sottoinsieme, modificale o eliminale in qualsiasi momento. Alla pubblicazione parte automaticamente una notifica push ai destinatari.
+- **Messaggi** (Admin → 💬 Messaggi): vedi la lista di tutte le conversazioni con i singoli giocatori. Puoi rispondere o iniziare una nuova conversazione con "Nuova conversazione". Ogni nuovo messaggio notifica il destinatario.
