@@ -42,6 +42,7 @@ export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
   const [loginError, setLoginError] = useState("");
+  const [adminLoginInProgress, setAdminLoginInProgress] = useState(false);
   const handleSplashComplete = useCallback(() => setShowSplash(false), []);
 
   const currentPlayer = players.find((p) => p.id === user?.uid) ?? null;
@@ -52,12 +53,12 @@ export default function App() {
   // cached an anonymous UID yet) so the game doc can be fetched before
   // the user presses any button.
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!authLoading && !user && !adminLoginInProgress) {
       loginAnonymously().catch((err) => {
         console.error("Auto anonymous login failed:", err);
       });
     }
-  }, [authLoading, user]);
+  }, [authLoading, user, adminLoginInProgress]);
 
   useEffect(() => {
     if (currentPlayer) setLoggedIn(true);
@@ -116,17 +117,22 @@ export default function App() {
 
   const handleAdminLogin = async (email: string, password: string) => {
     setLoginError("");
+    setAdminLoginInProgress(true);
     try {
-      // Sign out the current anonymous session so Firebase doesn't keep it alongside.
-      if (user?.isAnonymous) {
+      try {
         await signOut(auth);
+      } catch {
+        /* already signed out */
       }
-      await signInWithEmailAndPassword(auth, email, password);
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      console.log("[admin-login] signed in as", cred.user.uid, cred.user.email);
       setLoggedIn(true);
       setShowSplash(true);
     } catch (err) {
       console.error("Admin login error:", err);
       setLoginError("Email o password non valide.");
+    } finally {
+      setAdminLoginInProgress(false);
     }
   };
 
