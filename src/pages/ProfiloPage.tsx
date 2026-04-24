@@ -59,6 +59,28 @@ export default function ProfiloPage({ game, player, players, matches, isAdmin, o
         <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{player.points} punti totali</p>
       </div>
 
+      {/* Payment status banner */}
+      <div
+        className="glass rounded-xl px-4 py-3 flex items-center justify-between"
+        style={{
+          borderColor: player.paid ? 'rgba(0,255,136,0.35)' : 'rgba(255,215,0,0.35)',
+          background: player.paid ? 'rgba(0,255,136,0.08)' : 'rgba(255,215,0,0.08)',
+        }}
+      >
+        <div>
+          <div className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>
+            Quota iscrizione
+          </div>
+          <div className="text-sm font-bold mt-0.5" style={{
+            color: player.paid ? 'var(--correct)' : 'var(--gold)',
+            fontFamily: 'Outfit, sans-serif',
+          }}>
+            {player.paid ? 'Pagata' : 'In attesa di conferma'}
+          </div>
+        </div>
+        <div className="text-2xl">{player.paid ? '✅' : '⏳'}</div>
+      </div>
+
       {/* Tab buttons */}
       <div className="flex gap-2">
         <button
