@@ -39,18 +39,19 @@ export default function AdminMessaggiPage({ gameId, currentUid, players }: Props
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       setLastError(msg);
-      alert('Errore invio: ' + msg);
+      setTimeout(() => setLastError(''), 5000);
     }
   }
 
   const playersWithoutThread = players.filter((p) => !threads.some((t) => t.id === p.id));
 
   return (
-    <section className="flex h-full flex-col">
-      <div style={{ background: '#fef3c7', color: '#78350f', padding: '6px 10px', fontSize: 11, fontFamily: 'monospace' }}>
-        DEBUG admin: uid={currentUid} · gameId={gameId} · threads={threads.length} · activeUid={activeUid ?? 'nessuno'}
-        {lastError && <div style={{ color: '#991b1b', marginTop: 4 }}>ULTIMO ERRORE: {lastError}</div>}
-      </div>
+    <section className="flex h-full">
+      {lastError && (
+        <div style={{ position: 'fixed', bottom: 90, left: '50%', transform: 'translateX(-50%)', background: '#fee2e2', color: '#991b1b', padding: '8px 14px', borderRadius: 8, fontSize: 12, zIndex: 50 }}>
+          Errore: {lastError}
+        </div>
+      )}
       <div className="flex flex-1">
       <aside className="w-64 border-r overflow-auto">
         <h3 className="p-3 font-bold">Conversazioni</h3>
