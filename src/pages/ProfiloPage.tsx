@@ -80,6 +80,9 @@ export default function ProfiloPage({ game, player, players, matches, isAdmin, o
         </div>
         <div className="text-2xl">{player.paid ? '✅' : '⏳'}</div>
       </div>
+      <div className="text-[9px] text-center" style={{ color: 'var(--text-muted)', opacity: 0.5 }}>
+        ID: {player.id.slice(0, 8)}… · paid={String(player.paid)}
+      </div>
 
       {/* Tab buttons */}
       <div className="flex gap-2">

@@ -98,13 +98,13 @@ export default function Layout({
           aria-label="Messaggi al Comitato"
           className="fixed z-40 glass rounded-full flex items-center justify-center shadow-lg"
           style={{
-            top: 'calc(12px + env(safe-area-inset-top))',
+            bottom: 'calc(156px + env(safe-area-inset-bottom))',
             right: 16,
-            width: 48,
-            height: 48,
+            width: 56,
+            height: 56,
             backdropFilter: 'blur(12px)',
             border: '1px solid var(--border)',
-            fontSize: 22,
+            fontSize: 24,
           }}
         >
           <span>📩</span>
