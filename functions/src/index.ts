@@ -57,3 +57,4 @@ export const scheduledLockMatches = onSchedule(
 // the onMatchResultUpdate trigger above then recalculates points instantly.
 
 export { onMessageCreated } from "./onMessageCreated";
+export { onAnnouncementPublished } from "./onAnnouncementPublished";
