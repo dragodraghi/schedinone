@@ -103,10 +103,11 @@ export default function AdminAnnunciPage({ gameId, currentUid, players }: Props)
 
       {editing && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4" onClick={() => setEditing(null)}>
-          <div className="bg-white rounded-lg p-4 w-full max-w-lg space-y-3" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-bold">{editing.id ? 'Modifica annuncio' : 'Nuovo annuncio'}</h3>
+          <div className="bg-white rounded-lg p-4 w-full max-w-lg space-y-3" style={{ color: '#0f172a' }} onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold" style={{ color: '#0f172a' }}>{editing.id ? 'Modifica annuncio' : 'Nuovo annuncio'}</h3>
             <input
               className="w-full border rounded px-2 py-1"
+              style={{ background: '#ffffff', color: '#0f172a' }}
               placeholder="Titolo"
               value={editing.title}
               maxLength={ANNOUNCEMENT_TITLE_MAX}
@@ -114,6 +115,7 @@ export default function AdminAnnunciPage({ gameId, currentUid, players }: Props)
             />
             <textarea
               className="w-full border rounded px-2 py-1"
+              style={{ background: '#ffffff', color: '#0f172a' }}
               rows={6}
               placeholder="Testo"
               value={editing.body}

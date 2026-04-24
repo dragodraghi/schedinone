@@ -86,6 +86,7 @@ export default function AdminMessaggiPage({ gameId, currentUid, players }: Props
                 value={text}
                 onChange={(e) => setText(e.target.value.slice(0, CHAT_MESSAGE_MAX))}
                 className="flex-1 border rounded px-2 py-1 text-sm"
+                style={{ background: '#ffffff', color: '#0f172a' }}
                 rows={2}
               />
               <button
