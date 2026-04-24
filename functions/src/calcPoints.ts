@@ -1,8 +1,7 @@
 import * as admin from "firebase-admin";
 
-const db = admin.firestore();
-
 export async function recalculatePoints(gameId: string) {
+  const db = admin.firestore();
   const playersSnap = await db.collection(`games/${gameId}/players`).get();
   const matchesSnap = await db.collection(`games/${gameId}/matches`).where("result", "!=", null).get();
   const gameDoc = await db.doc(`games/${gameId}`).get();
