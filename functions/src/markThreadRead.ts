@@ -2,7 +2,7 @@ import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 
 export const markThreadRead = onCall(
-  { region: "europe-west1" },
+  { region: "europe-west1", cors: true },
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Devi essere autenticato.");

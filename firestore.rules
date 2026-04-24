@@ -91,7 +91,6 @@ service cloud.firestore {
             && request.resource.data.text.size() > 0
             && request.resource.data.text.size() <= 1000
             && request.resource.data.senderUid == request.auth.uid
-            && request.resource.data.createdAt == request.time
             && (
               // Player in own thread with 2s rate limit (allowed if thread doesn't exist yet)
               (
