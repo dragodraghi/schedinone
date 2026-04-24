@@ -55,3 +55,5 @@ export const scheduledLockMatches = onSchedule(
 // free plan doesn't include WC 2026 season data, so the function had no
 // real effect. The Comitato enters results manually from the admin panel;
 // the onMatchResultUpdate trigger above then recalculates points instantly.
+
+export { onMessageCreated } from "./onMessageCreated";
