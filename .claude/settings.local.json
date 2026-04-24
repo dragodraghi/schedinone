@@ -16,7 +16,8 @@
       "Bash(git remote *)",
       "Bash(git push *)",
       "Bash(firebase --version)",
-      "Bash(firebase deploy *)"
+      "Bash(firebase deploy *)",
+      "Bash(node setup-admins.mjs)"
     ]
   }
 }

@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "./lib/firebase";
 import { auth } from "./lib/firebase";
-import { signOut } from "firebase/auth";
+import { signOut, signInWithEmailAndPassword } from "firebase/auth";
 import { loginAnonymously } from "./lib/auth";
 import { useAuth } from "./hooks/useAuth";
 import { useGame } from "./hooks/useGame";
@@ -69,13 +69,11 @@ export default function App() {
     }
   }, [loggedIn, user]);
 
-  // NOTE: Access codes are visible in the game document. This is acceptable for a
-  // private game among friends. For a public-facing app, move code validation to
-  // a Cloud Function to prevent code exposure.
+  // Player login via access code. Admin access is separate (email+password).
   const handleLogin = async (name: string, code: string) => {
     if (!game) return;
     setLoginError("");
-    if (code !== game.accessCode && code !== game.adminCode) {
+    if (code !== game.accessCode) {
       setLoginError("Codice non valido. Controlla e riprova.");
       return;
     }
@@ -85,10 +83,6 @@ export default function App() {
       const playerRef = doc(db, "games", GAME_ID, "players", firebaseUser.uid);
       const existing = await getDoc(playerRef);
 
-      // Reject duplicate names across different UIDs to prevent accidental
-      // multiple entries (e.g. same person logging in from incognito or another
-      // device). The user is told to pick a different name or ask the Comitato
-      // to remove the stale duplicate.
       if (!existing.exists()) {
         const normalized = name.trim().toLowerCase();
         const duplicate = players.find(
@@ -112,16 +106,27 @@ export default function App() {
         });
       }
 
-      if (code === game.adminCode && !game.admins.includes(firebaseUser.uid)) {
-        const gameRef = doc(db, "games", GAME_ID);
-        await updateDoc(gameRef, { admins: arrayUnion(firebaseUser.uid) });
-      }
-
       setLoggedIn(true);
       setShowSplash(true);
     } catch (err) {
       console.error("Login error:", err);
       setLoginError("Errore durante l'accesso. Riprova.");
+    }
+  };
+
+  const handleAdminLogin = async (email: string, password: string) => {
+    setLoginError("");
+    try {
+      // Sign out the current anonymous session so Firebase doesn't keep it alongside.
+      if (user?.isAnonymous) {
+        await signOut(auth);
+      }
+      await signInWithEmailAndPassword(auth, email, password);
+      setLoggedIn(true);
+      setShowSplash(true);
+    } catch (err) {
+      console.error("Admin login error:", err);
+      setLoginError("Email o password non valide.");
     }
   };
 
@@ -169,7 +174,7 @@ export default function App() {
   }
 
   if (!loggedIn) {
-    return <LoginPage onLogin={handleLogin} error={loginError} />;
+    return <LoginPage onLogin={handleLogin} onAdminLogin={handleAdminLogin} error={loginError} />;
   }
 
   if (showSplash) {

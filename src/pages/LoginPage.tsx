@@ -2,23 +2,40 @@ import { useState } from "react";
 
 interface Props {
   onLogin: (name: string, code: string) => void;
+  onAdminLogin?: (email: string, password: string) => Promise<void> | void;
   error?: string;
 }
 
 const PLAYER_CODE = "GIOCA2026";
 
-export default function LoginPage({ onLogin, error }: Props) {
+export default function LoginPage({ onLogin, onAdminLogin, error }: Props) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [showHelp, setShowHelp] = useState(false);
   const [codeJustInserted, setCodeJustInserted] = useState(false);
+  const [adminMode, setAdminMode] = useState(false);
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPwd, setAdminPwd] = useState("");
+  const [adminBusy, setAdminBusy] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onLogin(name.trim(), code.trim());
   };
 
+  const handleAdminSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onAdminLogin) return;
+    setAdminBusy(true);
+    try {
+      await onAdminLogin(adminEmail.trim(), adminPwd);
+    } finally {
+      setAdminBusy(false);
+    }
+  };
+
   const isValid = name.trim().length > 0 && code.trim().length > 0;
+  const isAdminValid = adminEmail.trim().length > 0 && adminPwd.length > 0;
 
   /**
    * One-tap helper: copies the player code to the clipboard AND fills the
@@ -198,7 +215,54 @@ export default function LoginPage({ onLogin, error }: Props) {
             Come funziona?
           </button>
         </div>
+
+        <div className="pt-2">
+          <button type="button" onClick={() => setAdminMode((v) => !v)}
+            className="text-[10px] tracking-widest uppercase underline opacity-70 hover:opacity-100"
+            style={{ color: 'var(--gold)', fontFamily: 'Outfit, sans-serif' }}>
+            {adminMode ? 'Torna al login giocatore' : 'Sei del Comitato? Entra qui'}
+          </button>
+        </div>
       </form>
+
+      {adminMode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ background: 'rgba(4,8,16,0.9)', backdropFilter: 'blur(8px)' }}>
+          <form onSubmit={handleAdminSubmit}
+            className="glass rounded-2xl p-5 w-full max-w-sm space-y-4"
+            style={{ border: '1px solid rgba(255,215,0,0.3)' }}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-black" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--gold)' }}>
+                Accesso Comitato
+              </h2>
+              <button type="button" onClick={() => setAdminMode(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center"
+                style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)' }}>✕</button>
+            </div>
+            <input type="email" placeholder="email@schedinone.local" value={adminEmail}
+              onChange={(e) => setAdminEmail(e.target.value)} autoComplete="email"
+              className="w-full px-4 py-3 glass rounded-xl text-white placeholder-[#475569] focus:outline-none" />
+            <input type="password" placeholder="Password" value={adminPwd}
+              onChange={(e) => setAdminPwd(e.target.value)} autoComplete="current-password"
+              className="w-full px-4 py-3 glass rounded-xl text-white placeholder-[#475569] focus:outline-none" />
+            {error && (
+              <div className="rounded-xl px-4 py-3 text-sm font-bold"
+                style={{ background: 'rgba(255,51,102,0.10)', border: '1px solid rgba(255,51,102,0.4)', color: 'var(--wrong)' }}>
+                {error}
+              </div>
+            )}
+            <button type="submit" disabled={!isAdminValid || adminBusy}
+              className="btn-glow w-full py-3 rounded-xl font-bold text-sm tracking-widest uppercase disabled:opacity-30"
+              style={{
+                fontFamily: 'Outfit, sans-serif',
+                background: isAdminValid ? 'linear-gradient(135deg, #ffd700, #c8a000)' : 'rgba(255,255,255,0.05)',
+                color: isAdminValid ? '#040810' : '#475569',
+              }}>
+              {adminBusy ? 'Accesso...' : 'Entra come Comitato'}
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
