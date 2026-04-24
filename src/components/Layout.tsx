@@ -1,8 +1,9 @@
-import { useCallback, type ReactNode } from "react";
-import { NavLink } from "react-router-dom";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { NavLink, Link } from "react-router-dom";
 import { usePullToRefresh } from "../hooks/usePullToRefresh";
 import { vibrate } from "../lib/haptic";
 import Chatbot from "./Chatbot";
+import { subscribeThread } from "../lib/chat";
 
 const baseTabs = [
   { to: "/", label: "Home", icon: "⚡" },
@@ -11,7 +12,7 @@ const baseTabs = [
 ];
 
 const playerExtraTabs = [
-  { to: "/griglione", label: "Griglione", icon: "📊" },
+  { to: "/bacheca", label: "Bacheca", icon: "📢" },
   { to: "/profilo", label: "Profilo", icon: "👤" },
 ];
 
@@ -22,8 +23,26 @@ const adminExtraTabs = [
   { to: "/admin", label: "Admin", icon: "⚙️" },
 ];
 
-export default function Layout({ children, isAdmin }: { children: ReactNode; isAdmin?: boolean }) {
+export default function Layout({
+  children,
+  isAdmin,
+  gameId,
+  currentUid,
+}: {
+  children: ReactNode;
+  isAdmin?: boolean;
+  gameId?: string;
+  currentUid?: string;
+}) {
   const tabs = isAdmin ? [...baseTabs, ...adminExtraTabs] : [...baseTabs, ...playerExtraTabs];
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
+  useEffect(() => {
+    if (!gameId || !currentUid || isAdmin) return;
+    return subscribeThread(gameId, currentUid, (t) => {
+      setUnreadMessages(t?.unreadByPlayer ?? 0);
+    });
+  }, [gameId, currentUid, isAdmin]);
 
   // Firestore listeners already push realtime updates; a refresh is essentially a soft reload
   // to re-trigger hydration and show "fresh" state affirmation to the user.
@@ -73,6 +92,21 @@ export default function Layout({ children, isAdmin }: { children: ReactNode; isA
       >
         {children}
       </main>
+      {!isAdmin && gameId && currentUid && (
+        <Link
+          to="/messaggi"
+          aria-label="Messaggi"
+          className="fixed top-3 right-3 z-40 glass rounded-full px-3 py-2 text-sm flex items-center gap-1"
+          style={{ backdropFilter: 'blur(12px)' }}
+        >
+          <span>💬</span>
+          {unreadMessages > 0 && (
+            <span className="text-[10px] bg-red-600 text-white rounded-full px-1.5 font-bold">
+              {unreadMessages}
+            </span>
+          )}
+        </Link>
+      )}
       <nav className="fixed bottom-0 left-0 right-0 glass border-t" style={{ borderColor: 'var(--border)', backdropFilter: 'blur(20px)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="flex justify-around max-w-lg mx-auto">
           {tabs.map((tab) => (

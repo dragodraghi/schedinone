@@ -17,9 +17,14 @@ import DashboardPage from "./pages/DashboardPage";
 import SchedinaPage from "./pages/SchedinaPage";
 import ClassificaPage from "./pages/ClassificaPage";
 import ProfiloPage from "./pages/ProfiloPage";
+import BachecaPage from "./pages/BachecaPage";
+import MessaggiPage from "./pages/MessaggiPage";
+import { initPushForUser } from "./lib/messaging";
 
 // Admin + Griglione routes are lazy-loaded to keep initial bundle small
 const AdminPage = lazy(() => import("./pages/admin/AdminPage"));
+const AdminAnnunciPage = lazy(() => import("./pages/admin/AdminAnnunciPage"));
+const AdminMessaggiPage = lazy(() => import("./pages/admin/AdminMessaggiPage"));
 const RisultatiPage = lazy(() => import("./pages/admin/RisultatiPage"));
 const GiocatoriPage = lazy(() => import("./pages/admin/GiocatoriPage"));
 const RiepilogoPage = lazy(() => import("./pages/admin/RiepilogoPage"));
@@ -57,6 +62,12 @@ export default function App() {
   useEffect(() => {
     if (currentPlayer) setLoggedIn(true);
   }, [currentPlayer]);
+
+  useEffect(() => {
+    if (loggedIn && user) {
+      initPushForUser(user.uid).catch(() => {});
+    }
+  }, [loggedIn, user]);
 
   // NOTE: Access codes are visible in the game document. This is acceptable for a
   // private game among friends. For a public-facing app, move code validation to
@@ -179,13 +190,15 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Layout isAdmin={isAdmin}>
+      <Layout isAdmin={isAdmin} gameId={GAME_ID} currentUid={user?.uid}>
         <Suspense fallback={<PageSkeleton />}>
           <Routes>
             <Route path="/" element={<DashboardPage game={game} player={safePlayer} players={players} matches={matches} />} />
             <Route path="/schedina" element={<SchedinaPage game={game} player={safePlayer} matches={matches} gameId={GAME_ID} />} />
             <Route path="/classifica" element={<ClassificaPage game={game} player={safePlayer} players={players} />} />
             <Route path="/profilo" element={<ProfiloPage game={game} player={safePlayer} players={players} matches={matches} isAdmin={isAdmin} onLogout={handleLogout} />} />
+            <Route path="/bacheca" element={<BachecaPage gameId={GAME_ID} playerUid={user?.uid ?? ""} />} />
+            <Route path="/messaggi" element={<MessaggiPage gameId={GAME_ID} playerUid={user?.uid ?? ""} />} />
             <Route path="/griglione" element={<RiepilogoPage game={game} players={players} matches={matches} currentPlayer={currentPlayer ?? undefined} />} />
             {isAdmin && (
               <>
@@ -195,6 +208,8 @@ export default function App() {
                 <Route path="/admin/riepilogo" element={<RiepilogoPage game={game} players={players} matches={matches} />} />
                 <Route path="/admin/schedine" element={<SchedineRicevutePage players={players} matches={matches} gameId={GAME_ID} game={game} />} />
                 <Route path="/admin/confronto" element={<ConfrontoPage game={game} players={players} matches={matches} />} />
+                <Route path="/admin/annunci" element={<AdminAnnunciPage gameId={GAME_ID} currentUid={user?.uid ?? ""} players={players} />} />
+                <Route path="/admin/messaggi" element={<AdminMessaggiPage gameId={GAME_ID} currentUid={user?.uid ?? ""} players={players} />} />
               </>
             )}
             <Route path="*" element={<Navigate to="/" replace />} />

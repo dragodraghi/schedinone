@@ -71,6 +71,8 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
     { to: "/admin/risultati", label: "Gestisci Risultati", icon: "🔄" },
     { to: "/admin/giocatori", label: "Gestisci Giocatori", icon: "👥" },
     { to: "/admin/confronto", label: "Confronto Giocatori", icon: "⚔️" },
+    { to: "/admin/annunci", label: "Annunci", icon: "📢" },
+    { to: "/admin/messaggi", label: "Messaggi", icon: "💬" },
   ];
 
   const handlePhaseChange = async (newPhase: Phase) => {
