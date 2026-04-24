@@ -13,12 +13,40 @@ interface Props {
   currentPlayer?: Player;
 }
 
-// Solid background colors for sticky cells (no transparency bleed-through)
+interface Section {
+  key: string;
+  label: string;
+  order: number;
+}
+
 const BG_DEEP = "#040810";
-const BG_CARD = "rgba(15, 23, 42, 1)"; // opaque version of --bg-card
+const BG_CARD = "rgba(15, 23, 42, 1)";
+const PHASE_ORDER: Record<string, number> = {
+  gironi: 0,
+  ottavi: 1,
+  quarti: 2,
+  semifinali: 3,
+  finale: 4,
+};
+
+function getSection(match: Match): Section {
+  if (match.phase === "gironi" && match.group) {
+    return {
+      key: `group:${match.group}`,
+      label: `Gruppo ${match.group}`,
+      order: match.group.charCodeAt(0),
+    };
+  }
+
+  return {
+    key: `phase:${match.phase}`,
+    label: match.phase.charAt(0).toUpperCase() + match.phase.slice(1),
+    order: 100 + (PHASE_ORDER[match.phase] ?? 99),
+  };
+}
 
 export default function RiepilogoPage({ game, players, matches, currentPlayer }: Props) {
-  const [groupFilter, setGroupFilter] = useState<string>("Tutti");
+  const [sectionFilter, setSectionFilter] = useState<string>("Tutti");
   const [exportingPdf, setExportingPdf] = useState(false);
   const [toast, setToast] = useState<ToastData | null>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -30,7 +58,6 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
     setExportingPdf(true);
     vibrate("tap");
     try {
-      // Temporarily unconstrain the max-height so the full grid is rendered
       const container = tableContainerRef.current;
       const prevMaxHeight = container.style.maxHeight;
       const prevOverflow = container.style.overflow;
@@ -54,16 +81,17 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
     }
   };
 
-  // Collect unique groups from gironi matches
-  const groups = useMemo(() => {
-    const seen = new Set<string>();
-    matches
-      .filter((m) => m.phase === "gironi" && m.group)
-      .forEach((m) => seen.add(m.group!));
-    return Array.from(seen).sort();
+  const sections = useMemo(() => {
+    const byKey = new Map<string, Section>();
+    matches.forEach((match) => {
+      const section = getSection(match);
+      if (!byKey.has(section.key)) {
+        byKey.set(section.key, section);
+      }
+    });
+    return Array.from(byKey.values()).sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
   }, [matches]);
 
-  // Only show accepted players when accessed from player view; admin sees all
   const visiblePlayers = useMemo(() => {
     if (isPlayerView) {
       return players.filter((p) => p.scheduleStatus === "accettata");
@@ -71,52 +99,44 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
     return players;
   }, [players, isPlayerView]);
 
-  // Sort players by points descending
   const sortedPlayers = useMemo(
     () => [...visiblePlayers].sort((a, b) => b.points - a.points),
     [visiblePlayers]
   );
 
-  // Group matches by group (gironi) then others
-  const giorniMatches = useMemo(
-    () => matches.filter((m) => m.phase === "gironi"),
-    [matches]
+  const filteredMatches = useMemo(() => {
+    if (sectionFilter === "Tutti") return matches;
+    return matches.filter((match) => getSection(match).key === sectionFilter);
+  }, [matches, sectionFilter]);
+
+  const matchesBySection = useMemo(() => {
+    const grouped: Record<string, { label: string; matches: Match[] }> = {};
+    filteredMatches.forEach((match) => {
+      const section = getSection(match);
+      if (!grouped[section.key]) {
+        grouped[section.key] = { label: section.label, matches: [] };
+      }
+      grouped[section.key].matches.push(match);
+    });
+    Object.values(grouped).forEach((entry) =>
+      entry.matches.sort((a, b) => (a.kickoff?.getTime?.() ?? 0) - (b.kickoff?.getTime?.() ?? 0))
+    );
+    return grouped;
+  }, [filteredMatches]);
+
+  const sortedSectionKeys = useMemo(
+    () =>
+      sections
+        .map((section) => section.key)
+        .filter((key) => key in matchesBySection),
+    [sections, matchesBySection]
   );
 
-  // Filtered gironi matches based on active filter
-  const filteredGironiMatches = useMemo(() => {
-    if (groupFilter === "Tutti") return giorniMatches;
-    return giorniMatches.filter((m) => m.group === groupFilter);
-  }, [giorniMatches, groupFilter]);
-
-  // Group filtered matches by group letter
-  const matchesByGroup = useMemo(() => {
-    const grouped: Record<string, Match[]> = {};
-    filteredGironiMatches.forEach((m) => {
-      const g = m.group ?? "?";
-      if (!grouped[g]) grouped[g] = [];
-      grouped[g].push(m);
-    });
-    // Sort within each group by kickoff
-    Object.values(grouped).forEach((arr) => arr.sort((a, b) => (a.kickoff?.getTime?.() ?? 0) - (b.kickoff?.getTime?.() ?? 0)));
-    return grouped;
-  }, [filteredGironiMatches]);
-
-  const sortedGroupKeys = useMemo(() => Object.keys(matchesByGroup).sort(), [matchesByGroup]);
-
-  // Cell color based on prediction state
   function cellStyle(player: Player, match: Match): React.CSSProperties {
     const prediction = player.predictions[match.id];
     if (!prediction) return {};
-    if (!match.result) {
-      // Pending: prediction placed, match not yet played
-      return { background: "rgba(0, 212, 255, 0.12)" };
-    }
-    if (prediction === match.result) {
-      // Correct
-      return { background: "rgba(0, 255, 136, 0.15)" };
-    }
-    // Wrong
+    if (!match.result) return { background: "rgba(0, 212, 255, 0.12)" };
+    if (prediction === match.result) return { background: "rgba(0, 255, 136, 0.15)" };
     return { background: "rgba(255, 51, 102, 0.15)" };
   }
 
@@ -128,12 +148,11 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
     return { text: prediction, color: "var(--wrong)" };
   }
 
-  const totalCols = 2 + sortedPlayers.length; // match col + result col + players
+  const totalCols = 2 + sortedPlayers.length;
 
   return (
     <div className="space-y-4 animate-in">
       <Toast toast={toast} onDone={() => setToast(null)} />
-      {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-black" style={{ fontFamily: "Outfit, sans-serif" }}>
@@ -168,30 +187,32 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
         </div>
       </div>
 
-      {/* Group filter pills */}
       <div className="flex flex-wrap gap-1.5">
-        {["Tutti", ...groups].map((g) => (
-          <button
-            key={g}
-            onClick={() => setGroupFilter(g)}
-            className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all"
-            style={{
-              fontFamily: "Outfit, sans-serif",
-              background:
-                groupFilter === g
-                  ? "rgba(0, 212, 255, 0.2)"
-                  : "rgba(255, 255, 255, 0.05)",
-              color: groupFilter === g ? "var(--accent)" : "var(--text-muted)",
-              border: `1px solid ${groupFilter === g ? "rgba(0,212,255,0.4)" : "var(--border)"}`,
-              boxShadow: groupFilter === g ? "0 0 8px rgba(0,212,255,0.25)" : "none",
-            }}
-          >
-            {g === "Tutti" ? "Tutti" : `Gr. ${g}`}
-          </button>
-        ))}
+        {["Tutti", ...sections.map((section) => section.key)].map((key) => {
+          const section = sections.find((item) => item.key === key);
+          const label = key === "Tutti" ? "Tutti" : section?.label ?? key;
+          return (
+            <button
+              key={key}
+              onClick={() => setSectionFilter(key)}
+              className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all"
+              style={{
+                fontFamily: "Outfit, sans-serif",
+                background:
+                  sectionFilter === key
+                    ? "rgba(0, 212, 255, 0.2)"
+                    : "rgba(255, 255, 255, 0.05)",
+                color: sectionFilter === key ? "var(--accent)" : "var(--text-muted)",
+                border: `1px solid ${sectionFilter === key ? "rgba(0,212,255,0.4)" : "var(--border)"}`,
+                boxShadow: sectionFilter === key ? "0 0 8px rgba(0,212,255,0.25)" : "none",
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Scrollable grid — ref is used to rasterize the whole grid for PDF export */}
       <div
         ref={tableContainerRef}
         className="glass rounded-xl"
@@ -205,10 +226,8 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
             fontFamily: "DM Sans, sans-serif",
           }}
         >
-          {/* Sticky header row */}
           <thead>
             <tr>
-              {/* Column 1: "Partita" */}
               <th
                 style={{
                   position: "sticky",
@@ -232,7 +251,6 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                   Partita
                 </span>
               </th>
-              {/* Column 2: "Ris." */}
               <th
                 style={{
                   position: "sticky",
@@ -255,7 +273,6 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                   Ris.
                 </span>
               </th>
-              {/* One column per player */}
               {sortedPlayers.map((player) => {
                 const isMe = currentPlayer?.id === player.id;
                 return (
@@ -300,9 +317,8 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
           </thead>
 
           <tbody>
-            {sortedGroupKeys.map((groupKey) => (
-              <React.Fragment key={groupKey}>
-                {/* Group header row */}
+            {sortedSectionKeys.map((sectionKey) => (
+              <React.Fragment key={sectionKey}>
                 <tr>
                   <td
                     colSpan={totalCols}
@@ -317,18 +333,16 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                       className="group-header text-[10px] uppercase tracking-widest"
                       style={{ color: "var(--accent)" }}
                     >
-                      GRUPPO {groupKey}
+                      {matchesBySection[sectionKey].label}
                     </span>
                   </td>
                 </tr>
 
-                {/* Match rows for this group */}
-                {matchesByGroup[groupKey].map((match) => (
+                {matchesBySection[sectionKey].matches.map((match) => (
                   <tr
                     key={match.id}
                     style={{ borderBottom: "1px solid var(--border)" }}
                   >
-                    {/* Sticky: match name */}
                     <td
                       style={{
                         position: "sticky",
@@ -363,7 +377,6 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                       </div>
                     </td>
 
-                    {/* Sticky: result */}
                     <td
                       style={{
                         position: "sticky",
@@ -397,7 +410,6 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                       )}
                     </td>
 
-                    {/* One cell per player */}
                     {sortedPlayers.map((player) => {
                       const { text, color } = cellText(player, match);
                       const style = cellStyle(player, match);
@@ -430,8 +442,6 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
               </React.Fragment>
             ))}
 
-            {/* Special rows: Capocannoniere + Vincitrice */}
-            {/* Separator */}
             <tr>
               <td
                 colSpan={totalCols}
@@ -451,7 +461,6 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
               </td>
             </tr>
 
-            {/* Capocannoniere row */}
             <tr style={{ borderBottom: "1px solid var(--border)" }}>
               <td
                 style={{
@@ -478,7 +487,6 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                   </div>
                 )}
               </td>
-              {/* Result cell */}
               <td
                 style={{
                   position: "sticky",
@@ -532,7 +540,6 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
               })}
             </tr>
 
-            {/* Vincitrice row */}
             <tr style={{ borderBottom: "1px solid var(--border)" }}>
               <td
                 style={{
@@ -559,7 +566,6 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                   </div>
                 )}
               </td>
-              {/* Result cell */}
               <td
                 style={{
                   position: "sticky",

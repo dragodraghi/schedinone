@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { doc, updateDoc } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { FirebaseError } from "firebase/app";
 import { vibrate } from "../lib/haptic";
 import { exportElementAsPdf, timestampSlug } from "../lib/pdfExport";
+import { saveSchedule } from "../lib/gameActions";
 import MatchCard from "../components/MatchCard";
 import Toast, { type ToastData } from "../components/Toast";
 import EmptyState from "../components/EmptyState";
@@ -33,6 +33,8 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
   const hydratedRef = useRef(false);
   const printableRef = useRef<HTMLDivElement>(null);
   const clearToast = useCallback(() => setToast(null), []);
+  const phaseMatches = matches.filter((m) => m.phase === game.currentPhase);
+  const isPhaseClosed = phaseMatches.some((m) => m.locked || m.result !== null);
 
   const handleExportPdf = async () => {
     if (!printableRef.current) return;
@@ -73,13 +75,12 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
   }, [player.scheduleStatus]);
 
   const status = localStatus;
-  const isReadOnly = status === "inviata" || status === "accettata";
+  const isReadOnly = status === "inviata" || status === "accettata" || isPhaseClosed;
   const isRifiutata = status === "rifiutata";
   const isEditable = !isReadOnly;
 
   // Auto-save draft — debounced, only while the schedina is still editable (bozza or rifiutata)
   useEffect(() => {
-    // Skip the very first render (mount / re-hydration from player prop)
     if (!hydratedRef.current) {
       hydratedRef.current = true;
       return;
@@ -89,34 +90,29 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
     const handle = setTimeout(async () => {
       try {
         setAutoSaving(true);
-        const ref = doc(db, "games", gameId, "players", player.id);
-        // If the Comitato rifiutata the schedina, keep that status — we only
-        // want to save the edits so the player can re-submit manually.
-        // Writing "bozza" here would overwrite the rejection (and the Firestore
-        // rule forbids some transitions, silently failing).
-        const updates: Record<string, unknown> = {
+        await saveSchedule({
+          gameId,
           predictions,
           topScorerPick,
           winnerPick,
-        };
-        if (status === "bozza") {
-          updates.scheduleStatus = "bozza";
-        }
-        await updateDoc(ref, updates);
+        });
         setDraftSaved(true);
-        // Fade the "Salvato" pill out after ~2s
         setTimeout(() => setDraftSaved(false), 2000);
       } catch (err) {
         console.error("Auto-save error:", err);
+        if (err instanceof FirebaseError && err.code === "functions/failed-precondition") {
+          setToast({
+            message: "La fase corrente e' chiusa: la schedina non e' piu' modificabile.",
+            type: "info",
+          });
+        }
       } finally {
         setAutoSaving(false);
       }
     }, 800);
 
     return () => clearTimeout(handle);
-  }, [predictions, topScorerPick, winnerPick, isEditable, status, gameId, player.id]);
-
-  const phaseMatches = matches.filter((m) => m.phase === game.currentPhase);
+  }, [predictions, topScorerPick, winnerPick, isEditable, gameId]);
 
   const groups = phaseMatches.reduce<Record<string, Match[]>>((acc, m) => {
     const key = m.group ?? m.phase;
@@ -134,19 +130,23 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
     setSaving(true);
     vibrate("success");
     try {
-      const ref = doc(db, "games", gameId, "players", player.id);
-      await updateDoc(ref, {
+      const result = await saveSchedule({
+        gameId,
         predictions,
         topScorerPick,
         winnerPick,
-        scheduleStatus: "inviata",
+        submit: true,
       });
-      setLocalStatus("inviata");
+      setLocalStatus(result.scheduleStatus);
       setToast({ message: "Schedina inviata al Comitato!", type: "info" });
     } catch (err) {
       console.error("Save error:", err);
       vibrate("error");
-      setToast({ message: "Errore nell'invio. Riprova.", type: "error" });
+      if (err instanceof FirebaseError && err.code === "functions/failed-precondition") {
+        setToast({ message: err.message.replace(/^functions\/[a-z-]+:\s*/i, ""), type: "error" });
+      } else {
+        setToast({ message: "Errore nell'invio. Riprova.", type: "error" });
+      }
     } finally {
       setSaving(false);
     }
@@ -160,7 +160,6 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
       <Confetti active={celebrate} />
       <Toast toast={toast} onDone={clearToast} />
 
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black" style={{ fontFamily: "Outfit, sans-serif" }}>Schedina</h1>
@@ -190,7 +189,6 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
         </div>
       </div>
 
-      {/* Status banner */}
       {status === "inviata" && (
         <div
           className="glass rounded-xl px-4 py-3 animate-in"
@@ -245,12 +243,29 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
         </div>
       )}
 
-      {/* Groups grid */}
+      {isPhaseClosed && status !== "inviata" && status !== "accettata" && (
+        <div
+          className="glass rounded-xl px-4 py-3 animate-in"
+          style={{
+            background: "rgba(255, 215, 0, 0.08)",
+            border: "1px solid rgba(255,215,0,0.35)",
+            boxShadow: "0 0 20px rgba(255,215,0,0.08)",
+          }}
+        >
+          <p className="font-black text-sm" style={{ fontFamily: "Outfit, sans-serif", color: "var(--gold)" }}>
+            Fase chiusa
+          </p>
+          <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+            Il termine per modificare o inviare questa schedina e' scaduto.
+          </p>
+        </div>
+      )}
+
       {phaseMatches.length === 0 && (
         <EmptyState
           icon="📋"
           title="Ancora nessuna partita"
-          description={`Il Comitato non ha ancora inserito le partite per la fase "${game.currentPhase}". Torna più tardi!`}
+          description={`Il Comitato non ha ancora inserito le partite per la fase "${game.currentPhase}". Torna piu' tardi!`}
           accent="muted"
         />
       )}
@@ -277,7 +292,6 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
         ))}
       </div>
 
-      {/* Special picks */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="glass rounded-lg px-3 py-2.5">
           <label className="text-[10px] uppercase tracking-wider" style={{ color: "var(--gold)", fontFamily: "Outfit, sans-serif", fontWeight: 600 }}>Capocannoniere</label>
@@ -307,38 +321,37 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
         </div>
       </div>
 
-      {/* Confirmation modal */}
       {showConfirmModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center px-4"
-          style={{ background: 'rgba(4, 8, 16, 0.85)', backdropFilter: 'blur(8px)' }}
+          style={{ background: "rgba(4, 8, 16, 0.85)", backdropFilter: "blur(8px)" }}
         >
           <div
             className="glass rounded-2xl p-6 w-full max-w-sm space-y-4 animate-in"
-            style={{ border: '1px solid rgba(0,212,255,0.3)', boxShadow: '0 0 40px rgba(0,212,255,0.1)' }}
+            style={{ border: "1px solid rgba(0,212,255,0.3)", boxShadow: "0 0 40px rgba(0,212,255,0.1)" }}
           >
-            <h2 className="text-lg font-black" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--text-primary)' }}>
+            <h2 className="text-lg font-black" style={{ fontFamily: "Outfit, sans-serif", color: "var(--text-primary)" }}>
               Conferma invio
             </h2>
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
               Sei sicuro? Dopo l'invio non potrai modificare la schedina.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowConfirmModal(false)}
                 className="flex-1 py-2.5 rounded-xl font-bold text-sm glass transition-all"
-                style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--text-muted)' }}
+                style={{ fontFamily: "Outfit, sans-serif", color: "var(--text-muted)" }}
               >
                 Annulla
               </button>
               <button
-                onClick={() => { setShowConfirmModal(false); handleSave(); }}
+                onClick={() => { setShowConfirmModal(false); void handleSave(); }}
                 className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all"
                 style={{
-                  fontFamily: 'Outfit, sans-serif',
-                  background: 'linear-gradient(135deg, #00d4ff, #0099cc)',
-                  color: '#040810',
-                  boxShadow: '0 0 20px rgba(0,212,255,0.2)',
+                  fontFamily: "Outfit, sans-serif",
+                  background: "linear-gradient(135deg, #00d4ff, #0099cc)",
+                  color: "#040810",
+                  boxShadow: "0 0 20px rgba(0,212,255,0.2)",
                 }}
               >
                 Conferma
@@ -348,40 +361,33 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
         </div>
       )}
 
-      {/* Save button — hidden when read-only. Disabled until ALL predictions
-          + capocannoniere + vincitrice are filled, to avoid sending a
-          half-complete schedina that locks the player out. */}
       {!isReadOnly && (
-        <>
-          <button
-            onClick={() => setShowConfirmModal(true)}
-            disabled={saving || !allFilled}
-            className={`btn-glow w-full py-3.5 rounded-xl font-bold text-sm tracking-widest uppercase transition-all duration-300 ${allFilled && !saving ? "pulse-ring" : ""}`}
-            style={{
-              fontFamily: "Outfit, sans-serif",
-              background: allFilled
-                ? "linear-gradient(135deg, #00d4ff, #0099cc)"
-                : "rgba(255,255,255,0.05)",
-              color: allFilled ? "#040810" : "var(--text-muted)",
-              boxShadow: allFilled ? "0 0 30px rgba(0, 212, 255, 0.15)" : "none",
-              border: allFilled ? "none" : "1px solid var(--border)",
-              opacity: saving ? 0.6 : 1,
-              cursor: allFilled ? "pointer" : "not-allowed",
-            }}
-          >
-            {saving
-              ? "Invio in corso..."
-              : allFilled
-              ? "SALVA E INVIA AL COMITATO"
-              : `Mancano ${phaseMatches.length - filledCount} pronostic${phaseMatches.length - filledCount === 1 ? "o" : "i"}${!topScorerPick ? " + capocannoniere" : ""}${!winnerPick ? " + vincitrice" : ""}`}
-          </button>
-        </>
+        <button
+          onClick={() => setShowConfirmModal(true)}
+          disabled={saving || !allFilled}
+          className={`btn-glow w-full py-3.5 rounded-xl font-bold text-sm tracking-widest uppercase transition-all duration-300 ${allFilled && !saving ? "pulse-ring" : ""}`}
+          style={{
+            fontFamily: "Outfit, sans-serif",
+            background: allFilled
+              ? "linear-gradient(135deg, #00d4ff, #0099cc)"
+              : "rgba(255,255,255,0.05)",
+            color: allFilled ? "#040810" : "var(--text-muted)",
+            boxShadow: allFilled ? "0 0 30px rgba(0, 212, 255, 0.15)" : "none",
+            border: allFilled ? "none" : "1px solid var(--border)",
+            opacity: saving ? 0.6 : 1,
+            cursor: allFilled ? "pointer" : "not-allowed",
+          }}
+        >
+          {saving
+            ? "Invio in corso..."
+            : allFilled
+            ? "SALVA E INVIA AL COMITATO"
+            : `Mancano ${phaseMatches.length - filledCount} pronostic${phaseMatches.length - filledCount === 1 ? "o" : "i"}${!topScorerPick ? " + capocannoniere" : ""}${!winnerPick ? " + vincitrice" : ""}`}
+        </button>
       )}
 
       <p className="text-[10px] text-center pb-2" style={{ color: "var(--text-muted)" }}>
         {(() => {
-          // Find the earliest kickoff in the current phase — that's when the
-          // schedina effectively closes (24h before).
           const firstMatch = phaseMatches
             .filter((m) => m.kickoff)
             .sort((a, b) => a.kickoff.getTime() - b.kickoff.getTime())[0];
@@ -397,7 +403,6 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
         })()}
       </p>
 
-      {/* Download PDF — available once the schedina has at least one prediction */}
       {filledCount > 0 && (
         <button
           onClick={handleExportPdf}
@@ -414,7 +419,6 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
         </button>
       )}
 
-      {/* Hidden printable snapshot, rendered offscreen for html2canvas to rasterize */}
       <div
         aria-hidden="true"
         style={{

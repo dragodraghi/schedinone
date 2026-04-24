@@ -13,6 +13,11 @@ interface Props {
 }
 
 const signs: Sign[] = ["1", "X", "2"];
+const LOCK_LEAD_MS = 24 * 60 * 60 * 1000;
+
+function shouldLockKickoff(date: Date): boolean {
+  return date.getTime() <= Date.now() + LOCK_LEAD_MS;
+}
 
 type EditMode = "result" | "kickoff";
 
@@ -52,6 +57,7 @@ export default function RisultatiPage({ matches, gameId }: Props) {
       await updateDoc(ref, {
         result: editResult,
         score: editScore,
+        locked: true,
         resultSource: "manual",
       });
       setEditingId(null);
@@ -81,6 +87,7 @@ export default function RisultatiPage({ matches, gameId }: Props) {
       const ref = doc(db, "games", gameId, "matches", matchId);
       await updateDoc(ref, {
         kickoff: Timestamp.fromDate(newDate),
+        locked: shouldLockKickoff(newDate),
         // Marking as "manual" prevents the scheduled FIFA sync from
         // overwriting this edit later.
         kickoffSource: "manual",

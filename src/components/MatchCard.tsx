@@ -73,7 +73,7 @@ export default function MatchCard({ match, prediction, onPredict, disabled }: Pr
           return (
             <button
               key={sign}
-              disabled={match.locked || disabled}
+              disabled={match.locked || disabled || isFinished}
               onClick={() => {
                 vibrate("tap");
                 onPredict(match.id, sign);

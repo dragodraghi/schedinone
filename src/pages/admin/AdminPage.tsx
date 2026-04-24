@@ -224,7 +224,7 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
       </div>
 
       {/* Condividi il gioco (QR + invite buttons) */}
-      <QrCodeCard />
+      <QrCodeCard accessCode={game.accessCode} />
 
       {/* World Cup 2026 seed */}
       <div className="glass rounded-xl p-4 space-y-3" style={{ border: '1px solid rgba(255, 215, 0, 0.25)' }}>

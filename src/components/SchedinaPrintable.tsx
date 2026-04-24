@@ -1,4 +1,5 @@
 import { forwardRef } from "react";
+import { getShareHost } from "../lib/invite";
 import type { Game, Match, Player, Sign } from "../lib/types";
 
 interface Props {
@@ -34,6 +35,7 @@ const SchedinaPrintable = forwardRef<HTMLDivElement, Props>(function SchedinaPri
     dateStyle: "long",
     timeStyle: "short",
   });
+  const shareHost = getShareHost();
 
   return (
     <div
@@ -48,7 +50,6 @@ const SchedinaPrintable = forwardRef<HTMLDivElement, Props>(function SchedinaPri
         lineHeight: 1.5,
       }}
     >
-      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -95,7 +96,6 @@ const SchedinaPrintable = forwardRef<HTMLDivElement, Props>(function SchedinaPri
         </div>
       </div>
 
-      {/* Meta info row */}
       <div
         style={{
           display: "flex",
@@ -119,7 +119,6 @@ const SchedinaPrintable = forwardRef<HTMLDivElement, Props>(function SchedinaPri
         </div>
       </div>
 
-      {/* Groups */}
       {Object.entries(groups).map(([groupName, groupMatches]) => (
         <div key={groupName} style={{ marginBottom: 18 }}>
           <div
@@ -201,7 +200,7 @@ const SchedinaPrintable = forwardRef<HTMLDivElement, Props>(function SchedinaPri
                               fontSize: 10,
                             }}
                           >
-                            {correct ? "✓" : "✗"}
+                            {correct ? "✓" : "✕"}
                           </span>
                         </>
                       ) : (
@@ -216,7 +215,6 @@ const SchedinaPrintable = forwardRef<HTMLDivElement, Props>(function SchedinaPri
         </div>
       ))}
 
-      {/* Special picks */}
       <div
         style={{
           marginTop: 24,
@@ -255,7 +253,6 @@ const SchedinaPrintable = forwardRef<HTMLDivElement, Props>(function SchedinaPri
         </div>
       </div>
 
-      {/* Footer */}
       <div
         style={{
           marginTop: 24,
@@ -266,7 +263,7 @@ const SchedinaPrintable = forwardRef<HTMLDivElement, Props>(function SchedinaPri
           textAlign: "center",
         }}
       >
-        schedinone-2026.web.app · FIFA World Cup 2026 — USA · Messico · Canada
+        {shareHost} · FIFA World Cup 2026 — USA · Messico · Canada
       </div>
     </div>
   );

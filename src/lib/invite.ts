@@ -3,22 +3,43 @@
  * Profile "Invita amici" button and the Admin QR code card.
  */
 
-/** Hard-coded share URL. Cache-busted so WhatsApp refetches the OG preview. */
-export const SHARE_URL = "https://schedinone-2026.web.app/?v=2026";
+function trimTrailingSlash(value: string): string {
+  return value.endsWith("/") ? value.slice(0, -1) : value;
+}
 
-/** The player access code shown in the invite. */
-export const ACCESS_CODE = "GIOCA2026";
+/** Build the public URL for invites / QR codes. */
+export function getShareUrl(): string {
+  const envUrl = typeof import.meta.env.VITE_SHARE_URL === "string"
+    ? import.meta.env.VITE_SHARE_URL.trim()
+    : "";
+  if (envUrl) {
+    return `${trimTrailingSlash(envUrl)}/?v=2026`;
+  }
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return `${trimTrailingSlash(window.location.origin)}/?v=2026`;
+  }
+  return "https://schedinone-2026.web.app/?v=2026";
+}
+
+export function getShareHost(): string {
+  try {
+    return new URL(getShareUrl()).host;
+  } catch {
+    return "schedinone-2026.web.app";
+  }
+}
 
 /**
  * Build the invite message (Italian, WhatsApp-ready).
  * Opens with the eye-catching line, explains, ends with link + code.
  */
-export function buildInviteMessage(): string {
+export function buildInviteMessage(accessCode: string): string {
+  const shareUrl = getShareUrl();
   return (
     "⚽ *SCHEDINONE — Mondiali 2026*\n\n" +
     "Gioca con noi ai pronostici del Mondiale! Compila la schedina (1/X/2 + capocannoniere + vincitrice) e sfida tutti noi per il montepremi.\n\n" +
-    `🔗 ${SHARE_URL}\n` +
-    `🔑 Codice: ${ACCESS_CODE}\n\n` +
+    `🔗 ${shareUrl}\n` +
+    `🔑 Codice: ${accessCode}\n\n` +
     "Si installa sul telefono come un'app vera (Chrome → menu → Aggiungi a schermata Home). In bocca al lupo! 🍀"
   );
 }
@@ -28,25 +49,22 @@ export function buildInviteMessage(): string {
  * modern PWAs), fallback to opening WhatsApp with the pre-filled text.
  * Returns true if a share dialog opened successfully.
  */
-export async function shareInvite(): Promise<boolean> {
-  const text = buildInviteMessage();
-  // Most OSes' share sheet handles title/text/url well
+export async function shareInvite(accessCode: string): Promise<boolean> {
+  const shareUrl = getShareUrl();
+  const text = buildInviteMessage(accessCode);
   if (typeof navigator !== "undefined" && "share" in navigator) {
     try {
       await navigator.share({
         title: "SCHEDINONE — Mondiali 2026",
         text,
-        url: SHARE_URL,
+        url: shareUrl,
       });
       return true;
     } catch (err) {
-      // User cancelled — don't fall back, they chose to dismiss
       if ((err as Error)?.name === "AbortError") return false;
-      // Other error (permission denied, etc.) → fallback below
     }
   }
 
-  // Fallback: open WhatsApp with preformatted text
   const encoded = encodeURIComponent(text);
   const waUrl = `https://wa.me/?text=${encoded}`;
   window.open(waUrl, "_blank");
@@ -54,9 +72,9 @@ export async function shareInvite(): Promise<boolean> {
 }
 
 /** Copy the invite text to the clipboard. Returns true on success. */
-export async function copyInvite(): Promise<boolean> {
+export async function copyInvite(accessCode: string): Promise<boolean> {
   try {
-    await navigator.clipboard.writeText(buildInviteMessage());
+    await navigator.clipboard.writeText(buildInviteMessage(accessCode));
     return true;
   } catch {
     return false;

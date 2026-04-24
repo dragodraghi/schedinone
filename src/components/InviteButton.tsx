@@ -3,12 +3,16 @@ import { shareInvite, copyInvite } from "../lib/invite";
 import { vibrate } from "../lib/haptic";
 import Toast, { type ToastData } from "./Toast";
 
+interface Props {
+  accessCode: string;
+}
+
 /**
  * "Invita amici" button — tries Web Share API (iOS/Android native share sheet),
  * falls back to opening WhatsApp. Also offers a "Copia messaggio" secondary
  * action for anyone who wants to paste it somewhere else.
  */
-export default function InviteButton() {
+export default function InviteButton({ accessCode }: Props) {
   const [toast, setToast] = useState<ToastData | null>(null);
   const [sharing, setSharing] = useState(false);
 
@@ -16,7 +20,7 @@ export default function InviteButton() {
     vibrate("tap");
     setSharing(true);
     try {
-      const ok = await shareInvite();
+      const ok = await shareInvite(accessCode);
       if (ok) setToast({ message: "Apertura condivisione...", type: "info" });
     } catch {
       setToast({ message: "Errore nella condivisione", type: "error" });
@@ -27,7 +31,7 @@ export default function InviteButton() {
 
   const handleCopy = async () => {
     vibrate("tap");
-    const ok = await copyInvite();
+    const ok = await copyInvite(accessCode);
     setToast({
       message: ok ? "Messaggio copiato! Incollalo dove vuoi." : "Copia non riuscita",
       type: ok ? "success" : "error",

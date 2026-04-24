@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(npx tsc *)",
+      "Bash(git commit -m 'feat\\(types\\): add messaging types \\(Announcement, Thread, ChatMessage\\) *)",
+      "Bash(git reset *)",
+      "Bash(git stash *)",
+      "Bash(git commit -m 'feat\\(rules\\): announcements collection with publish/edit/delete invariants *)",
+      "Bash(git -C /c/Users/Utente/schedinone add src/pages/admin/AdminMessaggiPage.tsx)",
+      "Bash(git -C /c/Users/Utente/schedinone commit -m 'feat\\(admin\\): AdminMessaggiPage with thread list + conversation pane *)",
+      "Bash(git commit -m 'docs: document announcements, chat and push notifications *)",
+      "Bash(git checkout *)"
+    ]
+  }
+}

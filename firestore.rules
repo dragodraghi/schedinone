@@ -1,42 +1,72 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function gameDoc(gameId) {
+      return get(/databases/$(database)/documents/games/$(gameId));
+    }
+
+    function isAdmin(gameId) {
+      return isSignedIn()
+        && request.auth.uid in gameDoc(gameId).data.admins;
+    }
+
+    function isLegacyClientMode(gameId) {
+      return gameDoc(gameId).data.adminCode is string;
+    }
+
     match /games/{gameId} {
-      allow read: if request.auth != null;
+      allow read: if isSignedIn();
       // Existing admins can change any field.
-      allow write: if request.auth != null
-        && request.auth.uid in resource.data.admins;
-      // Self-promotion: any authenticated user can add ONLY their own UID to
-      // the admins array (the client validates the adminCode first). They
-      // can't touch any other field and can't remove other admins.
-      allow update: if request.auth != null
+      allow write: if isAdmin(gameId);
+      // Spark-compatible fallback: when the admin code is still public in the
+      // game doc, let a player add only their own UID to admins.
+      allow update: if isSignedIn()
+        && resource.data.adminCode is string
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['admins'])
         && request.auth.uid in request.resource.data.admins
         && request.resource.data.admins.hasAll(resource.data.admins)
         && request.resource.data.admins.size() == resource.data.admins.size() + 1;
 
       match /matches/{matchId} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null
-          && request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.admins;
+        allow read: if isSignedIn();
+        allow write: if isAdmin(gameId);
       }
 
       match /players/{playerId} {
-        allow read: if request.auth != null;
-        allow create: if request.auth != null
-          && request.auth.uid == playerId;
-        // Player can update own doc, but not points or paid
-        // Player CAN set scheduleStatus only to "inviata"
-        allow update: if request.auth != null
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && isLegacyClientMode(gameId)
+          && request.auth.uid == playerId
+          && request.resource.data.keys().hasOnly([
+            'name',
+            'nameLower',
+            'joinedAt',
+            'predictions',
+            'topScorerPick',
+            'winnerPick',
+            'points',
+            'paid',
+            'scheduleStatus'
+          ])
+          && request.resource.data.points == 0
+          && request.resource.data.paid == false
+          && request.resource.data.scheduleStatus == 'bozza';
+        // Spark-compatible fallback: own schedina stays editable client-side
+        // until the player sends it, while points and paid stay admin-only.
+        allow update: if isSignedIn()
+          && isLegacyClientMode(gameId)
           && request.auth.uid == playerId
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['points', 'paid'])
           && (
             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['scheduleStatus'])
             || request.resource.data.scheduleStatus == 'inviata'
           );
-        // Admins can update/delete any player
-        allow update, delete: if request.auth != null
-          && request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.admins;
+        // Admins can create/update/delete any player
+        allow write: if isAdmin(gameId);
       }
     }
   }

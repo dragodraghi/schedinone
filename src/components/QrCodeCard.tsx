@@ -1,23 +1,27 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { SHARE_URL, ACCESS_CODE, shareInvite, copyInvite } from "../lib/invite";
+import { getShareUrl, shareInvite, copyInvite } from "../lib/invite";
 import Toast, { type ToastData } from "./Toast";
 import { vibrate } from "../lib/haptic";
+
+interface Props {
+  accessCode: string;
+}
 
 /**
  * QR code + invite block for the admin panel. The QR can be screenshotted
  * and used as a WhatsApp status, printed, or just shown to someone's phone
  * camera to onboard them instantly.
  */
-export default function QrCodeCard() {
+export default function QrCodeCard({ accessCode }: Props) {
   const [toast, setToast] = useState<ToastData | null>(null);
   const [zoomed, setZoomed] = useState(false);
-  const svgRef = useRef<HTMLDivElement>(null);
+  const shareUrl = getShareUrl();
 
   const handleShare = async () => {
     vibrate("tap");
     try {
-      await shareInvite();
+      await shareInvite(accessCode);
     } catch {
       setToast({ message: "Errore nella condivisione", type: "error" });
     }
@@ -25,7 +29,7 @@ export default function QrCodeCard() {
 
   const handleCopy = async () => {
     vibrate("tap");
-    const ok = await copyInvite();
+    const ok = await copyInvite(accessCode);
     setToast({
       message: ok ? "Messaggio copiato negli appunti" : "Copia non riuscita",
       type: ok ? "success" : "error",
@@ -35,7 +39,7 @@ export default function QrCodeCard() {
   const handleCopyLink = async () => {
     vibrate("tap");
     try {
-      await navigator.clipboard.writeText(SHARE_URL);
+      await navigator.clipboard.writeText(shareUrl);
       setToast({ message: "Link copiato", type: "success" });
     } catch {
       setToast({ message: "Copia non riuscita", type: "error" });
@@ -66,7 +70,6 @@ export default function QrCodeCard() {
           </p>
         </div>
 
-        {/* QR code — clickable to zoom for easier scanning / screenshot */}
         <button
           type="button"
           onClick={() => setZoomed(true)}
@@ -74,9 +77,9 @@ export default function QrCodeCard() {
           style={{ background: "white", lineHeight: 0 }}
           aria-label="Ingrandisci QR per screenshot"
         >
-          <div ref={svgRef}>
+          <div>
             <QRCodeSVG
-              value={SHARE_URL}
+              value={shareUrl}
               size={180}
               level="M"
               marginSize={0}
@@ -86,7 +89,6 @@ export default function QrCodeCard() {
           </div>
         </button>
 
-        {/* Access code strip */}
         <div
           className="rounded-lg p-3 text-center"
           style={{
@@ -104,11 +106,10 @@ export default function QrCodeCard() {
             className="text-2xl font-black mt-1"
             style={{ fontFamily: "Outfit, sans-serif", color: "var(--accent)", letterSpacing: 4 }}
           >
-            {ACCESS_CODE}
+            {accessCode}
           </p>
         </div>
 
-        {/* Action buttons */}
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={handleShare}
@@ -140,7 +141,6 @@ export default function QrCodeCard() {
         </button>
       </div>
 
-      {/* Zoomed QR overlay for screenshot */}
       {zoomed && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -153,7 +153,7 @@ export default function QrCodeCard() {
               style={{ background: "white", display: "inline-block", lineHeight: 0 }}
             >
               <QRCodeSVG
-                value={SHARE_URL}
+                value={shareUrl}
                 size={260}
                 level="M"
                 marginSize={0}
@@ -180,7 +180,7 @@ export default function QrCodeCard() {
                 Scansiona il QR o usa il codice:
               </p>
               <p className="text-xl font-black mt-1" style={{ color: "var(--accent)", fontFamily: "Outfit, sans-serif", letterSpacing: 3 }}>
-                {ACCESS_CODE}
+                {accessCode}
               </p>
             </div>
             <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>

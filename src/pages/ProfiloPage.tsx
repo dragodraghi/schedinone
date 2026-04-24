@@ -256,7 +256,7 @@ export default function ProfiloPage({ game, player, players, matches, isAdmin, o
       )}
 
       {/* Invite friends — admin-only (the Comitato is in charge of who joins) */}
-      {isAdmin && <InviteButton />}
+      {isAdmin && <InviteButton accessCode={game.accessCode} />}
 
       {/* Logout */}
       <button

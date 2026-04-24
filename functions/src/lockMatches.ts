@@ -15,13 +15,18 @@ export async function lockUpcomingMatches() {
   for (const gameDoc of gamesSnap.docs) {
     const matchesSnap = await db
       .collection(`games/${gameDoc.id}/matches`)
-      .where("locked", "==", false)
-      .where("kickoff", "<=", admin.firestore.Timestamp.fromDate(lockThreshold))
       .get();
 
     const batch = db.batch();
     for (const matchDoc of matchesSnap.docs) {
-      batch.update(matchDoc.ref, { locked: true });
+      const matchData = matchDoc.data();
+      const kickoff = matchData.kickoff?.toDate ? matchData.kickoff.toDate() : null;
+      if (!kickoff) continue;
+
+      const shouldBeLocked = kickoff.getTime() <= lockThreshold.getTime();
+      if (matchData.locked !== shouldBeLocked) {
+        batch.update(matchDoc.ref, { locked: shouldBeLocked });
+      }
     }
     await batch.commit();
   }

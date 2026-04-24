@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
-import { db } from "./lib/firebase";
+import { FirebaseError } from "firebase/app";
 import { auth } from "./lib/firebase";
 import { signOut } from "firebase/auth";
 import { loginAnonymously } from "./lib/auth";
+import { joinGameWithCode } from "./lib/gameActions";
 import { useAuth } from "./hooks/useAuth";
 import { useGame } from "./hooks/useGame";
 import { useMatches } from "./hooks/useMatches";
@@ -34,13 +34,15 @@ export default function App() {
   const { game, loading: gameLoading } = useGame(GAME_ID, authReady);
   const { matches } = useMatches(GAME_ID, authReady);
   const { players } = usePlayers(GAME_ID, authReady);
-  const [loggedIn, setLoggedIn] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionIsAdmin, setSessionIsAdmin] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
   const [loginError, setLoginError] = useState("");
   const handleSplashComplete = useCallback(() => setShowSplash(false), []);
 
   const currentPlayer = players.find((p) => p.id === user?.uid) ?? null;
-  const isAdmin = game?.admins.includes(user?.uid ?? "") ?? false;
+  const isAdmin = sessionIsAdmin || (game?.admins.includes(user?.uid ?? "") ?? false);
+  const loggedIn = sessionReady || !!currentPlayer;
 
   // Firestore rules require auth to read anything. Trigger an anonymous
   // sign-in as soon as the app mounts (for first-time visitors who haven't
@@ -54,62 +56,35 @@ export default function App() {
     }
   }, [authLoading, user]);
 
-  useEffect(() => {
-    if (currentPlayer) setLoggedIn(true);
-  }, [currentPlayer]);
-
-  // NOTE: Access codes are visible in the game document. This is acceptable for a
-  // private game among friends. For a public-facing app, move code validation to
-  // a Cloud Function to prevent code exposure.
   const handleLogin = async (name: string, code: string) => {
     if (!game) return;
     setLoginError("");
-    if (code !== game.accessCode && code !== game.adminCode) {
-      setLoginError("Codice non valido. Controlla e riprova.");
-      return;
-    }
 
     try {
-      const firebaseUser = user ?? (await loginAnonymously());
-      const playerRef = doc(db, "games", GAME_ID, "players", firebaseUser.uid);
-      const existing = await getDoc(playerRef);
-
-      // Reject duplicate names across different UIDs to prevent accidental
-      // multiple entries (e.g. same person logging in from incognito or another
-      // device). The user is told to pick a different name or ask the Comitato
-      // to remove the stale duplicate.
-      if (!existing.exists()) {
-        const normalized = name.trim().toLowerCase();
-        const duplicate = players.find(
-          (p) => p.name.trim().toLowerCase() === normalized && p.id !== firebaseUser.uid
-        );
-        if (duplicate) {
-          setLoginError(
-            `Il nome "${name}" è già usato. Scegli un nome diverso (es. aggiungi un'iniziale: "${name} M.") oppure chiedi al Comitato di rimuovere il vecchio.`
-          );
-          return;
-        }
-        await setDoc(playerRef, {
-          name,
-          joinedAt: serverTimestamp(),
-          predictions: {},
-          topScorerPick: "",
-          winnerPick: "",
-          points: 0,
-          paid: false,
-          scheduleStatus: "bozza",
-        });
-      }
-
-      if (code === game.adminCode && !game.admins.includes(firebaseUser.uid)) {
-        const gameRef = doc(db, "games", GAME_ID);
-        await updateDoc(gameRef, { admins: arrayUnion(firebaseUser.uid) });
-      }
-
-      setLoggedIn(true);
+      await (user ?? loginAnonymously());
+      const result = await joinGameWithCode({ gameId: GAME_ID, name, code });
+      setSessionReady(true);
+      setSessionIsAdmin(result.isAdmin);
       setShowSplash(true);
     } catch (err) {
       console.error("Login error:", err);
+      if (err instanceof FirebaseError) {
+        if (err.code === "functions/permission-denied") {
+          setLoginError("Codice non valido. Controlla e riprova.");
+          return;
+        }
+        if (
+          err.code === "functions/failed-precondition" ||
+          err.code === "functions/invalid-argument"
+        ) {
+          setLoginError(err.message.replace(/^functions\/[a-z-]+:\s*/i, ""));
+          return;
+        }
+        if (err.code === "functions/not-found") {
+          setLoginError("Gioco non trovato.");
+          return;
+        }
+      }
       setLoginError("Errore durante l'accesso. Riprova.");
     }
   };
@@ -120,7 +95,9 @@ export default function App() {
     } catch (err) {
       console.error("Logout error:", err);
     }
-    setLoggedIn(false);
+    setSessionReady(false);
+    setSessionIsAdmin(false);
+    setShowSplash(false);
     setLoginError("");
   };
 
@@ -131,10 +108,10 @@ export default function App() {
   const initializing = authLoading || !user;
   if (initializing || gameLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-4" style={{ background: 'var(--bg-deep)' }}>
+      <div className="min-h-screen flex flex-col items-center justify-center px-4" style={{ background: "var(--bg-deep)" }}>
         <div className="text-center mb-6 animate-in">
           <div className="text-4xl mb-3 shimmer">⚽</div>
-          <h1 className="text-2xl font-black" style={{ fontFamily: 'Outfit, sans-serif', background: 'linear-gradient(135deg, #00d4ff, #ffd700)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          <h1 className="text-2xl font-black" style={{ fontFamily: "Outfit, sans-serif", background: "linear-gradient(135deg, #00d4ff, #ffd700)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
             SCHEDINONE
           </h1>
         </div>
@@ -147,18 +124,18 @@ export default function App() {
 
   if (!game) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-deep)' }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-deep)" }}>
         <div className="glass rounded-2xl p-8 text-center animate-in mx-4">
           <div className="text-3xl mb-3">⚠️</div>
-          <p className="font-bold" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--wrong)' }}>Gioco non trovato</p>
-          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Controlla la configurazione</p>
+          <p className="font-bold" style={{ fontFamily: "Outfit, sans-serif", color: "var(--wrong)" }}>Gioco non trovato</p>
+          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Controlla la configurazione</p>
         </div>
       </div>
     );
   }
 
   if (!loggedIn) {
-    return <LoginPage onLogin={handleLogin} error={loginError} />;
+    return <LoginPage onLogin={handleLogin} error={loginError} accessCode={game.accessCode} />;
   }
 
   if (showSplash) {

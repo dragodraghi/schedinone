@@ -18,16 +18,19 @@ interface Props {
 }
 
 export default function Toast({ toast, onDone, duration = 3000 }: Props) {
-  const [visible, setVisible] = useState(false);
+  const [closing, setClosing] = useState(false);
 
   useEffect(() => {
     if (!toast) return;
-    setVisible(true);
-    const timer = setTimeout(() => {
-      setVisible(false);
-      setTimeout(onDone, 300);
-    }, duration);
-    return () => clearTimeout(timer);
+    const closeTimer = setTimeout(() => setClosing(true), duration);
+    const doneTimer = setTimeout(() => {
+      setClosing(false);
+      onDone();
+    }, duration + 300);
+    return () => {
+      clearTimeout(closeTimer);
+      clearTimeout(doneTimer);
+    };
   }, [toast, duration, onDone]);
 
   if (!toast) return null;
@@ -36,7 +39,7 @@ export default function Toast({ toast, onDone, duration = 3000 }: Props) {
 
   return (
     <div
-      className={`fixed top-4 left-1/2 z-50 px-5 py-3 rounded-xl text-sm font-bold toast-animate ${visible ? "toast-in" : "toast-out"}`}
+      className={`fixed top-4 left-1/2 z-50 px-5 py-3 rounded-xl text-sm font-bold toast-animate ${closing ? "toast-out" : "toast-in"}`}
       style={{
         transform: "translateX(-50%)",
         fontFamily: "Outfit, sans-serif",

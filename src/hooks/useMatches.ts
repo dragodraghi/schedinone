@@ -3,13 +3,21 @@ import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import type { Match } from "../lib/types";
 
+interface MatchesState {
+  matches: Match[];
+  hasReceived: boolean;
+  key: string;
+}
+
 export function useMatches(gameId: string, enabled = true) {
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [state, setState] = useState<MatchesState>({
+    matches: [],
+    hasReceived: false,
+    key: "",
+  });
 
   useEffect(() => {
     if (!enabled) {
-      setLoading(false);
       return;
     }
     const ref = collection(db, "games", gameId, "matches");
@@ -22,16 +30,19 @@ export function useMatches(gameId: string, enabled = true) {
           ...d.data(),
           kickoff: d.data().kickoff?.toDate(),
         })) as Match[];
-        setMatches(data);
-        setLoading(false);
+        setState({ matches: data, hasReceived: true, key: gameId });
       },
       (err) => {
         console.debug("Firestore listener waiting for auth", err.code);
-        setLoading(false);
+        setState({ matches: [], hasReceived: true, key: gameId });
       }
     );
     return unsubscribe;
   }, [gameId, enabled]);
 
-  return { matches, loading };
+  const isCurrentGame = state.key === gameId;
+  return {
+    matches: isCurrentGame ? state.matches : [],
+    loading: enabled ? !isCurrentGame || !state.hasReceived : false,
+  };
 }
