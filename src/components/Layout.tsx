@@ -95,13 +95,24 @@ export default function Layout({
       {!isAdmin && gameId && currentUid && (
         <Link
           to="/messaggi"
-          aria-label="Messaggi"
-          className="fixed top-3 right-3 z-40 glass rounded-full px-3 py-2 text-sm flex items-center gap-1"
-          style={{ backdropFilter: 'blur(12px)' }}
+          aria-label="Messaggi al Comitato"
+          className="fixed z-40 glass rounded-full flex items-center justify-center shadow-lg"
+          style={{
+            top: 'calc(12px + env(safe-area-inset-top))',
+            right: 16,
+            width: 48,
+            height: 48,
+            backdropFilter: 'blur(12px)',
+            border: '1px solid var(--border)',
+            fontSize: 22,
+          }}
         >
-          <span>💬</span>
+          <span>📩</span>
           {unreadMessages > 0 && (
-            <span className="text-[10px] bg-red-600 text-white rounded-full px-1.5 font-bold">
+            <span
+              className="absolute text-[10px] bg-red-600 text-white rounded-full font-bold flex items-center justify-center"
+              style={{ top: -4, right: -4, minWidth: 18, height: 18, padding: '0 4px' }}
+            >
               {unreadMessages}
             </span>
           )}
