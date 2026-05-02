@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 export interface ToastData {
   message: string;
@@ -18,15 +18,9 @@ interface Props {
 }
 
 export default function Toast({ toast, onDone, duration = 3000 }: Props) {
-  const [visible, setVisible] = useState(false);
-
   useEffect(() => {
     if (!toast) return;
-    setVisible(true);
-    const timer = setTimeout(() => {
-      setVisible(false);
-      setTimeout(onDone, 300);
-    }, duration);
+    const timer = setTimeout(onDone, duration);
     return () => clearTimeout(timer);
   }, [toast, duration, onDone]);
 
@@ -36,7 +30,7 @@ export default function Toast({ toast, onDone, duration = 3000 }: Props) {
 
   return (
     <div
-      className={`fixed top-4 left-1/2 z-50 px-5 py-3 rounded-xl text-sm font-bold toast-animate ${visible ? "toast-in" : "toast-out"}`}
+      className="fixed top-4 left-1/2 z-50 px-5 py-3 rounded-xl text-sm font-bold toast-animate toast-in"
       style={{
         transform: "translateX(-50%)",
         fontFamily: "Outfit, sans-serif",

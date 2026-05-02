@@ -30,24 +30,45 @@ export function subscribeMessages(
     collection(db, `games/${gameId}/threads/${threadUid}/messages`),
     orderBy('createdAt', 'asc')
   );
-  return onSnapshot(q, (snap) => {
-    cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ChatMessage, 'id'>) })));
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ChatMessage, 'id'>) })));
+    },
+    (err) => {
+      console.warn('[chat] messages listener failed', err);
+      cb([]);
+    }
+  );
 }
 
 export function subscribeThread(
   gameId: string, threadUid: string, cb: (t: Thread | null) => void
 ) {
-  return onSnapshot(doc(db, `games/${gameId}/threads/${threadUid}`), (snap) => {
-    cb(snap.exists() ? (snap.data() as Thread) : null);
-  });
+  return onSnapshot(
+    doc(db, `games/${gameId}/threads/${threadUid}`),
+    (snap) => {
+      cb(snap.exists() ? (snap.data() as Thread) : null);
+    },
+    (err) => {
+      console.warn('[chat] thread listener failed', err);
+      cb(null);
+    }
+  );
 }
 
 export function subscribeAllThreads(gameId: string, cb: (threads: (Thread & { id: string })[]) => void) {
   const q = query(collection(db, `games/${gameId}/threads`), orderBy('lastMessageAt', 'desc'));
-  return onSnapshot(q, (snap) => {
-    cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Thread) })));
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Thread) })));
+    },
+    (err) => {
+      console.warn('[chat] threads listener failed', err);
+      cb([]);
+    }
+  );
 }
 
 export async function markThreadRead(gameId: string, threadUid: string): Promise<void> {

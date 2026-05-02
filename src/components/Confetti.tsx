@@ -1,17 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 
 interface Props {
   active: boolean;
   /** How many confetti pieces. Default 60. */
   count?: number;
-  /** Duration before auto-clean (ms). Default 3500. */
-  duration?: number;
 }
 
 const COLORS = ["#00d4ff", "#ffd700", "#00ff88", "#ff3366", "#a855f7"];
 
-function rand(min: number, max: number): number {
-  return Math.random() * (max - min) + min;
+function seededRand(seed: number, min: number, max: number): number {
+  const x = Math.sin(seed * 12.9898) * 43758.5453;
+  const fraction = x - Math.floor(x);
+  return fraction * (max - min) + min;
 }
 
 interface Piece {
@@ -29,35 +29,27 @@ interface Piece {
  * Lightweight CSS-driven confetti. Renders fixed-position pieces that fall and rotate.
  * Respects prefers-reduced-motion (renders nothing).
  */
-export default function Confetti({ active, count = 60, duration = 3500 }: Props) {
-  const [visible, setVisible] = useState(false);
+export default function Confetti({ active, count = 60 }: Props) {
   const reduced = useMemo(() => {
     if (typeof window === "undefined") return false;
     return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
   }, []);
 
-  useEffect(() => {
-    if (!active || reduced) return;
-    setVisible(true);
-    const t = setTimeout(() => setVisible(false), duration);
-    return () => clearTimeout(t);
-  }, [active, reduced, duration]);
-
   const pieces: Piece[] = useMemo(() => {
-    if (!visible) return [];
+    if (!active) return [];
     return Array.from({ length: count }, (_, i) => ({
       id: i,
-      color: COLORS[Math.floor(Math.random() * COLORS.length)],
-      x: `${rand(0, 100)}vw`,
-      drift: `${rand(-120, 120)}px`,
-      rot: `${rand(360, 1080)}deg`,
-      delay: `${rand(0, 0.6).toFixed(2)}s`,
-      dur: `${rand(1.8, 3.2).toFixed(2)}s`,
-      width: Math.random() < 0.3 ? 6 : 10,
+      color: COLORS[Math.floor(seededRand(i + 1, 0, COLORS.length))],
+      x: `${seededRand(i + 11, 0, 100)}vw`,
+      drift: `${seededRand(i + 23, -120, 120)}px`,
+      rot: `${seededRand(i + 37, 360, 1080)}deg`,
+      delay: `${seededRand(i + 41, 0, 0.6).toFixed(2)}s`,
+      dur: `${seededRand(i + 53, 1.8, 3.2).toFixed(2)}s`,
+      width: seededRand(i + 67, 0, 1) < 0.3 ? 6 : 10,
     }));
-  }, [visible, count]);
+  }, [active, count]);
 
-  if (!visible || reduced) return null;
+  if (!active || reduced) return null;
 
   return (
     <div aria-hidden="true" style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 100 }}>

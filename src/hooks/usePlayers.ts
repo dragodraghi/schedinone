@@ -1,7 +1,12 @@
 import { useState, useEffect } from "react";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import type { Player } from "../lib/types";
+import type { Player, ScheduleStatus, Sign } from "../lib/types";
+
+function asScheduleStatus(value: unknown): ScheduleStatus {
+  if (value === "inviata" || value === "accettata" || value === "rifiutata") return value;
+  return "bozza";
+}
 
 export function usePlayers(gameId: string, enabled = true) {
   const [players, setPlayers] = useState<Player[]>([]);
@@ -9,7 +14,6 @@ export function usePlayers(gameId: string, enabled = true) {
 
   useEffect(() => {
     if (!enabled) {
-      setLoading(false);
       return;
     }
     const ref = collection(db, "games", gameId, "players");
@@ -17,12 +21,23 @@ export function usePlayers(gameId: string, enabled = true) {
     const unsubscribe = onSnapshot(
       q,
       (snap) => {
-        const data = snap.docs.map((d) => ({
-          id: d.id,
-          scheduleStatus: "bozza",
-          ...d.data(),
-          joinedAt: d.data().joinedAt?.toDate(),
-        })) as Player[];
+        const data = snap.docs.map((d) => {
+          const raw = d.data();
+          return {
+            id: d.id,
+            name: typeof raw.name === "string" && raw.name.trim() ? raw.name : "Giocatore",
+            joinedAt: raw.joinedAt?.toDate?.() ?? new Date(0),
+            predictions:
+              raw.predictions && typeof raw.predictions === "object"
+                ? (raw.predictions as Record<string, Sign>)
+                : {},
+            topScorerPick: typeof raw.topScorerPick === "string" ? raw.topScorerPick : "",
+            winnerPick: typeof raw.winnerPick === "string" ? raw.winnerPick : "",
+            points: Number.isFinite(Number(raw.points)) ? Number(raw.points) : 0,
+            paid: raw.paid === true,
+            scheduleStatus: asScheduleStatus(raw.scheduleStatus),
+          } satisfies Player;
+        });
         setPlayers(data);
         setLoading(false);
       },

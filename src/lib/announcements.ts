@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, updateDoc, query, where, orderBy, onSnapshot,
-  serverTimestamp, Timestamp,
+  serverTimestamp, Timestamp, type DocumentData, type QuerySnapshot,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { Announcement, AnnouncementStatus } from './types';
@@ -61,22 +61,75 @@ export async function softDeleteAnnouncement(gameId: string, id: string) {
 export function subscribeAnnouncementsForPlayer(
   gameId: string, uid: string, cb: (items: Announcement[]) => void
 ) {
-  const q = query(
+  const broadcastQ = query(
     col(gameId),
     where('status', '==', 'published'),
-    orderBy('publishedAt', 'desc')
+    where('deletedAt', '==', null),
+    where('targetUids', '==', null)
   );
-  return onSnapshot(q, (snap) => {
-    const items = snap.docs
-      .map((d) => ({ id: d.id, ...(d.data() as Omit<Announcement, 'id'>) }))
-      .filter((a) => isAnnouncementVisibleTo(a, uid));
-    cb(items);
-  });
+  const targetedQ = query(
+    col(gameId),
+    where('status', '==', 'published'),
+    where('deletedAt', '==', null),
+    where('targetUids', 'array-contains', uid)
+  );
+
+  let broadcast: Announcement[] = [];
+  let targeted: Announcement[] = [];
+
+  const toAnnouncements = (snap: QuerySnapshot<DocumentData>) =>
+    snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Announcement, 'id'>) }));
+
+  const emit = () => {
+    const byId = new Map<string, Announcement>();
+    [...broadcast, ...targeted]
+      .filter((a) => isAnnouncementVisibleTo(a, uid))
+      .forEach((a) => byId.set(a.id, a));
+    cb(
+      Array.from(byId.values()).sort(
+        (a, b) => (b.publishedAt?.toMillis() ?? 0) - (a.publishedAt?.toMillis() ?? 0)
+      )
+    );
+  };
+
+  const handleError = (err: unknown) => {
+    console.warn('[announcements] listener failed', err);
+    emit();
+  };
+
+  const unsubBroadcast = onSnapshot(
+    broadcastQ,
+    (snap) => {
+      broadcast = toAnnouncements(snap);
+      emit();
+    },
+    handleError
+  );
+  const unsubTargeted = onSnapshot(
+    targetedQ,
+    (snap) => {
+      targeted = toAnnouncements(snap);
+      emit();
+    },
+    handleError
+  );
+
+  return () => {
+    unsubBroadcast();
+    unsubTargeted();
+  };
 }
 
 export function subscribeAllAnnouncements(gameId: string, cb: (items: Announcement[]) => void) {
   const q = query(col(gameId), orderBy('createdAt', 'desc'));
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Announcement, 'id'>) }))));
+  return onSnapshot(
+    q,
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Announcement, 'id'>) }))),
+    (err) => {
+      console.warn('[announcements] admin listener failed', err);
+      cb([]);
+    }
+  );
 }
 
 export function countUnreadAnnouncements(items: Announcement[], lastReadAt: Timestamp | null): number {

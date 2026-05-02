@@ -13,7 +13,7 @@ describe("Layout", () => {
     expect(screen.getByText("Home")).toBeInTheDocument();
     expect(screen.getByText("Schedina")).toBeInTheDocument();
     expect(screen.getByText("Ranking")).toBeInTheDocument();
-    expect(screen.getByText("Griglione")).toBeInTheDocument();
+    expect(screen.getByText("Bacheca")).toBeInTheDocument();
     expect(screen.getByText("Profilo")).toBeInTheDocument();
   });
 

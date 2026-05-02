@@ -32,6 +32,7 @@ const SchedineRicevutePage = lazy(() => import("./pages/admin/SchedineRicevutePa
 const ConfrontoPage = lazy(() => import("./pages/admin/ConfrontoPage"));
 
 const GAME_ID = import.meta.env.VITE_GAME_ID || "schedinone-2026";
+type SessionMode = "player" | "admin" | null;
 
 export default function App() {
   const { user, loading: authLoading } = useAuth();
@@ -43,10 +44,12 @@ export default function App() {
   const [showSplash, setShowSplash] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [adminLoginInProgress, setAdminLoginInProgress] = useState(false);
+  const [sessionMode, setSessionMode] = useState<SessionMode>(null);
   const handleSplashComplete = useCallback(() => setShowSplash(false), []);
 
   const currentPlayer = players.find((p) => p.id === user?.uid) ?? null;
-  const isAdmin = game?.admins.includes(user?.uid ?? "") ?? false;
+  const isGameAdmin = game?.admins.includes(user?.uid ?? "") ?? false;
+  const isAdminSession = sessionMode === "admin" && isGameAdmin;
 
   // Firestore rules require auth to read anything. Trigger an anonymous
   // sign-in as soon as the app mounts (for first-time visitors who haven't
@@ -61,8 +64,11 @@ export default function App() {
   }, [authLoading, user, adminLoginInProgress]);
 
   useEffect(() => {
-    if (currentPlayer) setLoggedIn(true);
-  }, [currentPlayer]);
+    if (currentPlayer && user?.isAnonymous && !isGameAdmin) {
+      setSessionMode((mode) => mode ?? "player");
+      setLoggedIn(true);
+    }
+  }, [currentPlayer, isGameAdmin, user?.isAnonymous]);
 
   useEffect(() => {
     if (loggedIn && user) {
@@ -80,7 +86,16 @@ export default function App() {
     }
 
     try {
-      const firebaseUser = user ?? (await loginAnonymously());
+      let firebaseUser = user;
+      if (!firebaseUser || !firebaseUser.isAnonymous || game.admins.includes(firebaseUser.uid)) {
+        try {
+          await signOut(auth);
+        } catch {
+          /* already signed out */
+        }
+        firebaseUser = await loginAnonymously();
+      }
+
       const playerRef = doc(db, "games", GAME_ID, "players", firebaseUser.uid);
       const existing = await getDoc(playerRef);
 
@@ -107,6 +122,7 @@ export default function App() {
         });
       }
 
+      setSessionMode("player");
       setLoggedIn(true);
       setShowSplash(true);
     } catch (err) {
@@ -126,6 +142,7 @@ export default function App() {
       }
       const cred = await signInWithEmailAndPassword(auth, email, password);
       console.log("[admin-login] signed in as", cred.user.uid, cred.user.email);
+      setSessionMode("admin");
       setLoggedIn(true);
       setShowSplash(true);
     } catch (err) {
@@ -142,6 +159,7 @@ export default function App() {
     } catch (err) {
       console.error("Logout error:", err);
     }
+    setSessionMode(null);
     setLoggedIn(false);
     setLoginError("");
   };
@@ -201,17 +219,17 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Layout isAdmin={isAdmin} gameId={GAME_ID} currentUid={user?.uid}>
+      <Layout isAdmin={isAdminSession} gameId={GAME_ID} currentUid={user?.uid}>
         <Suspense fallback={<PageSkeleton />}>
           <Routes>
             <Route path="/" element={<DashboardPage game={game} player={safePlayer} players={players} matches={matches} />} />
             <Route path="/schedina" element={<SchedinaPage game={game} player={safePlayer} matches={matches} gameId={GAME_ID} />} />
             <Route path="/classifica" element={<ClassificaPage game={game} player={safePlayer} players={players} />} />
-            <Route path="/profilo" element={<ProfiloPage game={game} player={safePlayer} players={players} matches={matches} isAdmin={isAdmin} onLogout={handleLogout} />} />
+            <Route path="/profilo" element={<ProfiloPage game={game} player={safePlayer} players={players} matches={matches} isAdmin={isAdminSession} onLogout={handleLogout} />} />
             <Route path="/bacheca" element={<BachecaPage gameId={GAME_ID} playerUid={user?.uid ?? ""} />} />
             <Route path="/messaggi" element={<MessaggiPage gameId={GAME_ID} playerUid={user?.uid ?? ""} />} />
             <Route path="/griglione" element={<RiepilogoPage game={game} players={players} matches={matches} currentPlayer={currentPlayer ?? undefined} />} />
-            {isAdmin && (
+            {isAdminSession && (
               <>
                 <Route path="/admin" element={<AdminPage game={game} players={players} matches={matches} onLogout={handleLogout} />} />
                 <Route path="/admin/risultati" element={<RisultatiPage matches={matches} gameId={GAME_ID} />} />
