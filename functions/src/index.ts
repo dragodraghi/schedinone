@@ -59,3 +59,4 @@ export const scheduledLockMatches = onSchedule(
 export { onMessageCreated } from "./onMessageCreated";
 export { onAnnouncementPublished } from "./onAnnouncementPublished";
 export { markThreadRead } from "./markThreadRead";
+export { joinGame } from "./joinGame";

@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "./lib/firebase";
 import { auth } from "./lib/firebase";
 import { signOut, signInWithEmailAndPassword } from "firebase/auth";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { loginAnonymously } from "./lib/auth";
 import { useAuth } from "./hooks/useAuth";
 import { useGame } from "./hooks/useGame";
@@ -80,10 +79,6 @@ export default function App() {
   const handleLogin = async (name: string, code: string) => {
     if (!game) return;
     setLoginError("");
-    if (code !== game.accessCode) {
-      setLoginError("Codice non valido. Controlla e riprova.");
-      return;
-    }
 
     try {
       let firebaseUser = user;
@@ -96,38 +91,31 @@ export default function App() {
         firebaseUser = await loginAnonymously();
       }
 
-      const playerRef = doc(db, "games", GAME_ID, "players", firebaseUser.uid);
-      const existing = await getDoc(playerRef);
-
-      if (!existing.exists()) {
-        const normalized = name.trim().toLowerCase();
-        const duplicate = players.find(
-          (p) => p.name.trim().toLowerCase() === normalized && p.id !== firebaseUser.uid
-        );
-        if (duplicate) {
-          setLoginError(
-            `Il nome "${name}" è già usato. Scegli un nome diverso (es. aggiungi un'iniziale: "${name} M.") oppure chiedi al Comitato di rimuovere il vecchio.`
-          );
-          return;
-        }
-        await setDoc(playerRef, {
-          name,
-          joinedAt: serverTimestamp(),
-          predictions: {},
-          topScorerPick: "",
-          winnerPick: "",
-          points: 0,
-          paid: false,
-          scheduleStatus: "bozza",
-        });
-      }
+      const functions = getFunctions(undefined, "europe-west1");
+      const callJoin = httpsCallable<
+        { gameId: string; name: string; code: string },
+        { ok: boolean; createdPlayer: boolean }
+      >(functions, "joinGame");
+      await callJoin({ gameId: GAME_ID, name: name.trim(), code });
 
       setSessionMode("player");
       setLoggedIn(true);
       setShowSplash(true);
     } catch (err) {
-      console.error("Login error:", err);
-      setLoginError("Errore durante l'accesso. Riprova.");
+      const e = err as { code?: string; message?: string };
+      const code = e.code ?? "";
+      if (code === "functions/permission-denied") {
+        setLoginError(e.message || "Codice non valido. Controlla e riprova.");
+      } else if (code === "functions/already-exists") {
+        setLoginError(e.message || `Il nome "${name}" è già usato. Scegli un nome diverso.`);
+      } else if (code === "functions/invalid-argument") {
+        setLoginError("Dati non validi. Controlla nome e codice.");
+      } else if (code === "functions/not-found") {
+        setLoginError("Gioco non trovato.");
+      } else {
+        console.error("Login error:", err);
+        setLoginError("Errore durante l'accesso. Riprova.");
+      }
     }
   };
 

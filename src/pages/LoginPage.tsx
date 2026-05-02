@@ -6,13 +6,10 @@ interface Props {
   error?: string;
 }
 
-const PLAYER_CODE = "GIOCA2026";
-
 export default function LoginPage({ onLogin, onAdminLogin, error }: Props) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [showHelp, setShowHelp] = useState(false);
-  const [codeJustInserted, setCodeJustInserted] = useState(false);
   const [adminMode, setAdminMode] = useState(false);
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPwd, setAdminPwd] = useState("");
@@ -36,22 +33,6 @@ export default function LoginPage({ onLogin, onAdminLogin, error }: Props) {
 
   const isValid = name.trim().length > 0 && code.trim().length > 0;
   const isAdminValid = adminEmail.trim().length > 0 && adminPwd.length > 0;
-
-  /**
-   * One-tap helper: copies the player code to the clipboard AND fills the
-   * Codice gioco input field. Shows a short "✓ Inserito" confirmation.
-   */
-  const handleFillCode = async () => {
-    setCode(PLAYER_CODE);
-    try {
-      await navigator.clipboard?.writeText(PLAYER_CODE);
-    } catch {
-      // Clipboard can fail (permission denied / insecure context) — the
-      // field is still filled, so we don't need to block the user.
-    }
-    setCodeJustInserted(true);
-    setTimeout(() => setCodeJustInserted(false), 2500);
-  };
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden" style={{ background: 'var(--bg-deep)' }}>
@@ -180,37 +161,9 @@ export default function LoginPage({ onLogin, onAdminLogin, error }: Props) {
           Entra in gioco
         </button>
 
-        <div className="flex gap-3">
-          <button type="button" onClick={handleFillCode}
-            className="btn-glow flex-1 py-3 rounded-xl font-bold tracking-wider transition-all glass text-center"
-            style={{
-              fontFamily: 'Outfit, sans-serif',
-              color: codeJustInserted ? 'var(--correct)' : 'var(--accent)',
-              borderColor: codeJustInserted ? 'rgba(0, 255, 136, 0.4)' : 'rgba(0, 212, 255, 0.3)',
-              boxShadow: codeJustInserted ? '0 0 12px rgba(0, 255, 136, 0.25)' : undefined,
-            }}
-          >
-            {codeJustInserted ? (
-              <div>
-                <div className="text-sm font-black">✓ Codice Inserito</div>
-                <div className="text-[8px] mt-0.5 normal-case tracking-normal" style={{ color: 'var(--text-muted)' }}>
-                  {PLAYER_CODE} · copiato anche negli appunti
-                </div>
-              </div>
-            ) : (
-              <div>
-                <div className="text-sm font-black flex items-center justify-center gap-1.5">
-                  <span>⧉</span>
-                  <span>{PLAYER_CODE}</span>
-                </div>
-                <div className="text-[8px] mt-0.5 normal-case tracking-normal" style={{ color: 'var(--text-muted)' }}>
-                  Tocca per copiare e inserire
-                </div>
-              </div>
-            )}
-          </button>
+        <div>
           <button type="button" onClick={() => setShowHelp(true)}
-            className="btn-glow flex-1 py-3 rounded-xl font-bold text-sm tracking-wider uppercase transition-all glass"
+            className="btn-glow w-full py-3 rounded-xl font-bold text-sm tracking-wider uppercase transition-all glass"
             style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--gold)', borderColor: 'rgba(255, 215, 0, 0.3)' }}>
             Come funziona?
           </button>
