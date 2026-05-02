@@ -3,23 +3,27 @@
 // if it doesn't, it's created. The game's `admins` array is replaced entirely.
 //
 // Usage:
-//   node setup-admins.mjs
+//   SCHEDINONE_ADMIN_PASSWORD=... node setup-admins.mjs
 //
-// Requires scripts/serviceAccount.json (same one used by reset-game.mjs).
+// Requires GOOGLE_APPLICATION_CREDENTIALS env var pointing to the service
+// account JSON (kept outside the repo, e.g. ~/.config/schedinone/serviceAccount.json).
 
 import admin from "firebase-admin";
-import { readFileSync } from "node:fs";
+import { loadServiceAccount } from "./_loadServiceAccount.mjs";
 
 const GAME_ID = "schedinone-2026";
-const PASSWORD = "COMITATO2026";
+const PASSWORD = process.env.SCHEDINONE_ADMIN_PASSWORD;
+if (!PASSWORD) {
+  console.error("ERRORE: imposta la variabile d'ambiente SCHEDINONE_ADMIN_PASSWORD prima di eseguire questo script.");
+  process.exit(1);
+}
 const ADMINS = [
   { email: "alberto@schedinone.local", displayName: "Alberto" },
   { email: "luca@schedinone.local", displayName: "Luca" },
   { email: "aldo@schedinone.local", displayName: "Aldo" },
 ];
 
-const sa = JSON.parse(readFileSync("./serviceAccount.json", "utf8"));
-admin.initializeApp({ credential: admin.credential.cert(sa) });
+admin.initializeApp({ credential: admin.credential.cert(loadServiceAccount()) });
 
 const auth = admin.auth();
 const db = admin.firestore();
