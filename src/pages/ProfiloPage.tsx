@@ -4,6 +4,7 @@ import EmptyState from "../components/EmptyState";
 import Flag from "../components/Flag";
 import ComparisonTable from "../components/ComparisonTable";
 import InviteButton from "../components/InviteButton";
+import { hardRefreshApp } from "../lib/appRefresh";
 import { computePlayerStats } from "../lib/playerStats";
 import type { Game, Player, Match } from "../lib/types";
 
@@ -21,6 +22,7 @@ export default function ProfiloPage({ game, player, players, matches, isAdmin, o
   const initialTab = searchParams.get("tab") === "confronto" ? "confronto" : "stats";
   const [tab, setTab] = useState<"stats" | "confronto">(initialTab);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [refreshingApp, setRefreshingApp] = useState(false);
 
   const stats = computePlayerStats(player, matches);
   const finishedMatches = matches.filter((m) => m.result !== null);
@@ -50,6 +52,10 @@ export default function ProfiloPage({ game, player, players, matches, isAdmin, o
     ...players.filter((p) => p.id !== player.id && selectedIds.has(p.id)),
   ];
   const opponents = players.filter((p) => p.id !== player.id);
+  const handleHardRefresh = async () => {
+    setRefreshingApp(true);
+    await hardRefreshApp();
+  };
 
   return (
     <div className="space-y-4 animate-in">
@@ -279,6 +285,20 @@ export default function ProfiloPage({ game, player, players, matches, isAdmin, o
 
       {/* Invite friends — admin-only (the Comitato is in charge of who joins) */}
       {isAdmin && <InviteButton />}
+
+      <button
+        onClick={handleHardRefresh}
+        disabled={refreshingApp}
+        className="glass w-full py-3 font-bold rounded-xl transition-all duration-200 disabled:opacity-70"
+        style={{
+          fontFamily: 'Outfit, sans-serif',
+          fontSize: '0.875rem',
+          color: 'var(--gold)',
+          borderColor: 'rgba(255,215,0,0.35)',
+        }}
+      >
+        {refreshingApp ? "Aggiornamento..." : "Aggiorna app"}
+      </button>
 
       {/* Logout */}
       <button

@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { SHARE_URL, ACCESS_CODE, shareInvite, copyInvite } from "../lib/invite";
+import { SHARE_URL, shareInvite, copyInvite } from "../lib/invite";
 import Toast, { type ToastData } from "./Toast";
 import { vibrate } from "../lib/haptic";
 
@@ -86,25 +86,22 @@ export default function QrCodeCard() {
           </div>
         </button>
 
-        {/* Access code strip */}
+        {/* Reminder: comunicare il codice separatamente */}
         <div
           className="rounded-lg p-3 text-center"
           style={{
-            background: "rgba(0, 212, 255, 0.08)",
-            border: "1px solid rgba(0, 212, 255, 0.25)",
+            background: "rgba(255, 215, 0, 0.06)",
+            border: "1px solid rgba(255, 215, 0, 0.25)",
           }}
         >
           <p
             className="text-[10px] uppercase tracking-wider"
-            style={{ color: "var(--text-muted)", fontFamily: "Outfit, sans-serif", fontWeight: 600 }}
+            style={{ color: "var(--gold)", fontFamily: "Outfit, sans-serif", fontWeight: 700 }}
           >
-            Codice giocatori
+            Codice gioco
           </p>
-          <p
-            className="text-2xl font-black mt-1"
-            style={{ fontFamily: "Outfit, sans-serif", color: "var(--accent)", letterSpacing: 4 }}
-          >
-            {ACCESS_CODE}
+          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+            Comunicalo separatamente ai giocatori (non è incluso nel link/QR).
           </p>
         </div>
 
@@ -177,10 +174,10 @@ export default function QrCodeCard() {
                 Mondiali 2026
               </p>
               <p className="text-xs mt-3" style={{ color: "var(--text-primary)" }}>
-                Scansiona il QR o usa il codice:
+                Scansiona il QR per aprire l'app.
               </p>
-              <p className="text-xl font-black mt-1" style={{ color: "var(--accent)", fontFamily: "Outfit, sans-serif", letterSpacing: 3 }}>
-                {ACCESS_CODE}
+              <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+                Il codice gioco va comunicato a parte dal Comitato.
               </p>
             </div>
             <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>

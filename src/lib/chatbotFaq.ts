@@ -49,9 +49,9 @@ export const FAQ_LIST: FaqEntry[] = [
     answer:
       "1. Apri l'app\n" +
       "2. Scrivi il tuo NOME (quello che vedranno gli altri nella classifica)\n" +
-      "3. Scrivi il CODICE GIOCO che ti ha dato il Comitato (di default GIOCA2026)\n" +
+      "3. Scrivi il CODICE GIOCO che ti ha dato il Comitato\n" +
       "4. Tocca 'Entra in gioco'\n\n" +
-      "Se non ricordi il codice, puoi cliccare 'Il tuo Codice' nella schermata di login.",
+      "Se non ricordi il codice, chiedilo al Comitato: non è scritto da nessuna parte nell'app.",
     followups: ["compilare", "nome-duplicato"],
   },
   {

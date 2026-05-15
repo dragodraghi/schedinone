@@ -59,3 +59,8 @@ export const scheduledLockMatches = onSchedule(
 export { onMessageCreated } from "./onMessageCreated";
 export { onAnnouncementPublished } from "./onAnnouncementPublished";
 export { markThreadRead } from "./markThreadRead";
+export { joinGame } from "./joinGame";
+export { saveSchedule } from "./saveSchedule";
+export { syncPublicPlayer } from "./syncPublicPlayer";
+export { notifyTuskAdminOnIscrizione, notifyTuskAdminTestPush } from "./tuskPush";
+export { submitTuskIscrizione } from "./submitTuskIscrizione";

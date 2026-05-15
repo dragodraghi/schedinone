@@ -5,22 +5,21 @@
 // Usage:
 //   1) Download a service account JSON from:
 //      https://console.firebase.google.com/project/schedinone-2026/settings/serviceaccounts/adminsdk
-//      Save it as scripts/serviceAccount.json (already gitignored).
+//      Save it OUTSIDE the repo, e.g. ~/.config/schedinone/serviceAccount.json,
+//      and set the env var GOOGLE_APPLICATION_CREDENTIALS to its full path.
 //   2) cd scripts && npm install firebase-admin
 //   3) node reset-game.mjs
 //
 // Safety: requires typing the literal string RESET when prompted.
 
 import admin from "firebase-admin";
-import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
+import { loadServiceAccount } from "./_loadServiceAccount.mjs";
 
 const GAME_ID = "schedinone-2026";
 const KEEP_ADMIN_UID = "S1S1uSM6qddDiqwo5qJydXbWl1w2";
-const SERVICE_ACCOUNT_PATH = "./serviceAccount.json";
 
-const sa = JSON.parse(readFileSync(SERVICE_ACCOUNT_PATH, "utf8"));
-admin.initializeApp({ credential: admin.credential.cert(sa) });
+admin.initializeApp({ credential: admin.credential.cert(loadServiceAccount()) });
 
 const db = admin.firestore();
 const auth = admin.auth();
@@ -113,6 +112,8 @@ async function deleteUserFcmTokens() {
   await deleteSubcollection(`games/${GAME_ID}`, "threads");
   await deleteSubcollection(`games/${GAME_ID}`, "announcements");
   await deletePlayers();
+  await deleteSubcollection(`games/${GAME_ID}`, "publicPlayers");
+  await deleteSubcollection(`games/${GAME_ID}`, "playerNames");
   await deleteUserFcmTokens();
   await deleteAuthUsers();
   await resetAdmins();

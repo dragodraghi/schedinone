@@ -6,19 +6,18 @@
 /** Hard-coded share URL. Cache-busted so WhatsApp refetches the OG preview. */
 export const SHARE_URL = "https://schedinone-2026.web.app/?v=2026";
 
-/** The player access code shown in the invite. */
-export const ACCESS_CODE = "GIOCA2026";
-
 /**
  * Build the invite message (Italian, WhatsApp-ready).
- * Opens with the eye-catching line, explains, ends with link + code.
+ * The access code is intentionally NOT included: it must be shared
+ * separately by the Comitato so it never travels in cleartext through
+ * forwarded chats / app bundles.
  */
 export function buildInviteMessage(): string {
   return (
     "⚽ *SCHEDINONE — Mondiali 2026*\n\n" +
     "Gioca con noi ai pronostici del Mondiale! Compila la schedina (1/X/2 + capocannoniere + vincitrice) e sfida tutti noi per il montepremi.\n\n" +
     `🔗 ${SHARE_URL}\n` +
-    `🔑 Codice: ${ACCESS_CODE}\n\n` +
+    "🔑 Chiedi al Comitato il codice gioco da inserire al primo accesso.\n\n" +
     "Si installa sul telefono come un'app vera (Chrome → menu → Aggiungi a schermata Home). In bocca al lupo! 🍀"
   );
 }

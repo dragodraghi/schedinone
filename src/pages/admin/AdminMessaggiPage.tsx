@@ -18,7 +18,6 @@ export default function AdminMessaggiPage({ gameId, currentUid, players }: Props
 
   useEffect(() => {
     if (!gameId || !activeUid) {
-      setMsgs([]);
       return;
     }
     const unsub = subscribeMessages(gameId, activeUid, setMsgs);

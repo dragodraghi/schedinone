@@ -1,4 +1,3 @@
-/* eslint-disable */
 // Firebase Cloud Messaging service worker.
 // Config is passed via URL query params at registration time (see src/lib/messaging.ts)
 // because Vite does not process files under public/ and the SW has no import.meta.env.
