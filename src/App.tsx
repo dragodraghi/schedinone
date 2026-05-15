@@ -130,8 +130,7 @@ export default function App() {
       } catch {
         /* already signed out */
       }
-      const cred = await signInWithEmailAndPassword(auth, email, password);
-      console.log("[admin-login] signed in as", cred.user.uid, cred.user.email);
+      await signInWithEmailAndPassword(auth, email, password);
       setSessionMode("admin");
       setLoggedIn(true);
       setShowSplash(true);
