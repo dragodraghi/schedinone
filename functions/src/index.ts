@@ -62,3 +62,5 @@ export { markThreadRead } from "./markThreadRead";
 export { joinGame } from "./joinGame";
 export { saveSchedule } from "./saveSchedule";
 export { syncPublicPlayer } from "./syncPublicPlayer";
+export { notifyTuskAdminOnIscrizione, notifyTuskAdminTestPush } from "./tuskPush";
+export { submitTuskIscrizione } from "./submitTuskIscrizione";
