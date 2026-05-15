@@ -12,7 +12,15 @@ export async function recalculatePoints(gameId: string) {
     result: d.data().result as string,
   }));
 
-  const batch = db.batch();
+  let batch = db.batch();
+  let pendingWrites = 0;
+
+  async function commitPending() {
+    if (pendingWrites === 0) return;
+    await batch.commit();
+    batch = db.batch();
+    pendingWrites = 0;
+  }
 
   for (const playerDoc of playersSnap.docs) {
     const data = playerDoc.data();
@@ -39,7 +47,11 @@ export async function recalculatePoints(gameId: string) {
     void gameData;
 
     batch.update(playerDoc.ref, { points });
+    pendingWrites++;
+    if (pendingWrites >= 400) {
+      await commitPending();
+    }
   }
 
-  await batch.commit();
+  await commitPending();
 }

@@ -7,6 +7,7 @@ service cloud.firestore {
 
     function isGameAdmin(gameId) {
       return isSignedIn()
+        && exists(/databases/$(database)/documents/games/$(gameId))
         && request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.admins;
     }
 
@@ -15,62 +16,159 @@ service cloud.firestore {
         && request.auth.token.firebase.sign_in_provider == 'anonymous';
     }
 
-    function isValidScheduleStatus(status) {
-      return status in ['bozza', 'inviata', 'accettata', 'rifiutata'];
-    }
-
-    function isValidPlayerCreate(playerId) {
-      return request.auth.uid == playerId
-        && request.resource.data.keys().hasOnly([
-          'name',
-          'joinedAt',
-          'predictions',
-          'topScorerPick',
-          'winnerPick',
-          'points',
-          'paid',
-          'scheduleStatus'
-        ])
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.name.size() <= 30
-        && request.resource.data.joinedAt == request.time
-        && request.resource.data.predictions is map
-        && request.resource.data.predictions.keys().size() == 0
-        && request.resource.data.topScorerPick == ''
-        && request.resource.data.winnerPick == ''
-        && request.resource.data.points == 0
-        && request.resource.data.paid == false
-        && request.resource.data.scheduleStatus == 'bozza';
-    }
-
-    function isValidPlayerPicks() {
-      return request.resource.data.predictions is map
-        && request.resource.data.predictions.keys().size() <= 150
-        && request.resource.data.topScorerPick is string
-        && request.resource.data.topScorerPick.size() <= 40
-        && request.resource.data.winnerPick is string
-        && request.resource.data.winnerPick.size() <= 40;
-    }
-
     function isPlayerReadMarkerUpdate() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastAnnouncementReadAt'])
         && request.resource.data.lastAnnouncementReadAt == request.time;
     }
 
-    function isPlayerSchedinaUpdate() {
-      return resource.data.scheduleStatus in ['bozza', 'rifiutata']
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'predictions',
-          'topScorerPick',
-          'winnerPick',
-          'scheduleStatus'
-        ])
-        && isValidPlayerPicks()
-        && isValidScheduleStatus(request.resource.data.scheduleStatus)
+    function threadCanReceiveMessage(gameId, playerUid) {
+      return !exists(/databases/$(database)/documents/games/$(gameId)/threads/$(playerUid))
+        || request.time > get(/databases/$(database)/documents/games/$(gameId)/threads/$(playerUid)).data.lastMessageAt + duration.value(5, 's');
+    }
+
+    function isTuskAdmin() {
+      return request.auth != null
         && (
-          request.resource.data.scheduleStatus == resource.data.scheduleStatus
-          || request.resource.data.scheduleStatus == 'inviata'
+          request.auth.token.tuskAdmin == true
+          || request.auth.token.email == "admin@tusk-badboars.com"
+        );
+    }
+
+    function isValidTuskCategoria(categoriaId) {
+      return categoriaId in [
+        'ultimate',
+        'advanced',
+        'challenge',
+        'essential',
+        'performance',
+        'intermediate'
+      ];
+    }
+
+    function isValidTuskIscrizione() {
+      return request.resource.data.keys().hasOnly(['nome', 'categoriaId', 'box', 'contatto', 'note', 'createdAt'])
+        && request.resource.data.keys().hasAll(['nome', 'categoriaId', 'box', 'contatto', 'note', 'createdAt'])
+        && request.resource.data.nome is string
+        && request.resource.data.nome.size() > 1
+        && request.resource.data.nome.size() <= 80
+        && request.resource.data.categoriaId is string
+        && isValidTuskCategoria(request.resource.data.categoriaId)
+        && request.resource.data.box is string
+        && request.resource.data.box.size() > 1
+        && request.resource.data.box.size() <= 80
+        && request.resource.data.contatto is string
+        && request.resource.data.contatto.size() >= 5
+        && request.resource.data.contatto.size() <= 80
+        && request.resource.data.note is string
+        && request.resource.data.note.size() <= 300
+        && request.resource.data.createdAt == request.time;
+    }
+
+    function isValidTuskAtletaPubblico() {
+      return request.resource.data.keys().hasOnly(['nome', 'categoriaId', 'box'])
+        && request.resource.data.keys().hasAll(['nome', 'categoriaId', 'box'])
+        && request.resource.data.nome is string
+        && request.resource.data.nome.size() > 1
+        && request.resource.data.nome.size() <= 80
+        && request.resource.data.categoriaId is string
+        && isValidTuskCategoria(request.resource.data.categoriaId)
+        && request.resource.data.box is string
+        && request.resource.data.box.size() > 1
+        && request.resource.data.box.size() <= 80;
+    }
+
+    function isValidTuskRisultatoPubblico() {
+      return request.resource.data.keys().hasOnly(['atletaId', 'eventoId', 'categoriaId', 'puntiEpi', 'tieBreak'])
+        && request.resource.data.keys().hasAll(['atletaId', 'eventoId', 'categoriaId', 'puntiEpi'])
+        && request.resource.data.atletaId is string
+        && request.resource.data.atletaId.size() > 0
+        && request.resource.data.atletaId.size() <= 80
+        && request.resource.data.eventoId is string
+        && request.resource.data.eventoId.size() > 0
+        && request.resource.data.eventoId.size() <= 20
+        && request.resource.data.categoriaId is string
+        && isValidTuskCategoria(request.resource.data.categoriaId)
+        && request.resource.data.puntiEpi is number
+        && request.resource.data.puntiEpi >= 0
+        && request.resource.data.puntiEpi <= 20000
+        && (
+          !request.resource.data.keys().hasAny(['tieBreak'])
+          || request.resource.data.tieBreak == null
+          || (
+            request.resource.data.tieBreak is number
+            && request.resource.data.tieBreak >= 0
+            && request.resource.data.tieBreak <= 3600
+          )
+        );
+    }
+
+    function isValidTuskPushSubscription() {
+      return request.resource.data.keys().hasOnly([
+          'endpoint',
+          'p256dh',
+          'auth',
+          'expirationTime',
+          'userAgent',
+          'updatedAt',
+          'lastSentAt',
+          'lastError',
+          'lastErrorAt'
+        ])
+        && request.resource.data.keys().hasAll(['endpoint', 'p256dh', 'auth', 'updatedAt'])
+        && request.resource.data.endpoint is string
+        && request.resource.data.endpoint.size() > 10
+        && request.resource.data.endpoint.size() <= 1000
+        && request.resource.data.p256dh is string
+        && request.resource.data.p256dh.size() > 20
+        && request.resource.data.p256dh.size() <= 200
+        && request.resource.data.auth is string
+        && request.resource.data.auth.size() > 5
+        && request.resource.data.auth.size() <= 100
+        && request.resource.data.updatedAt == request.time
+        && (
+          !request.resource.data.keys().hasAny(['expirationTime'])
+          || request.resource.data.expirationTime == null
+          || request.resource.data.expirationTime is number
+        )
+        && (
+          !request.resource.data.keys().hasAny(['userAgent'])
+          || (request.resource.data.userAgent is string && request.resource.data.userAgent.size() <= 300)
+        )
+        && (
+          !request.resource.data.keys().hasAny(['lastError'])
+          || (request.resource.data.lastError is string && request.resource.data.lastError.size() <= 80)
+        );
+    }
+
+    function isValidTuskAdminAudit() {
+      return request.resource.data.keys().hasOnly([
+          'action',
+          'details',
+          'adminEmail',
+          'adminUid',
+          'userAgent',
+          'createdAt'
+        ])
+        && request.resource.data.keys().hasAll(['action', 'createdAt'])
+        && request.resource.data.action is string
+        && request.resource.data.action.size() > 0
+        && request.resource.data.action.size() <= 80
+        && request.resource.data.createdAt == request.time
+        && (
+          !request.resource.data.keys().hasAny(['details'])
+          || request.resource.data.details is map
+        )
+        && (
+          !request.resource.data.keys().hasAny(['adminEmail'])
+          || (request.resource.data.adminEmail is string && request.resource.data.adminEmail.size() <= 120)
+        )
+        && (
+          !request.resource.data.keys().hasAny(['adminUid'])
+          || (request.resource.data.adminUid is string && request.resource.data.adminUid.size() <= 80)
+        )
+        && (
+          !request.resource.data.keys().hasAny(['userAgent'])
+          || (request.resource.data.userAgent is string && request.resource.data.userAgent.size() <= 300)
         );
     }
 
@@ -86,17 +184,27 @@ service cloud.firestore {
       }
 
       match /players/{playerId} {
-        allow read: if isSignedIn();
-        allow create: if isAnonymousUser()
-          && isValidPlayerCreate(playerId);
-        // Player can edit their own schedina only while it is still editable
-        // (bozza/rifiutata). After invio/accettazione only read markers are
-        // writable by the player; admins keep full management permissions.
+        allow read: if isSignedIn() && (
+          request.auth.uid == playerId
+          || isGameAdmin(gameId)
+        );
+        // Player creation and schedina writes go through Cloud Functions:
+        // joinGame validates the access code, saveSchedule validates locks.
+        allow create: if false;
         allow update: if isAnonymousUser()
           && request.auth.uid == playerId
-          && (isPlayerReadMarkerUpdate() || isPlayerSchedinaUpdate());
+          && isPlayerReadMarkerUpdate();
         // Admins can update/delete any player
         allow update, delete: if isGameAdmin(gameId);
+      }
+
+      match /publicPlayers/{playerId} {
+        allow read: if isSignedIn();
+        allow write: if false;
+      }
+
+      match /playerNames/{nameKey} {
+        allow read, write: if false;
       }
 
       match /announcements/{announcementId} {
@@ -144,24 +252,24 @@ service cloud.firestore {
             || isGameAdmin(gameId)
           );
           allow create: if isSignedIn()
+            && request.resource.data.keys().hasOnly(['text', 'from', 'senderUid', 'createdAt'])
             && request.resource.data.text is string
             && request.resource.data.text.size() > 0
             && request.resource.data.text.size() <= 1000
             && request.resource.data.senderUid == request.auth.uid
+            && request.resource.data.createdAt == request.time
             && (
-              // Player in own thread with 2s rate limit (allowed if thread doesn't exist yet)
+              // Player in own thread with per-thread rate limit.
               (
                 request.auth.uid == playerUid
                 && request.resource.data.from == 'player'
-                && (
-                  !exists(/databases/$(database)/documents/games/$(gameId)/threads/$(playerUid))
-                  || request.time > get(/databases/$(database)/documents/games/$(gameId)/threads/$(playerUid)).data.lastMessageAt + duration.value(2, 's')
-                )
+                && threadCanReceiveMessage(gameId, playerUid)
               )
-              // Admin to any thread
+              // Admin to any thread, with the same per-thread rate limit.
               || (
                 isGameAdmin(gameId)
                 && request.resource.data.from == 'committee'
+                && threadCanReceiveMessage(gameId, playerUid)
               )
             );
           allow update, delete: if false;
@@ -174,6 +282,82 @@ service cloud.firestore {
       match /fcmTokens/{token} {
         allow read, write: if isSignedIn() && request.auth.uid == uid;
       }
+    }
+
+    match /tusk_categorie/{doc} {
+      allow read: if true;
+      allow write: if isTuskAdmin();
+    }
+
+    match /tusk_eventi/{doc} {
+      allow read: if true;
+      allow write: if isTuskAdmin();
+    }
+
+    match /tusk_atleti/{doc} {
+      allow read: if isTuskAdmin();
+      allow write: if isTuskAdmin();
+    }
+
+    match /tusk_atleti_pubblici/{doc} {
+      allow read: if true;
+      allow create, update: if isTuskAdmin() && isValidTuskAtletaPubblico();
+      allow delete: if isTuskAdmin();
+    }
+
+    match /tusk_risultati/{doc} {
+      allow read: if isTuskAdmin();
+      allow write: if isTuskAdmin();
+    }
+
+    match /tusk_risultati_pubblici/{doc} {
+      allow read: if true;
+      allow create, update: if isTuskAdmin() && isValidTuskRisultatoPubblico();
+      allow delete: if isTuskAdmin();
+    }
+
+    match /tusk_iscrizioni_pending/{doc} {
+      allow create: if isTuskAdmin() && isValidTuskIscrizione();
+      allow read: if isTuskAdmin();
+      allow delete: if isTuskAdmin();
+      allow update: if false;
+    }
+
+    match /tusk_rate_limits/{doc} {
+      allow read, write: if false;
+    }
+
+    match /tusk_iscrizioni_stato/{doc} {
+      allow read: if true;
+      allow write: if isTuskAdmin();
+    }
+
+    match /tusk_admin_push_subscriptions/{doc} {
+      allow read, delete: if isTuskAdmin();
+      allow create, update: if isTuskAdmin() && isValidTuskPushSubscription();
+    }
+
+    match /tusk_push_tests/{doc} {
+      allow read, delete: if isTuskAdmin();
+      allow create: if isTuskAdmin()
+        && request.resource.data.keys().hasOnly(['createdAt', 'userAgent'])
+        && request.resource.data.createdAt == request.time
+        && (
+          !request.resource.data.keys().hasAny(['userAgent'])
+          || (request.resource.data.userAgent is string && request.resource.data.userAgent.size() <= 300)
+        );
+      allow update: if false;
+    }
+
+    match /tusk_push_audit/{doc} {
+      allow read, delete: if isTuskAdmin();
+      allow write: if false;
+    }
+
+    match /tusk_admin_audit/{doc} {
+      allow read, delete: if isTuskAdmin();
+      allow create: if isTuskAdmin() && isValidTuskAdminAudit();
+      allow update: if false;
     }
   }
 }

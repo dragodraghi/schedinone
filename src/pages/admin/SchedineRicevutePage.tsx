@@ -94,12 +94,23 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
     if (pendingPlayers.length === 0) return;
     setAcceptingAll(true);
     try {
-      const batch = writeBatch(db);
+      let batch = writeBatch(db);
+      let pendingWrites = 0;
+      const commitPending = async () => {
+        if (pendingWrites === 0) return;
+        await batch.commit();
+        batch = writeBatch(db);
+        pendingWrites = 0;
+      };
       for (const p of pendingPlayers) {
         const ref = doc(db, "games", gameId, "players", p.id);
         batch.update(ref, { scheduleStatus: "accettata" });
+        pendingWrites++;
+        if (pendingWrites >= 400) {
+          await commitPending();
+        }
       }
-      await batch.commit();
+      await commitPending();
     } catch (err) {
       console.error("Accept all error:", err);
     } finally {

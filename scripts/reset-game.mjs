@@ -112,6 +112,8 @@ async function deleteUserFcmTokens() {
   await deleteSubcollection(`games/${GAME_ID}`, "threads");
   await deleteSubcollection(`games/${GAME_ID}`, "announcements");
   await deletePlayers();
+  await deleteSubcollection(`games/${GAME_ID}`, "publicPlayers");
+  await deleteSubcollection(`games/${GAME_ID}`, "playerNames");
   await deleteUserFcmTokens();
   await deleteAuthUsers();
   await resetAdmins();

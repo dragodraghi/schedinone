@@ -27,8 +27,16 @@ export async function recalcPointsClient(gameId: string): Promise<{
     .filter((d) => d.data().result !== null && d.data().result !== undefined)
     .map((d) => ({ id: d.id, result: d.data().result as string }));
 
-  const batch = writeBatch(db);
+  let batch = writeBatch(db);
+  let pendingWrites = 0;
   let updated = 0;
+
+  async function commitPending() {
+    if (pendingWrites === 0) return;
+    await batch.commit();
+    batch = writeBatch(db);
+    pendingWrites = 0;
+  }
 
   for (const playerDoc of playersSnap.docs) {
     const data = playerDoc.data();
@@ -46,13 +54,15 @@ export async function recalcPointsClient(gameId: string): Promise<{
     // Only write if it actually changed, to minimize Firestore writes
     if ((data.points ?? 0) !== points) {
       batch.update(playerDoc.ref, { points });
+      pendingWrites++;
       updated++;
+      if (pendingWrites >= 400) {
+        await commitPending();
+      }
     }
   }
 
-  if (updated > 0) {
-    await batch.commit();
-  }
+  await commitPending();
 
   return { playersUpdated: updated, matchesCounted: finishedMatches.length };
 }

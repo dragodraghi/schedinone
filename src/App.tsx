@@ -7,7 +7,7 @@ import { loginAnonymously } from "./lib/auth";
 import { useAuth } from "./hooks/useAuth";
 import { useGame } from "./hooks/useGame";
 import { useMatches } from "./hooks/useMatches";
-import { usePlayers } from "./hooks/usePlayers";
+import { useCurrentPlayer, usePlayers, usePublicPlayers } from "./hooks/usePlayers";
 import Layout from "./components/Layout";
 import SplashScreen from "./components/SplashScreen";
 import PageSkeleton from "./components/PageSkeleton";
@@ -38,7 +38,6 @@ export default function App() {
   const authReady = !authLoading && !!user;
   const { game, loading: gameLoading } = useGame(GAME_ID, authReady);
   const { matches } = useMatches(GAME_ID, authReady);
-  const { players } = usePlayers(GAME_ID, authReady);
   const [loggedIn, setLoggedIn] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
   const [loginError, setLoginError] = useState("");
@@ -46,9 +45,12 @@ export default function App() {
   const [sessionMode, setSessionMode] = useState<SessionMode>(null);
   const handleSplashComplete = useCallback(() => setShowSplash(false), []);
 
-  const currentPlayer = players.find((p) => p.id === user?.uid) ?? null;
   const isGameAdmin = game?.admins.includes(user?.uid ?? "") ?? false;
   const isAdminSession = sessionMode === "admin" && isGameAdmin;
+  const { players: publicPlayers } = usePublicPlayers(GAME_ID, authReady);
+  const { players: adminPlayers } = usePlayers(GAME_ID, authReady && isAdminSession);
+  const { player: currentPlayer } = useCurrentPlayer(GAME_ID, user?.uid, authReady && !!user);
+  const players = isAdminSession ? adminPlayers : publicPlayers;
 
   // Firestore rules require auth to read anything. Trigger an anonymous
   // sign-in as soon as the app mounts (for first-time visitors who haven't
@@ -195,7 +197,7 @@ export default function App() {
 
   const safePlayer = currentPlayer ?? {
     id: user?.uid ?? "",
-    name: "Admin",
+    name: isAdminSession ? "Admin" : "Giocatore",
     joinedAt: new Date(),
     predictions: {},
     topScorerPick: "",

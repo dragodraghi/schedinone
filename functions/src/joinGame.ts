@@ -9,6 +9,32 @@ function normalizeName(name: string): string {
   return name.trim().toLowerCase();
 }
 
+function nameKey(name: string): string {
+  return encodeURIComponent(name);
+}
+
+function publicPlayerData(data: admin.firestore.DocumentData) {
+  const status =
+    data.scheduleStatus === "inviata" ||
+    data.scheduleStatus === "accettata" ||
+    data.scheduleStatus === "rifiutata"
+      ? data.scheduleStatus
+      : "bozza";
+  const accepted = status === "accettata";
+  return {
+    name: typeof data.name === "string" ? data.name : "Giocatore",
+    joinedAt: data.joinedAt ?? null,
+    points: Number.isFinite(Number(data.points)) ? Number(data.points) : 0,
+    paid: data.paid === true,
+    scheduleStatus: status,
+    predictions: accepted && data.predictions && typeof data.predictions === "object"
+      ? data.predictions
+      : {},
+    topScorerPick: accepted && typeof data.topScorerPick === "string" ? data.topScorerPick : "",
+    winnerPick: accepted && typeof data.winnerPick === "string" ? data.winnerPick : "",
+  };
+}
+
 export const joinGame = onCall(
   { region: "europe-west1" },
   async (request) => {
@@ -19,7 +45,7 @@ export const joinGame = onCall(
     if (provider !== "anonymous") {
       throw new HttpsError(
         "permission-denied",
-        "joinGame è riservato all'accesso giocatore (anonimo)."
+        "joinGame e' riservato all'accesso giocatore (anonimo)."
       );
     }
 
@@ -55,12 +81,12 @@ export const joinGame = onCall(
     if (Array.isArray(gameData.admins) && gameData.admins.includes(uid)) {
       throw new HttpsError(
         "permission-denied",
-        "Un account admin non può iscriversi come giocatore."
+        "Un account admin non puo' iscriversi come giocatore."
       );
     }
 
-    // Verify access code: prefer hashed value in private/config, fall back to
-    // legacy plaintext field on the game doc until the migration runs.
+    // Prefer the private hash. The legacy plaintext fallback should be removed
+    // after running scripts/migrate-access-code.mjs --apply in production.
     const privateRef = gameRef.collection("private").doc("config");
     const privateSnap = await privateRef.get();
     let codeOk = false;
@@ -77,51 +103,76 @@ export const joinGame = onCall(
       throw new HttpsError("permission-denied", "Codice non valido.");
     }
 
-    const playerRef = db.doc(`games/${gameId}/players/${uid}`);
-    const existingSnap = await playerRef.get();
-    if (existingSnap.exists) {
-      // Same anonymous user re-opening the app: let them in without recreating.
-      return { ok: true, createdPlayer: false };
-    }
-
     const normalized = normalizeName(name);
+    const playerRef = db.doc(`games/${gameId}/players/${uid}`);
+    const publicPlayerRef = db.doc(`games/${gameId}/publicPlayers/${uid}`);
+    const nameRef = db.doc(`games/${gameId}/playerNames/${nameKey(normalized)}`);
+
+    // Compatibility check for player docs created before playerNames existed.
     const dup = await db
       .collection(`games/${gameId}/players`)
       .where("nameLower", "==", normalized)
       .limit(1)
       .get();
-    if (!dup.empty) {
+    if (!dup.empty && dup.docs[0].id !== uid) {
       throw new HttpsError(
         "already-exists",
-        `Il nome "${name}" è già usato. Scegli un nome diverso.`
+        `Il nome "${name}" e' gia' usato. Scegli un nome diverso.`
       );
     }
-    // Fallback when older docs don't have nameLower yet.
     if (dup.empty) {
       const all = await db.collection(`games/${gameId}/players`).get();
       const clash = all.docs.find(
         (d) => typeof d.data().name === "string" && normalizeName(d.data().name) === normalized
       );
-      if (clash) {
+      if (clash && clash.id !== uid) {
         throw new HttpsError(
           "already-exists",
-          `Il nome "${name}" è già usato. Scegli un nome diverso.`
+          `Il nome "${name}" e' gia' usato. Scegli un nome diverso.`
         );
       }
     }
 
-    await playerRef.set({
-      name: name.trim(),
-      nameLower: normalized,
-      joinedAt: admin.firestore.FieldValue.serverTimestamp(),
-      predictions: {},
-      topScorerPick: "",
-      winnerPick: "",
-      points: 0,
-      paid: false,
-      scheduleStatus: "bozza",
+    let createdPlayer = false;
+    await db.runTransaction(async (tx) => {
+      const existingSnap = await tx.get(playerRef);
+      if (existingSnap.exists) {
+        tx.set(publicPlayerRef, publicPlayerData(existingSnap.data() ?? {}), { merge: true });
+        return;
+      }
+
+      const nameSnap = await tx.get(nameRef);
+      if (nameSnap.exists) {
+        throw new HttpsError(
+          "already-exists",
+          `Il nome "${name}" e' gia' usato. Scegli un nome diverso.`
+        );
+      }
+
+      const joinedAt = admin.firestore.FieldValue.serverTimestamp();
+      const playerData = {
+        name: name.trim(),
+        nameLower: normalized,
+        joinedAt,
+        predictions: {},
+        topScorerPick: "",
+        winnerPick: "",
+        points: 0,
+        paid: false,
+        scheduleStatus: "bozza",
+      };
+
+      tx.set(nameRef, {
+        uid,
+        name: name.trim(),
+        nameLower: normalized,
+        createdAt: joinedAt,
+      });
+      tx.set(playerRef, playerData);
+      tx.set(publicPlayerRef, playerData);
+      createdPlayer = true;
     });
 
-    return { ok: true, createdPlayer: true };
+    return { ok: true, createdPlayer };
   }
 );

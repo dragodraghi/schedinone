@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { doc, updateDoc } from "firebase/firestore";
-import { db } from "../lib/firebase";
 import { vibrate } from "../lib/haptic";
 import { exportElementAsPdf, timestampSlug } from "../lib/pdfExport";
+import { saveSchedule } from "../lib/schedule";
+import { formatLockLead, getCloseAt, isMatchClosedForPredictions } from "../lib/scheduleRules";
 import MatchCard from "../components/MatchCard";
 import Toast, { type ToastData } from "../components/Toast";
 import EmptyState from "../components/EmptyState";
@@ -89,20 +89,16 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
     const handle = setTimeout(async () => {
       try {
         setAutoSaving(true);
-        const ref = doc(db, "games", gameId, "players", player.id);
-        // If the Comitato rifiutata the schedina, keep that status — we only
+        // If the Comitato rifiuta the schedina, keep that status — we only
         // want to save the edits so the player can re-submit manually.
-        // Writing "bozza" here would overwrite the rejection (and the Firestore
-        // rule forbids some transitions, silently failing).
-        const updates: Record<string, unknown> = {
+        // The callable preserves the rejection until the player submits again.
+        await saveSchedule({
+          gameId,
           predictions,
           topScorerPick,
           winnerPick,
-        };
-        if (status === "bozza") {
-          updates.scheduleStatus = "bozza";
-        }
-        await updateDoc(ref, updates);
+          submit: false,
+        });
         setDraftSaved(true);
         // Fade the "Salvato" pill out after ~2s
         setTimeout(() => setDraftSaved(false), 2000);
@@ -127,6 +123,8 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
 
   const handlePredict = (matchId: string, sign: Sign) => {
     if (isReadOnly) return;
+    const match = matches.find((m) => m.id === matchId);
+    if (match && isMatchClosedForPredictions(game, match)) return;
     setPredictions((prev) => ({ ...prev, [matchId]: sign }));
   };
 
@@ -134,19 +132,23 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
     setSaving(true);
     vibrate("success");
     try {
-      const ref = doc(db, "games", gameId, "players", player.id);
-      await updateDoc(ref, {
+      await saveSchedule({
+        gameId,
         predictions,
         topScorerPick,
         winnerPick,
-        scheduleStatus: "inviata",
+        submit: true,
       });
       setLocalStatus("inviata");
       setToast({ message: "Schedina inviata al Comitato!", type: "info" });
     } catch (err) {
       console.error("Save error:", err);
       vibrate("error");
-      setToast({ message: "Errore nell'invio. Riprova.", type: "error" });
+      const message =
+        err && typeof err === "object" && "message" in err && typeof err.message === "string"
+          ? err.message
+          : "Errore nell'invio. Riprova.";
+      setToast({ message, type: "error" });
     } finally {
       setSaving(false);
     }
@@ -270,7 +272,7 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
                 match={match}
                 prediction={predictions[match.id] ?? null}
                 onPredict={isReadOnly ? () => {} : handlePredict}
-                disabled={isReadOnly}
+                disabled={isReadOnly || isMatchClosedForPredictions(game, match)}
               />
             ))}
           </div>
@@ -381,12 +383,14 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
       <p className="text-[10px] text-center pb-2" style={{ color: "var(--text-muted)" }}>
         {(() => {
           // Find the earliest kickoff in the current phase — that's when the
-          // schedina effectively closes (24h before).
+          // schedina effectively closes.
           const firstMatch = phaseMatches
             .filter((m) => m.kickoff)
             .sort((a, b) => a.kickoff.getTime() - b.kickoff.getTime())[0];
-          if (!firstMatch) return "I pronostici si chiudono 1 giorno prima del calcio d'inizio";
-          const closeAt = new Date(firstMatch.kickoff.getTime() - 24 * 60 * 60 * 1000);
+          if (!firstMatch) {
+            return `I pronostici si chiudono ${formatLockLead(game, game.currentPhase)} del calcio d'inizio`;
+          }
+          const closeAt = getCloseAt(game, firstMatch);
           return `La schedina si chiude ${closeAt.toLocaleString("it-IT", {
             weekday: "long",
             day: "2-digit",

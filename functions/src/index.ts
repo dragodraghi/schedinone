@@ -60,3 +60,5 @@ export { onMessageCreated } from "./onMessageCreated";
 export { onAnnouncementPublished } from "./onAnnouncementPublished";
 export { markThreadRead } from "./markThreadRead";
 export { joinGame } from "./joinGame";
+export { saveSchedule } from "./saveSchedule";
+export { syncPublicPlayer } from "./syncPublicPlayer";

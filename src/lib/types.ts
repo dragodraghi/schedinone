@@ -14,6 +14,8 @@ export interface Game {
   accessCode: string;
   adminCode?: string;
   adminCodeHash?: string;
+  lockLeadHours?: number;
+  phaseLockLeadHours?: Partial<Record<Phase, number>>;
   phases: Phase[];
   currentPhase: Phase;
   topScorer: string | null;

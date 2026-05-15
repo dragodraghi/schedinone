@@ -1,27 +1,39 @@
 import * as admin from "firebase-admin";
-
-// Lock predictions 1 day (24h) before kickoff. Keep in sync with
-// SchedinaPage UI message "I pronostici si chiudono 1 giorno prima".
-const LOCK_LEAD_MS = 24 * 60 * 60 * 1000;
+import { getMaxLockLeadMs, isMatchClosed } from "./scheduleRules";
 
 export async function lockUpcomingMatches() {
   const db = admin.firestore();
   const now = new Date();
-  const lockThreshold = new Date(now.getTime() + LOCK_LEAD_MS);
 
   const gamesSnap = await db.collection("games").get();
 
   for (const gameDoc of gamesSnap.docs) {
+    const gameData = gameDoc.data();
+    const lockThreshold = new Date(now.getTime() + getMaxLockLeadMs(gameData));
     const matchesSnap = await db
       .collection(`games/${gameDoc.id}/matches`)
       .where("locked", "==", false)
       .where("kickoff", "<=", admin.firestore.Timestamp.fromDate(lockThreshold))
       .get();
 
-    const batch = db.batch();
-    for (const matchDoc of matchesSnap.docs) {
-      batch.update(matchDoc.ref, { locked: true });
+    let batch = db.batch();
+    let pendingWrites = 0;
+
+    async function commitPending() {
+      if (pendingWrites === 0) return;
+      await batch.commit();
+      batch = db.batch();
+      pendingWrites = 0;
     }
-    await batch.commit();
+
+    for (const matchDoc of matchesSnap.docs) {
+      if (!isMatchClosed(gameData, matchDoc.data(), now)) continue;
+      batch.update(matchDoc.ref, { locked: true });
+      pendingWrites++;
+      if (pendingWrites >= 400) {
+        await commitPending();
+      }
+    }
+    await commitPending();
   }
 }
