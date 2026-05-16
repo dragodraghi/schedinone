@@ -10,6 +10,39 @@ function nameKey(name: string): string {
   return encodeURIComponent(name.trim().toLowerCase());
 }
 
+function normalizedPlayerName(data: admin.firestore.DocumentData | undefined): string | null {
+  if (typeof data?.nameLower === "string" && data.nameLower.trim()) {
+    return data.nameLower.trim().toLowerCase();
+  }
+  if (typeof data?.name === "string" && data.name.trim()) {
+    return data.name.trim().toLowerCase();
+  }
+  return null;
+}
+
+async function deleteOwnedNameReservations(
+  db: admin.firestore.Firestore,
+  gameId: string,
+  playerId: string,
+  previousName: string | null
+) {
+  const refs = new Map<string, admin.firestore.DocumentReference>();
+
+  if (previousName) {
+    const nameRef = db.doc(`games/${gameId}/playerNames/${nameKey(previousName)}`);
+    const nameSnap = await nameRef.get();
+    if (nameSnap.data()?.uid === playerId) refs.set(nameRef.path, nameRef);
+  }
+
+  const ownedNames = await db
+    .collection(`games/${gameId}/playerNames`)
+    .where("uid", "==", playerId)
+    .get();
+  ownedNames.docs.forEach((doc) => refs.set(doc.ref.path, doc.ref));
+
+  await Promise.all([...refs.values()].map((ref) => ref.delete()));
+}
+
 export const syncPublicPlayer = onDocumentWritten(
   { document: "games/{gameId}/players/{playerId}", region: "europe-west1" },
   async (event) => {
@@ -21,13 +54,7 @@ export const syncPublicPlayer = onDocumentWritten(
 
     if (!after) {
       await publicRef.delete();
-      if (typeof before?.nameLower === "string") {
-        const nameRef = db.doc(`games/${gameId}/playerNames/${nameKey(before.nameLower)}`);
-        const nameSnap = await nameRef.get();
-        if (nameSnap.data()?.uid === playerId) {
-          await nameRef.delete();
-        }
-      }
+      await deleteOwnedNameReservations(db, gameId, playerId, normalizedPlayerName(before));
       return;
     }
 
