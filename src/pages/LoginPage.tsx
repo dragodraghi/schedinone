@@ -83,11 +83,10 @@ export default function LoginPage({ onLogin, onAdminLogin, error }: Props) {
               <div>
                 <h3 className="font-bold mb-1" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--gold)' }}>5. Le Schermate</h3>
                 <div className="space-y-1" style={{ color: 'var(--text-muted)' }}>
-                  <p>⚡ <strong>Home</strong> — il tuo riepilogo</p>
+                  <p>⚡ <strong>Home</strong> — stato schedina e prossima partita</p>
                   <p>📋 <strong>Schedina</strong> — compila i pronostici</p>
-                  <p>🏆 <strong>Ranking</strong> — classifica giocatori</p>
-                  <p>📊 <strong>Griglione</strong> — tutti i pronostici a confronto</p>
-                  <p>👤 <strong>Profilo</strong> — le tue statistiche</p>
+                  <p>🏆 <strong>Classifica</strong> — punti e montepremi</p>
+                  <p>📊 <strong>Griglione</strong> — tutti i pronostici accettati</p>
                 </div>
               </div>
 

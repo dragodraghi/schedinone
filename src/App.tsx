@@ -208,7 +208,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Layout isAdmin={isAdminSession} gameId={GAME_ID} currentUid={user?.uid}>
+      <Layout isAdmin={isAdminSession}>
         <Suspense fallback={<PageSkeleton />}>
           <Routes>
             <Route path="/" element={<DashboardPage game={game} player={safePlayer} players={players} matches={matches} />} />

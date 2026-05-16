@@ -19,7 +19,6 @@ export default function DashboardPage({ game, player, players, matches }: Props)
   const totalMatches = phaseMatches.length;
   const filledPredictions = phaseMatches.filter((m) => player.predictions[m.id]).length;
   const rank = players.findIndex((p) => p.id === player.id) + 1;
-  const paidPlayers = players.filter((p) => p.paid).length;
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Buongiorno" : hour < 18 ? "Buon pomeriggio" : "Buonasera";
@@ -34,13 +33,30 @@ export default function DashboardPage({ game, player, players, matches }: Props)
   const liveMatch = matches.find((m) => getMatchStatus(m, now) === "live");
   const nextMatch = getNextMatch(matches, now);
   const remainingMs = nextMatch?.kickoff ? nextMatch.kickoff.getTime() - now.getTime() : 0;
-
-  const cards = [
-    { to: "/schedina", icon: "📋", label: "Schedina", sub: `${filledPredictions}/${totalMatches}`, accent: "#00d4ff" },
-    { to: "/classifica", icon: "🏆", label: "Ranking", sub: `${rank}°/${players.length}`, accent: "#ffd700" },
-    { to: "/profilo", icon: "📊", label: "Stats", sub: "% azzecco", accent: "#00ff88" },
-    { to: "/profilo?tab=confronto", icon: "⚔️", label: "Sfida", sub: "Testa a testa", accent: "#ff3366" },
-  ];
+  const missingPredictions = Math.max(totalMatches - filledPredictions, 0);
+  const scheduleState = {
+    bozza: {
+      label: "Da completare",
+      detail: missingPredictions > 0 ? `Mancano ${missingPredictions}` : "Pronta da inviare",
+      color: "var(--accent)",
+    },
+    inviata: {
+      label: "Inviata",
+      detail: "In attesa del Comitato",
+      color: "var(--accent)",
+    },
+    accettata: {
+      label: "Accettata",
+      detail: "Visibile nel Griglione",
+      color: "var(--correct)",
+    },
+    rifiutata: {
+      label: "Da correggere",
+      detail: "Modifica e reinvia",
+      color: "var(--wrong)",
+    },
+  }[player.scheduleStatus];
+  const rankText = rank > 0 ? `${rank}°/${players.length}` : `-/${players.length}`;
 
   return (
     <div className="space-y-5 animate-in">
@@ -54,10 +70,51 @@ export default function DashboardPage({ game, player, players, matches }: Props)
             {filledPredictions}/{totalMatches} pronostici inseriti
           </p>
         </div>
-        <div className="counter-pill px-4 py-2 rounded-xl text-center">
-          <div className="text-xl font-black" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--accent)' }}>{player.points}</div>
-          <div className="text-[9px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>punti</div>
-        </div>
+        <Link
+          to="/profilo"
+          aria-label="Apri profilo"
+          className="counter-pill px-3 py-2 rounded-xl text-center transition-all card-tap"
+        >
+          <div className="text-lg" aria-hidden="true">👤</div>
+          <div className="text-[9px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>profilo</div>
+        </Link>
+      </div>
+
+      {/* Essential state */}
+      <div className="grid grid-cols-2 gap-3">
+        <Link
+          to="/schedina"
+          className="glass rounded-xl p-4 card-tap col-span-2 sm:col-span-1"
+          style={{ borderColor: scheduleState.color }}
+        >
+          <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', fontWeight: 700 }}>
+            Stato schedina
+          </p>
+          <p className="text-xl font-black mt-1" style={{ fontFamily: 'Outfit, sans-serif', color: scheduleState.color }}>
+            {scheduleState.label}
+          </p>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{scheduleState.detail}</p>
+        </Link>
+
+        <Link to="/classifica" className="glass rounded-xl p-4 card-tap">
+          <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', fontWeight: 700 }}>
+            Classifica
+          </p>
+          <p className="text-xl font-black mt-1" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--gold)' }}>
+            {rankText}
+          </p>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{player.points} punti</p>
+        </Link>
+
+        <Link to="/griglione" className="glass rounded-xl p-4 card-tap">
+          <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', fontWeight: 700 }}>
+            Griglione
+          </p>
+          <p className="text-xl font-black mt-1" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--accent)' }}>
+            Apri
+          </p>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Pronostici accettati</p>
+        </Link>
       </div>
 
       {/* LIVE or next-match strip */}
@@ -104,32 +161,6 @@ export default function DashboardPage({ game, player, players, matches }: Props)
           </div>
         </Link>
       )}
-
-      {/* Cards grid */}
-      <div className="grid grid-cols-2 gap-3">
-        {cards.map((card) => (
-          <Link
-            key={card.to}
-            to={card.to}
-            className="glass rounded-xl p-4 text-center transition-all duration-200 hover:scale-[1.02] card-tap group"
-            style={{ borderColor: 'var(--border)' }}
-          >
-            <span className="text-2xl block group-hover:scale-110 transition-transform duration-200">{card.icon}</span>
-            <p className="font-bold mt-2 text-sm" style={{ fontFamily: 'Outfit, sans-serif', color: card.accent }}>{card.label}</p>
-            <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>{card.sub}</p>
-          </Link>
-        ))}
-      </div>
-
-      {/* Prize pool */}
-      <div className="glass rounded-xl p-5 text-center relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, rgba(255, 215, 0, 0.05), transparent 70%)' }} />
-        <p className="text-[10px] uppercase tracking-[0.2em] relative" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Montepremi</p>
-        <p className="text-3xl font-black mt-1 relative shimmer" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--gold)' }}>
-          €{game.entryFee * paidPlayers}
-        </p>
-        <p className="text-[10px] mt-1 relative" style={{ color: 'var(--text-muted)' }}>{paidPlayers} iscritti</p>
-      </div>
     </div>
   );
 }
