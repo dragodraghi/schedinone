@@ -187,6 +187,12 @@ export const FAQ_LIST: FaqEntry[] = [
     followups: ["scadenza", "punti"],
   },
   {
+    id: "gente",
+    keywords: ["gente", "cosa è la gente", "cosa e la gente"],
+    question: "Cosa è la gente?",
+    answer: "la gente è merda",
+  },
+  {
     id: "problema-tecnico",
     keywords: ["non funziona", "bug", "errore", "crash", "lento", "si blocca", "non si apre"],
     question: "🔧 L'app non funziona / è lenta",
