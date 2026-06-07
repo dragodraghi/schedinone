@@ -1,6 +1,7 @@
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { isMatchClosed, requireCurrentPhase } from "./scheduleRules";
+import { resolveSchedulePlayerUid } from "./saveScheduleAuth";
 
 type Sign = "1" | "X" | "2";
 
@@ -74,9 +75,6 @@ export const saveSchedule = onCall(
       throw new HttpsError("unauthenticated", "Autenticazione richiesta.");
     }
     const provider = request.auth?.token.firebase?.sign_in_provider;
-    if (provider !== "anonymous") {
-      throw new HttpsError("permission-denied", "Solo i giocatori possono salvare la schedina.");
-    }
 
     const data = (request.data ?? {}) as {
       gameId?: unknown;
@@ -98,25 +96,32 @@ export const saveSchedule = onCall(
     const db = admin.firestore();
 
     const gameRef = db.doc(`games/${gameId}`);
-    const playerRef = db.doc(`games/${gameId}/players/${uid}`);
-    const [gameSnap, playerSnap] = await Promise.all([gameRef.get(), playerRef.get()]);
+    const gameSnap = await gameRef.get();
     if (!gameSnap.exists) {
       throw new HttpsError("not-found", "Gioco non trovato.");
     }
+    const gameData = gameSnap.data() ?? {};
+    const playerUid = resolveSchedulePlayerUid(uid, provider, gameData);
+    if (!playerUid) {
+      throw new HttpsError(
+        "permission-denied",
+        provider === "anonymous"
+          ? "Un admin non puo' inviare una schedina."
+          : "Account Comitato non collegato a una schedina."
+      );
+    }
+
+    const playerRef = db.doc(`games/${gameId}/players/${playerUid}`);
+    const playerSnap = await playerRef.get();
     if (!playerSnap.exists) {
       throw new HttpsError("not-found", "Giocatore non trovato.");
     }
 
-    const gameData = gameSnap.data() ?? {};
     let currentPhase: string;
     try {
       currentPhase = requireCurrentPhase(gameData);
     } catch {
       throw new HttpsError("failed-precondition", "Fase corrente del gioco non configurata.");
-    }
-
-    if (Array.isArray(gameData.admins) && gameData.admins.includes(uid)) {
-      throw new HttpsError("permission-denied", "Un admin non puo' inviare una schedina.");
     }
 
     const playerData = playerSnap.data() ?? {};

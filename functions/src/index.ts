@@ -59,6 +59,8 @@ export const scheduledLockMatches = onSchedule(
 export { onMessageCreated } from "./onMessageCreated";
 export { onAnnouncementPublished } from "./onAnnouncementPublished";
 export { markThreadRead } from "./markThreadRead";
+export { deleteChatMessage } from "./deleteChatMessage";
 export { joinGame } from "./joinGame";
 export { saveSchedule } from "./saveSchedule";
 export { syncPublicPlayer } from "./syncPublicPlayer";
+export { recalculatePointsNow } from "./recalculatePointsNow";

@@ -2,6 +2,10 @@ import * as admin from "firebase-admin";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { sendPushToUids } from "./messaging";
 
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
 export const onMessageCreated = onDocumentCreated(
   { document: "games/{gameId}/threads/{playerUid}/messages/{messageId}", region: "europe-west1" },
   async (event) => {
@@ -17,7 +21,8 @@ export const onMessageCreated = onDocumentCreated(
     const preview = text.slice(0, 80);
 
     const playerSnap = await db.doc(`games/${gameId}/players/${playerUid}`).get();
-    const playerName: string = (playerSnap.data()?.name as string | undefined) ?? "Giocatore";
+    const playerData = playerSnap.data() ?? {};
+    const playerName: string = (playerData.name as string | undefined) ?? "Giocatore";
 
     if (!threadSnap.exists) {
       await threadRef.set({
@@ -42,10 +47,10 @@ export const onMessageCreated = onDocumentCreated(
     }
 
     if (from === "committee") {
-      await sendPushToUids([playerUid], {
+      await sendPushToUids(Array.from(new Set([playerUid, ...asStringArray(playerData.deviceUids)])), {
         title: "Nuovo messaggio dal Comitato",
         body: preview,
-        data: { gameId, kind: "chat", threadUid: playerUid },
+        data: { gameId, kind: "chat", threadUid: playerUid, recipientRole: "player" },
       });
     } else {
       const gameSnap = await db.doc(`games/${gameId}`).get();
@@ -53,7 +58,7 @@ export const onMessageCreated = onDocumentCreated(
       await sendPushToUids(admins, {
         title: `Messaggio da ${playerName}`,
         body: preview,
-        data: { gameId, kind: "chat", threadUid: playerUid },
+        data: { gameId, kind: "chat", threadUid: playerUid, recipientRole: "committee" },
       });
     }
   }

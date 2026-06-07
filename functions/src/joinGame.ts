@@ -1,6 +1,7 @@
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as bcrypt from "bcryptjs";
+import { resolveExtraDeviceLinkTarget } from "./joinGameAccess";
 
 const MAX_NAME_LEN = 30;
 const MAX_CODE_LEN = 30;
@@ -33,6 +34,13 @@ function publicPlayerData(data: admin.firestore.DocumentData) {
     topScorerPick: accepted && typeof data.topScorerPick === "string" ? data.topScorerPick : "",
     winnerPick: accepted && typeof data.winnerPick === "string" ? data.winnerPick : "",
   };
+}
+
+function alreadyRegisteredError(name: string): HttpsError {
+  return new HttpsError(
+    "already-exists",
+    `La squadra "${name}" e' gia' registrata. Usa il dispositivo originale o chiedi al Comitato.`
+  );
 }
 
 export const joinGame = onCall(
@@ -100,13 +108,37 @@ export const joinGame = onCall(
       codeOk = code === gameData.accessCode;
     }
     if (!codeOk) {
-      throw new HttpsError("permission-denied", "Codice non valido.");
+      throw new HttpsError("permission-denied", "Password non valida.");
     }
 
-    const normalized = normalizeName(name);
+    const requestedName = name.trim();
+    const normalized = normalizeName(requestedName);
     const playerRef = db.doc(`games/${gameId}/players/${uid}`);
     const publicPlayerRef = db.doc(`games/${gameId}/publicPlayers/${uid}`);
     const nameRef = db.doc(`games/${gameId}/playerNames/${nameKey(normalized)}`);
+
+    async function linkExtraDevice(targetUid: string) {
+      const targetRef = db.doc(`games/${gameId}/players/${targetUid}`);
+      await db.runTransaction(async (tx) => {
+        const targetSnap = await tx.get(targetRef);
+        if (!targetSnap.exists) {
+          throw alreadyRegisteredError(requestedName);
+        }
+        const linkTarget = resolveExtraDeviceLinkTarget(uid, targetSnap.id, targetSnap.data() ?? {});
+        if (!linkTarget) {
+          throw alreadyRegisteredError(requestedName);
+        }
+        tx.update(targetRef, {
+          deviceUids: admin.firestore.FieldValue.arrayUnion(uid),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        tx.update(gameRef, {
+          [`playerDeviceAliases.${uid}`]: linkTarget,
+        });
+      });
+
+      return { ok: true, createdPlayer: false, playerUid: targetUid };
+    }
 
     // Compatibility check for player docs created before playerNames existed.
     const dup = await db
@@ -115,10 +147,7 @@ export const joinGame = onCall(
       .limit(1)
       .get();
     if (!dup.empty && dup.docs[0].id !== uid) {
-      throw new HttpsError(
-        "already-exists",
-        `Il nome "${name}" e' gia' usato. Scegli un nome diverso.`
-      );
+      return linkExtraDevice(dup.docs[0].id);
     }
     if (dup.empty) {
       const all = await db.collection(`games/${gameId}/players`).get();
@@ -126,10 +155,7 @@ export const joinGame = onCall(
         (d) => typeof d.data().name === "string" && normalizeName(d.data().name) === normalized
       );
       if (clash && clash.id !== uid) {
-        throw new HttpsError(
-          "already-exists",
-          `Il nome "${name}" e' gia' usato. Scegli un nome diverso.`
-        );
+        return linkExtraDevice(clash.id);
       }
     }
 
@@ -143,15 +169,30 @@ export const joinGame = onCall(
 
       const nameSnap = await tx.get(nameRef);
       if (nameSnap.exists) {
-        throw new HttpsError(
-          "already-exists",
-          `Il nome "${name}" e' gia' usato. Scegli un nome diverso.`
-        );
+        const ownerUid = nameSnap.data()?.uid;
+        if (typeof ownerUid === "string" && ownerUid !== uid) {
+          const ownerRef = db.doc(`games/${gameId}/players/${ownerUid}`);
+          const ownerSnap = await tx.get(ownerRef);
+          const linkTarget = ownerSnap.exists
+            ? resolveExtraDeviceLinkTarget(uid, ownerSnap.id, ownerSnap.data() ?? {})
+            : null;
+          if (linkTarget) {
+            tx.update(ownerRef, {
+              deviceUids: admin.firestore.FieldValue.arrayUnion(uid),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            tx.update(gameRef, {
+              [`playerDeviceAliases.${uid}`]: linkTarget,
+            });
+            return;
+          }
+        }
+        throw alreadyRegisteredError(requestedName);
       }
 
       const joinedAt = admin.firestore.FieldValue.serverTimestamp();
       const playerData = {
-        name: name.trim(),
+        name: requestedName,
         nameLower: normalized,
         joinedAt,
         predictions: {},
@@ -160,16 +201,18 @@ export const joinGame = onCall(
         points: 0,
         paid: false,
         scheduleStatus: "bozza",
+        multiDeviceEnabled: false,
+        deviceUids: [uid],
       };
 
       tx.set(nameRef, {
         uid,
-        name: name.trim(),
+        name: requestedName,
         nameLower: normalized,
         createdAt: joinedAt,
       });
       tx.set(playerRef, playerData);
-      tx.set(publicPlayerRef, playerData);
+      tx.set(publicPlayerRef, publicPlayerData(playerData));
       createdPlayer = true;
     });
 

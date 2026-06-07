@@ -51,6 +51,9 @@ async function seedData() {
     await db.doc(`games/${GAME_ID}`).set({
       name: "Schedinone Test",
       admins: ["admin-1"],
+      playerDeviceAliases: {
+        "player-1-device-2": "player-1",
+      },
       entryFee: 10,
       currentPhase: "gironi",
       phases: ["gironi"],
@@ -65,7 +68,11 @@ async function seedData() {
       score: null,
       locked: false,
     });
-    await db.doc(`games/${GAME_ID}/players/player-1`).set(playerData("Alice"));
+    await db.doc(`games/${GAME_ID}/players/player-1`).set({
+      ...playerData("Alice"),
+      multiDeviceEnabled: true,
+      deviceUids: ["player-1", "player-1-device-2"],
+    });
     await db.doc(`games/${GAME_ID}/players/player-2`).set(playerData("Bob"));
     await db.doc(`games/${GAME_ID}/publicPlayers/player-2`).set({
       name: "Bob",
@@ -76,6 +83,21 @@ async function seedData() {
       predictions: { m1: "X" },
       topScorerPick: "Bianchi",
       winnerPick: "Brasile",
+    });
+    await db.doc(`games/${GAME_ID}/threads/player-1`).set({
+      playerUid: "player-1",
+      playerName: "Alice",
+      lastMessageAt: firebase.firestore.Timestamp.fromDate(new Date("2026-06-02T10:00:00Z")),
+      lastMessagePreview: "ciao",
+      lastMessageFrom: "player",
+      unreadByPlayer: 0,
+      unreadByCommittee: 1,
+    });
+    await db.doc(`games/${GAME_ID}/threads/player-1/messages/msg-1`).set({
+      text: "ciao",
+      from: "player",
+      senderUid: "player-1",
+      createdAt: firebase.firestore.Timestamp.fromDate(new Date("2026-06-02T10:00:00Z")),
     });
   });
 }
@@ -124,6 +146,17 @@ describeRules("Firestore rules", () => {
     await assertFails(db.doc(`games/${GAME_ID}/players/player-2`).get());
   });
 
+  it("allows an authorized extra player device to use the private player document", async () => {
+    const db = anonymous("player-1-device-2");
+    await assertSucceeds(db.doc(`games/${GAME_ID}/players/player-1`).get());
+    await assertFails(db.doc(`games/${GAME_ID}/players/player-2`).get());
+    await assertSucceeds(
+      db.doc(`games/${GAME_ID}/players/player-1`).update({
+        lastAnnouncementReadAt: firebase.firestore.FieldValue.serverTimestamp(),
+      })
+    );
+  });
+
   it("allows signed-in users to read public player documents but not write them", async () => {
     const db = anonymous("player-1");
     await assertSucceeds(db.doc(`games/${GAME_ID}/publicPlayers/player-2`).get());
@@ -157,6 +190,84 @@ describeRules("Firestore rules", () => {
     );
   });
 
+  it("denies game admins from directly changing scoring fields", async () => {
+    const db = signedIn("admin-1");
+
+    await assertFails(
+      db.doc(`games/${GAME_ID}/players/player-1`).update({
+        points: 99,
+      })
+    );
+    await assertFails(
+      db.doc(`games/${GAME_ID}/players/player-1`).update({
+        predictions: { m1: "2" },
+      })
+    );
+    await assertFails(
+      db.doc(`games/${GAME_ID}/players/player-1`).update({
+        topScorerPick: "Modificato",
+      })
+    );
+    await assertFails(
+      db.doc(`games/${GAME_ID}/players/player-1`).update({
+        winnerPick: "Modificata",
+      })
+    );
+  });
+
+  it("allows game admins to change only safe game settings from the client", async () => {
+    const db = signedIn("admin-1");
+
+    await assertSucceeds(
+      db.doc(`games/${GAME_ID}`).update({
+        currentPhase: "ottavi",
+      })
+    );
+    await assertSucceeds(
+      db.doc(`games/${GAME_ID}`).update({
+        topScorer: "Rossi",
+        winner: "Italia",
+      })
+    );
+    await assertFails(
+      db.doc(`games/${GAME_ID}`).update({
+        accessCode: "NUOVO-CODICE",
+      })
+    );
+    await assertFails(
+      db.doc(`games/${GAME_ID}`).update({
+        admins: ["admin-1", "player-1"],
+      })
+    );
+    await assertFails(
+      db.doc(`games/${GAME_ID}`).update({
+        playerDeviceAliases: {},
+      })
+    );
+  });
+
+  it("validates admin match updates", async () => {
+    const db = signedIn("admin-1");
+
+    await assertSucceeds(
+      db.doc(`games/${GAME_ID}/matches/m1`).update({
+        result: "1",
+        score: "2-0",
+        resultSource: "manual",
+      })
+    );
+    await assertFails(
+      db.doc(`games/${GAME_ID}/matches/m1`).update({
+        result: "3",
+      })
+    );
+    await assertFails(
+      db.doc(`games/${GAME_ID}/matches/m1`).update({
+        unexpected: true,
+      })
+    );
+  });
+
   it("requires chat messages to use server timestamps and allowed keys", async () => {
     const db = anonymous("player-1");
     await assertFails(
@@ -175,5 +286,35 @@ describeRules("Firestore rules", () => {
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       })
     );
+  });
+
+  it("allows an authorized extra player device to use the same chat thread", async () => {
+    const db = anonymous("player-1-device-2");
+    await assertSucceeds(db.doc(`games/${GAME_ID}/threads/player-1`).get());
+    await assertSucceeds(db.doc(`games/${GAME_ID}/threads/player-1/messages/msg-1`).get());
+    await assertFails(
+      db.collection(`games/${GAME_ID}/threads/player-1/messages`).add({
+        text: "ciao dal secondo dispositivo",
+        from: "player",
+        senderUid: "player-1",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      })
+    );
+    await assertSucceeds(
+      db.collection(`games/${GAME_ID}/threads/player-1/messages`).add({
+        text: "ciao dal secondo dispositivo",
+        from: "player",
+        senderUid: "player-1-device-2",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      })
+    );
+  });
+
+  it("denies direct message deletion even to game admins", async () => {
+    const playerDb = anonymous("player-1");
+    const adminDb = signedIn("admin-1");
+
+    await assertFails(playerDb.doc(`games/${GAME_ID}/threads/player-1/messages/msg-1`).delete());
+    await assertFails(adminDb.doc(`games/${GAME_ID}/threads/player-1/messages/msg-1`).delete());
   });
 });

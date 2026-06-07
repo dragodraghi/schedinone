@@ -1,8 +1,18 @@
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { publicCallableOptions } from "./callableOptions";
+
+function asStringRecord(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim().length > 0
+    )
+  );
+}
 
 export const markThreadRead = onCall(
-  { region: "europe-west1", cors: true },
+  publicCallableOptions,
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Devi essere autenticato.");
@@ -13,13 +23,15 @@ export const markThreadRead = onCall(
     const db = admin.firestore();
     const gameSnap = await db.doc(`games/${gameId}`).get();
     if (!gameSnap.exists) throw new HttpsError("not-found", "Gioco non trovato.");
-    const admins: string[] = (gameSnap.data()?.admins as string[] | undefined) ?? [];
+    const gameData = gameSnap.data() ?? {};
+    const admins: string[] = (gameData.admins as string[] | undefined) ?? [];
+    const effectivePlayerUid = asStringRecord(gameData.playerDeviceAliases)[uid] ?? uid;
 
     const threadRef = db.doc(`games/${gameId}/threads/${threadUid}`);
     const threadSnap = await threadRef.get();
     if (!threadSnap.exists) return { ok: true };
 
-    if (uid === threadUid) {
+    if (effectivePlayerUid === threadUid) {
       await threadRef.update({ unreadByPlayer: 0 });
     } else if (admins.includes(uid)) {
       await threadRef.update({ unreadByCommittee: 0 });

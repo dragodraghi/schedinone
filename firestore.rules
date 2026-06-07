@@ -11,6 +11,115 @@ service cloud.firestore {
         && request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.admins;
     }
 
+    function isValidPhase(value) {
+      return value in ['gironi', 'ottavi', 'quarti', 'semifinali', 'finale'];
+    }
+
+    function isValidScheduleStatus(value) {
+      return value in ['bozza', 'inviata', 'accettata', 'rifiutata'];
+    }
+
+    function isValidSign(value) {
+      return value in ['1', 'X', '2'];
+    }
+
+    function isValidNullableSign(value) {
+      return value == null || isValidSign(value);
+    }
+
+    function isValidNullableString(value, maxSize) {
+      return value == null || (value is string && value.size() <= maxSize);
+    }
+
+    function isValidStringList(value, maxSize) {
+      return value is list && value.size() <= maxSize;
+    }
+
+    function isValidLockLeadHours(value) {
+      return value is number && value >= 0 && value <= 720;
+    }
+
+    function isValidSafeGameUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return changed.hasOnly([
+          'name',
+          'entryFee',
+          'currentPhase',
+          'topScorer',
+          'winner',
+          'lockLeadHours',
+          'phaseLockLeadHours'
+        ])
+        && (!changed.hasAny(['name']) || (request.resource.data.name is string && request.resource.data.name.size() <= 80))
+        && (!changed.hasAny(['entryFee']) || (request.resource.data.entryFee is number && request.resource.data.entryFee >= 0 && request.resource.data.entryFee <= 10000))
+        && (!changed.hasAny(['currentPhase']) || isValidPhase(request.resource.data.currentPhase))
+        && (!changed.hasAny(['topScorer']) || isValidNullableString(request.resource.data.topScorer, 80))
+        && (!changed.hasAny(['winner']) || isValidNullableString(request.resource.data.winner, 80))
+        && (!changed.hasAny(['lockLeadHours']) || isValidLockLeadHours(request.resource.data.lockLeadHours))
+        && (!changed.hasAny(['phaseLockLeadHours']) || request.resource.data.phaseLockLeadHours is map);
+    }
+
+    function isValidMatchWriteData() {
+      return request.resource.data.keys().hasOnly([
+          'phase',
+          'group',
+          'homeTeam',
+          'awayTeam',
+          'kickoff',
+          'kickoffSource',
+          'result',
+          'score',
+          'locked',
+          'resultSource'
+        ])
+        && request.resource.data.keys().hasAll(['phase', 'homeTeam', 'awayTeam', 'kickoff', 'result', 'score', 'locked'])
+        && isValidPhase(request.resource.data.phase)
+        && isValidNullableString(request.resource.data.group, 4)
+        && request.resource.data.homeTeam is string
+        && request.resource.data.homeTeam.size() > 0
+        && request.resource.data.homeTeam.size() <= 80
+        && request.resource.data.awayTeam is string
+        && request.resource.data.awayTeam.size() > 0
+        && request.resource.data.awayTeam.size() <= 80
+        && request.resource.data.kickoff is timestamp
+        && (!request.resource.data.keys().hasAny(['kickoffSource']) || request.resource.data.kickoffSource in ['synthetic', 'api', 'manual'])
+        && isValidNullableSign(request.resource.data.result)
+        && isValidNullableString(request.resource.data.score, 20)
+        && request.resource.data.locked is bool
+        && (!request.resource.data.keys().hasAny(['resultSource']) || request.resource.data.resultSource in ['manual', 'auto']);
+    }
+
+    function isValidAdminPlayerUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return changed.hasOnly(['paid', 'scheduleStatus', 'multiDeviceEnabled', 'deviceUids'])
+        && (!changed.hasAny(['paid']) || request.resource.data.paid is bool)
+        && (!changed.hasAny(['scheduleStatus']) || isValidScheduleStatus(request.resource.data.scheduleStatus))
+        && (!changed.hasAny(['multiDeviceEnabled']) || request.resource.data.multiDeviceEnabled is bool)
+        && (!changed.hasAny(['deviceUids']) || isValidStringList(request.resource.data.deviceUids, 10));
+    }
+
+    function isPlayerDevice(gameId, playerUid) {
+      return isSignedIn()
+        && (
+          request.auth.uid == playerUid
+          || (
+            exists(/databases/$(database)/documents/games/$(gameId))
+            && get(/databases/$(database)/documents/games/$(gameId)).data.playerDeviceAliases is map
+            && request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.playerDeviceAliases
+            && get(/databases/$(database)/documents/games/$(gameId)).data.playerDeviceAliases[request.auth.uid] == playerUid
+          )
+        );
+    }
+
+    function effectivePlayerUid(gameId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/games/$(gameId))
+        && get(/databases/$(database)/documents/games/$(gameId)).data.playerDeviceAliases is map
+        && request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.playerDeviceAliases
+        ? get(/databases/$(database)/documents/games/$(gameId)).data.playerDeviceAliases[request.auth.uid]
+        : request.auth.uid;
+    }
+
     function isAnonymousUser() {
       return isSignedIn()
         && request.auth.token.firebase.sign_in_provider == 'anonymous';
@@ -174,28 +283,28 @@ service cloud.firestore {
 
     match /games/{gameId} {
       allow read: if isSignedIn();
-      // Existing admins can change any field.
-      allow write: if isSignedIn()
-        && request.auth.uid in resource.data.admins;
+      allow create, delete: if false;
+      allow update: if isGameAdmin(gameId) && isValidSafeGameUpdate();
 
       match /matches/{matchId} {
         allow read: if isSignedIn();
-        allow write: if isGameAdmin(gameId);
+        allow create, update: if isGameAdmin(gameId) && isValidMatchWriteData();
+        allow delete: if isGameAdmin(gameId);
       }
 
       match /players/{playerId} {
         allow read: if isSignedIn() && (
-          request.auth.uid == playerId
+          isPlayerDevice(gameId, playerId)
           || isGameAdmin(gameId)
         );
         // Player creation and schedina writes go through Cloud Functions:
         // joinGame validates the access code, saveSchedule validates locks.
         allow create: if false;
         allow update: if isAnonymousUser()
-          && request.auth.uid == playerId
+          && isPlayerDevice(gameId, playerId)
           && isPlayerReadMarkerUpdate();
-        // Admins can update/delete any player
-        allow update, delete: if isGameAdmin(gameId);
+        allow update: if isGameAdmin(gameId) && isValidAdminPlayerUpdate();
+        allow delete: if isGameAdmin(gameId);
       }
 
       match /publicPlayers/{playerId} {
@@ -213,7 +322,7 @@ service cloud.firestore {
           || (
             resource.data.status == 'published'
             && resource.data.deletedAt == null
-            && (resource.data.targetUids == null || request.auth.uid in resource.data.targetUids)
+            && (resource.data.targetUids == null || effectivePlayerUid(gameId) in resource.data.targetUids)
           )
         );
         allow create: if isGameAdmin(gameId)
@@ -240,7 +349,7 @@ service cloud.firestore {
 
       match /threads/{playerUid} {
         allow read: if isSignedIn() && (
-          request.auth.uid == playerUid
+          isPlayerDevice(gameId, playerUid)
           || isGameAdmin(gameId)
         );
         // Maintained only by Cloud Functions and the markThreadRead callable.
@@ -248,7 +357,7 @@ service cloud.firestore {
 
         match /messages/{messageId} {
           allow read: if isSignedIn() && (
-            request.auth.uid == playerUid
+            isPlayerDevice(gameId, playerUid)
             || isGameAdmin(gameId)
           );
           allow create: if isSignedIn()
@@ -261,7 +370,7 @@ service cloud.firestore {
             && (
               // Player in own thread with per-thread rate limit.
               (
-                request.auth.uid == playerUid
+                isPlayerDevice(gameId, playerUid)
                 && request.resource.data.from == 'player'
                 && threadCanReceiveMessage(gameId, playerUid)
               )

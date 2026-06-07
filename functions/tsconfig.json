@@ -9,5 +9,6 @@
     "target": "es2022"
   },
   "compileOnSave": true,
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/tusk*.ts", "src/submitTuskIscrizione.ts", "src/**/*.test.ts", "src/**/__tests__/**"]
 }

@@ -1,6 +1,11 @@
 import * as admin from "firebase-admin";
 
-export async function recalculatePoints(gameId: string) {
+export interface RecalculatePointsReport {
+  playersUpdated: number;
+  matchesCounted: number;
+}
+
+export async function recalculatePoints(gameId: string): Promise<RecalculatePointsReport> {
   const db = admin.firestore();
   const playersSnap = await db.collection(`games/${gameId}/players`).get();
   const matchesSnap = await db.collection(`games/${gameId}/matches`).where("result", "!=", null).get();
@@ -14,6 +19,7 @@ export async function recalculatePoints(gameId: string) {
 
   let batch = db.batch();
   let pendingWrites = 0;
+  let playersUpdated = 0;
 
   async function commitPending() {
     if (pendingWrites === 0) return;
@@ -46,12 +52,17 @@ export async function recalculatePoints(gameId: string) {
     // gameData intentionally unused here for scoring (see note above)
     void gameData;
 
-    batch.update(playerDoc.ref, { points });
-    pendingWrites++;
-    if (pendingWrites >= 400) {
-      await commitPending();
+    if (Number(data.points ?? 0) !== points) {
+      batch.update(playerDoc.ref, { points });
+      pendingWrites++;
+      playersUpdated++;
+      if (pendingWrites >= 400) {
+        await commitPending();
+      }
     }
   }
 
   await commitPending();
+
+  return { playersUpdated, matchesCounted: matches.length };
 }
