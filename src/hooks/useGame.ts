@@ -20,6 +20,14 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
+function asStringRecord(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const entries = Object.entries(value).filter(
+    (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim().length > 0
+  );
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
 function asLockLeadHours(value: unknown): number | undefined {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return undefined;
   return value;
@@ -57,6 +65,8 @@ export function useGame(gameId: string, enabled = true) {
             name: typeof data.name === "string" ? data.name : "Schedinone",
             entryFee: Number(data.entryFee) || 0,
             admins: asStringArray(data.admins),
+            adminPlayerUids: asStringRecord(data.adminPlayerUids),
+            playerDeviceAliases: asStringRecord(data.playerDeviceAliases),
             accessCode: typeof data.accessCode === "string" ? data.accessCode : "",
             adminCode: typeof data.adminCode === "string" ? data.adminCode : undefined,
             adminCodeHash: typeof data.adminCodeHash === "string" ? data.adminCodeHash : undefined,

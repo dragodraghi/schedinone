@@ -1,4 +1,5 @@
 import Flag from "./Flag";
+import { rankPlayersForLeaderboard } from "../lib/playerOrdering";
 import type { Game, Match, Player } from "../lib/types";
 
 interface Props {
@@ -44,15 +45,13 @@ export default function ComparisonTable({ players, matches, game, highlightId }:
   }
   const totalMax = Math.max(...players.map((p) => p.points));
 
-  // Sort players by points descending so the best is on top
-  const sorted = [...players].sort((a, b) => b.points - a.points);
+  const rankedPlayers = rankPlayersForLeaderboard(players);
 
   return (
     <div className="space-y-3">
-      {sorted.map((p, idx) => {
+      {rankedPlayers.map(({ player: p, rank }) => {
         const isMe = highlightId === p.id;
         const isTotalLeader = p.points === totalMax && p.points > 0 && players.length > 1;
-        const rank = idx + 1;
         const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
 
         const hasCorrectScorer =

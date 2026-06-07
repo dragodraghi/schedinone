@@ -20,6 +20,30 @@ if (config.apiKey && config.projectId && config.messagingSenderId && config.appI
   messaging.onBackgroundMessage((payload) => {
     const title = (payload.notification && payload.notification.title) || 'Schedinone';
     const body = (payload.notification && payload.notification.body) || '';
-    self.registration.showNotification(title, { body });
+    const data = payload.data || {};
+    self.registration.showNotification(title, { body, data, icon: '/og-image.png' });
   });
 }
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const data = event.notification.data || {};
+  const path = data.kind === 'chat'
+    ? (data.recipientRole === 'committee' ? '/admin/messaggi' : '/messaggi')
+    : '/';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      const origin = self.location.origin;
+      const targetUrl = `${origin}${path}`;
+      for (const client of clients) {
+        if (client.url.startsWith(origin) && 'focus' in client) {
+          client.focus();
+          if ('navigate' in client) return client.navigate(targetUrl);
+          return undefined;
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+      return undefined;
+    })
+  );
+});

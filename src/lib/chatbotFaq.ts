@@ -4,6 +4,7 @@
  * troubleshooting). For anything unrecognized, falls back to a "ask the
  * Comitato in person" suggestion.
  */
+import { PAYMENT_DETAILS } from "./payment";
 
 export interface FaqEntry {
   id: string;
@@ -44,25 +45,27 @@ export const FAQ_LIST: FaqEntry[] = [
   },
   {
     id: "come-entrare",
-    keywords: ["entrare", "login", "accesso", "codice", "non riesco", "entra"],
+    keywords: ["entrare", "login", "accesso", "codice", "password", "non riesco", "entra"],
     question: "🔑 Come entro nel gioco?",
     answer:
       "1. Apri l'app\n" +
-      "2. Scrivi il tuo NOME (quello che vedranno gli altri nella classifica)\n" +
-      "3. Scrivi il CODICE GIOCO che ti ha dato il Comitato\n" +
+      "2. Scrivi il NOME DELLA TUA SQUADRA (quello che vedranno gli altri nella classifica)\n" +
+      "3. Scrivi la PASSWORD che ti ha dato il Comitato\n" +
       "4. Tocca 'Entra in gioco'\n\n" +
-      "Se non ricordi il codice, chiedilo al Comitato: non è scritto da nessuna parte nell'app.",
+      "Il nome squadra e' pubblico, ma non basta per entrare negli account degli altri: se una squadra e' gia' registrata da un altro dispositivo, l'accesso viene bloccato.\n\n" +
+      "Se non ricordi la password, chiedila al Comitato: non e' scritta da nessuna parte nell'app.",
     followups: ["compilare", "nome-duplicato"],
   },
   {
     id: "nome-duplicato",
     keywords: ["nome", "occupato", "gia' usato", "duplicato", "preso"],
-    question: "❗ Mi dice 'nome gia' usato'",
+    question: "❗ Mi dice 'squadra gia' registrata'",
     answer:
-      "Qualcuno ha già usato quel nome. Scegli un nome diverso — per esempio aggiungi la tua iniziale:\n\n" +
+      "Quella squadra e' gia' registrata da un altro dispositivo, quindi l'app blocca l'accesso per evitare ingressi negli account degli altri.\n\n" +
+      "Se stai creando una nuova squadra, scegli un nome diverso - per esempio aggiungi la tua iniziale:\n\n" +
       "  'Marco' → 'Marco R.'\n" +
       "  'Giulia' → 'Giulia M.'\n\n" +
-      "Se pensi di essere stato tu su un altro dispositivo, chiedi al Comitato di rimuovere il vecchio dalla lista giocatori.",
+      "Se quella squadra e' tua ma hai cambiato telefono/browser, chiedi al Comitato di aiutarti con il recupero o di rimuovere il vecchio accesso dalla lista giocatori.",
   },
   {
     id: "compilare",
@@ -171,11 +174,15 @@ export const FAQ_LIST: FaqEntry[] = [
   },
   {
     id: "quota",
-    keywords: ["quota", "pagamento", "pagare", "costo", "soldi", "euro"],
-    question: "💰 Come pago la quota d'iscrizione?",
+    keywords: ["quota", "pagamento", "pagare", "costo", "soldi", "euro", "iban", "bonifico", "causale"],
+    question: "Come pago la quota?",
     answer:
-      "Il pagamento della quota avviene di persona / offline con il Comitato (Bonifico, contanti, Satispay, come preferite voi).\n\n" +
-      "L'app NON gestisce pagamenti: il Comitato segna chi ha pagato cliccando 'Pagato' dal suo pannello.",
+      `Quota di partecipazione: ${PAYMENT_DETAILS.entryFee} euro\n` +
+      `IBAN: ${PAYMENT_DETAILS.ibanDisplay}\n` +
+      `Intestatario: ${PAYMENT_DETAILS.accountHolder}\n` +
+      "Causale: nome della tua squadra\n\n" +
+      "La schedina verra' accettata dal Comitato solo dopo la verifica del pagamento.",
+    followups: ["compilare", "scadenza"],
   },
   {
     id: "mondiale-inizio",
@@ -211,7 +218,7 @@ export const FAQ_LIST: FaqEntry[] = [
     answer:
       "Fino a quando NON invii al Comitato → solo tu.\n\n" +
       "Appena il Comitato ACCETTA la tua schedina → diventa visibile a tutti i giocatori nel Griglione (per trasparenza).\n\n" +
-      "Il tuo nome è visibile in classifica. Nessun altro dato personale viene raccolto.",
+      "Il nome della tua squadra e' visibile in classifica. Nessun altro dato personale viene raccolto.",
   },
 ];
 

@@ -16,16 +16,42 @@ const GREETING: Message = {
   text:
     "Ciao! Sono il Chatbot del Comitato 🤖\n\n" +
     "Posso aiutarti con installazione, compilazione della schedina, regolamento, problemi. Tocca una domanda qui sotto o scrivimi!",
-  suggestions: ["install-android", "come-entrare", "compilare", "punti", "scadenza"],
+  suggestions: ["install-android", "come-entrare", "compilare", "quota", "scadenza"],
 };
+
+const STORAGE_KEY = "schedinone-chatbot";
+
+function loadMessages(): Message[] {
+  if (typeof sessionStorage === "undefined") return [GREETING];
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed as Message[];
+    }
+  } catch {
+    // Ignore corrupt/unavailable storage and fall back to the greeting.
+  }
+  return [GREETING];
+}
 
 export default function Chatbot() {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([GREETING]);
+  const [messages, setMessages] = useState<Message[]>(loadMessages);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const nextId = useRef(1);
+  const nextId = useRef(messages.reduce((max, m) => Math.max(max, m.id), 0) + 1);
+
+  // Persist the conversation so it survives navigation within the session.
+  useEffect(() => {
+    if (typeof sessionStorage === "undefined") return;
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    } catch {
+      // Ignore quota / private-mode write failures.
+    }
+  }, [messages]);
 
   // Auto-scroll to newest message
   useEffect(() => {

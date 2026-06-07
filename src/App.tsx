@@ -8,9 +8,12 @@ import { useAuth } from "./hooks/useAuth";
 import { useGame } from "./hooks/useGame";
 import { useMatches } from "./hooks/useMatches";
 import { useCurrentPlayer, usePlayers, usePublicPlayers } from "./hooks/usePlayers";
+import { useLoadingTimeout } from "./hooks/useLoadingTimeout";
+import { hardRefreshApp } from "./lib/appRefresh";
 import Layout from "./components/Layout";
 import SplashScreen from "./components/SplashScreen";
 import PageSkeleton from "./components/PageSkeleton";
+import Chatbot from "./components/Chatbot";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import SchedinaPage from "./pages/SchedinaPage";
@@ -19,6 +22,10 @@ import ProfiloPage from "./pages/ProfiloPage";
 import BachecaPage from "./pages/BachecaPage";
 import MessaggiPage from "./pages/MessaggiPage";
 import { initPushForUser } from "./lib/messaging";
+import { getAdminPlayerUid, getEffectivePlayerUid } from "./lib/adminPlayer";
+import { countUnreadAnnouncements, subscribeAnnouncementsForPlayer } from "./lib/announcements";
+import { subscribeThread } from "./lib/chat";
+import type { Announcement, Thread } from "./lib/types";
 
 // Admin + Griglione routes are lazy-loaded to keep initial bundle small
 const AdminPage = lazy(() => import("./pages/admin/AdminPage"));
@@ -32,6 +39,15 @@ const ConfrontoPage = lazy(() => import("./pages/admin/ConfrontoPage"));
 
 const GAME_ID = import.meta.env.VITE_GAME_ID || "schedinone-2026";
 type SessionMode = "player" | "admin" | null;
+type JoinGameResponse = {
+  ok: boolean;
+  createdPlayer: boolean;
+  playerUid?: string;
+};
+type SessionPlayerLink = {
+  authUid: string;
+  playerUid: string;
+};
 
 export default function App() {
   const { user, loading: authLoading } = useAuth();
@@ -43,14 +59,26 @@ export default function App() {
   const [loginError, setLoginError] = useState("");
   const [adminLoginInProgress, setAdminLoginInProgress] = useState(false);
   const [sessionMode, setSessionMode] = useState<SessionMode>(null);
+  const [sessionPlayerLink, setSessionPlayerLink] = useState<SessionPlayerLink | null>(null);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [privateThread, setPrivateThread] = useState<Thread | null>(null);
   const handleSplashComplete = useCallback(() => setShowSplash(false), []);
 
   const isGameAdmin = game?.admins.includes(user?.uid ?? "") ?? false;
   const isAdminSession = sessionMode === "admin" && isGameAdmin;
-  const { players: publicPlayers } = usePublicPlayers(GAME_ID, authReady);
-  const { players: adminPlayers } = usePlayers(GAME_ID, authReady && isAdminSession);
-  const { player: currentPlayer } = useCurrentPlayer(GAME_ID, user?.uid, authReady && !!user);
+  const adminPlayerUid = getAdminPlayerUid(game, user?.uid);
+  const mappedPlayerUid = getEffectivePlayerUid(game, user?.uid);
+  const sessionPlayerUid =
+    sessionPlayerLink && sessionPlayerLink.authUid === user?.uid ? sessionPlayerLink.playerUid : null;
+  const effectivePlayerUid = sessionMode === "player" && sessionPlayerUid ? sessionPlayerUid : mappedPlayerUid;
+  const hasAdminPlayerProfile = isAdminSession && !!adminPlayerUid;
+  const { players: publicPlayers, loading: publicPlayersLoading } = usePublicPlayers(GAME_ID, authReady);
+  const { players: adminPlayers, loading: adminPlayersLoading } = usePlayers(GAME_ID, authReady && isAdminSession);
+  const { player: currentPlayer } = useCurrentPlayer(GAME_ID, effectivePlayerUid, authReady && !!effectivePlayerUid);
   const players = isAdminSession ? adminPlayers : publicPlayers;
+  const playersLoading = isAdminSession ? adminPlayersLoading : publicPlayersLoading;
+  const initializing = authLoading || !user;
+  const loadTimedOut = useLoadingTimeout(initializing || gameLoading);
 
   // Firestore rules require auth to read anything. Trigger an anonymous
   // sign-in as soon as the app mounts (for first-time visitors who haven't
@@ -77,7 +105,23 @@ export default function App() {
     }
   }, [loggedIn, user]);
 
-  // Player login via access code. Admin access is separate (email+password).
+  useEffect(() => {
+    if (!loggedIn || !effectivePlayerUid) {
+      setAnnouncements([]);
+      return;
+    }
+    return subscribeAnnouncementsForPlayer(GAME_ID, effectivePlayerUid, setAnnouncements);
+  }, [loggedIn, effectivePlayerUid]);
+
+  useEffect(() => {
+    if (!loggedIn || !effectivePlayerUid) {
+      setPrivateThread(null);
+      return;
+    }
+    return subscribeThread(GAME_ID, effectivePlayerUid, setPrivateThread);
+  }, [loggedIn, effectivePlayerUid]);
+
+  // Player login via team name + password. Admin access is separate (email+password).
   const handleLogin = async (name: string, code: string) => {
     if (!game) return;
     setLoginError("");
@@ -96,10 +140,12 @@ export default function App() {
       const functions = getFunctions(undefined, "europe-west1");
       const callJoin = httpsCallable<
         { gameId: string; name: string; code: string },
-        { ok: boolean; createdPlayer: boolean }
+        JoinGameResponse
       >(functions, "joinGame");
-      await callJoin({ gameId: GAME_ID, name: name.trim(), code });
+      const joinResult = await callJoin({ gameId: GAME_ID, name: name.trim(), code });
+      const joinedPlayerUid = joinResult.data.playerUid?.trim() || firebaseUser.uid;
 
+      setSessionPlayerLink({ authUid: firebaseUser.uid, playerUid: joinedPlayerUid });
       setSessionMode("player");
       setLoggedIn(true);
       setShowSplash(true);
@@ -107,11 +153,14 @@ export default function App() {
       const e = err as { code?: string; message?: string };
       const code = e.code ?? "";
       if (code === "functions/permission-denied") {
-        setLoginError(e.message || "Codice non valido. Controlla e riprova.");
+        setLoginError(e.message || "Password non valida. Controlla e riprova.");
       } else if (code === "functions/already-exists") {
-        setLoginError(e.message || `Il nome "${name}" è già usato. Scegli un nome diverso.`);
+        setLoginError(
+          e.message ||
+            `La squadra "${name}" e' gia' registrata. Usa il dispositivo originale o chiedi al Comitato.`
+        );
       } else if (code === "functions/invalid-argument") {
-        setLoginError("Dati non validi. Controlla nome e codice.");
+        setLoginError("Dati non validi. Controlla nome squadra e password.");
       } else if (code === "functions/not-found") {
         setLoginError("Gioco non trovato.");
       } else {
@@ -124,6 +173,7 @@ export default function App() {
   const handleAdminLogin = async (email: string, password: string) => {
     setLoginError("");
     setAdminLoginInProgress(true);
+    setSessionPlayerLink(null);
     try {
       try {
         await signOut(auth);
@@ -149,6 +199,7 @@ export default function App() {
       console.error("Logout error:", err);
     }
     setSessionMode(null);
+    setSessionPlayerLink(null);
     setLoggedIn(false);
     setLoginError("");
   };
@@ -157,7 +208,6 @@ export default function App() {
   //  - Firebase Auth is initializing
   //  - Or we're about to auto-sign-in anonymously (auth done but no user yet)
   //  - Or the game doc is still being fetched
-  const initializing = authLoading || !user;
   if (initializing || gameLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-4" style={{ background: 'var(--bg-deep)' }}>
@@ -168,7 +218,27 @@ export default function App() {
           </h1>
         </div>
         <div className="w-full max-w-md">
-          <PageSkeleton />
+          {loadTimedOut ? (
+            <div className="glass rounded-2xl p-6 text-center animate-in">
+              <div className="text-3xl mb-2">📡</div>
+              <p className="font-bold" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--text-primary)' }}>
+                Connessione lenta
+              </p>
+              <p className="text-xs mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>
+                Controlla la rete e riprova.
+              </p>
+              <button
+                type="button"
+                onClick={() => { void hardRefreshApp(); }}
+                className="px-5 py-2.5 rounded-xl font-bold text-sm transition-all active:scale-95"
+                style={{ background: 'linear-gradient(135deg, #00d4ff, #0099cc)', color: '#040810', fontFamily: 'Outfit, sans-serif' }}
+              >
+                Riprova
+              </button>
+            </div>
+          ) : (
+            <PageSkeleton />
+          )}
         </div>
       </div>
     );
@@ -194,9 +264,23 @@ export default function App() {
     return <SplashScreen onComplete={handleSplashComplete} />;
   }
 
-  const safePlayer = currentPlayer ?? {
-    id: user?.uid ?? "",
-    name: isAdminSession ? "Admin" : "Giocatore",
+  const effectivePlayer = currentPlayer ?? players.find((player) => player.id === effectivePlayerUid);
+  const lastAnnouncementReadAt = effectivePlayer?.lastAnnouncementReadAt ?? null;
+  const unreadAnnouncements = announcements.filter((announcement) => {
+    if (!announcement.publishedAt) return false;
+    if (!lastAnnouncementReadAt) return true;
+    return announcement.publishedAt.toMillis() > lastAnnouncementReadAt.toMillis();
+  });
+  const unreadAnnouncementCount = countUnreadAnnouncements(announcements, lastAnnouncementReadAt);
+  const latestUnreadAnnouncementTitle = unreadAnnouncements[0]?.title?.trim();
+  const unreadPrivateMessageCount = privateThread?.unreadByPlayer ?? 0;
+  const latestPrivateMessagePreview =
+    unreadPrivateMessageCount > 0 && privateThread?.lastMessageFrom === "committee"
+      ? privateThread.lastMessagePreview?.trim()
+      : undefined;
+  const safePlayer = effectivePlayer ?? {
+    id: effectivePlayerUid ?? "",
+    name: hasAdminPlayerProfile ? "Giocatore" : isAdminSession ? "Admin" : "Giocatore",
     joinedAt: new Date(),
     predictions: {},
     topScorerPick: "",
@@ -204,20 +288,30 @@ export default function App() {
     points: 0,
     paid: false,
     scheduleStatus: "bozza" as const,
+    lastAnnouncementReadAt: null,
   };
 
   return (
     <BrowserRouter>
-      <Layout isAdmin={isAdminSession}>
+      <Layout isAdmin={isAdminSession} hasPlayerProfile={hasAdminPlayerProfile}>
         <Suspense fallback={<PageSkeleton />}>
           <Routes>
-            <Route path="/" element={<DashboardPage game={game} player={safePlayer} players={players} matches={matches} />} />
-            <Route path="/schedina" element={<SchedinaPage game={game} player={safePlayer} matches={matches} gameId={GAME_ID} />} />
-            <Route path="/classifica" element={<ClassificaPage game={game} player={safePlayer} players={players} />} />
-            <Route path="/profilo" element={<ProfiloPage game={game} player={safePlayer} players={players} matches={matches} isAdmin={isAdminSession} onLogout={handleLogout} />} />
-            <Route path="/bacheca" element={<BachecaPage gameId={GAME_ID} playerUid={user?.uid ?? ""} />} />
-            <Route path="/messaggi" element={<MessaggiPage gameId={GAME_ID} playerUid={user?.uid ?? ""} />} />
-            <Route path="/griglione" element={<RiepilogoPage game={game} players={players} matches={matches} currentPlayer={currentPlayer ?? undefined} />} />
+            <Route path="/" element={<DashboardPage game={game} player={safePlayer} players={players} matches={matches} unreadAnnouncementCount={unreadAnnouncementCount} latestAnnouncementTitle={latestUnreadAnnouncementTitle} unreadPrivateMessageCount={unreadPrivateMessageCount} latestPrivateMessagePreview={latestPrivateMessagePreview} />} />
+            <Route
+              path="/schedina"
+              element={
+                isAdminSession
+                  ? hasAdminPlayerProfile
+                    ? <SchedinaPage game={game} player={safePlayer} matches={matches} gameId={GAME_ID} />
+                    : <Navigate to="/admin" replace />
+                  : <SchedinaPage game={game} player={safePlayer} matches={matches} gameId={GAME_ID} />
+              }
+            />
+            <Route path="/classifica" element={<ClassificaPage game={game} player={safePlayer} players={players} loading={playersLoading} />} />
+            <Route path="/profilo" element={<ProfiloPage game={game} player={safePlayer} players={players} matches={matches} isAdmin={isAdminSession} hasPlayerProfile={hasAdminPlayerProfile} unreadAnnouncementCount={unreadAnnouncementCount} unreadPrivateMessageCount={unreadPrivateMessageCount} onLogout={handleLogout} />} />
+            <Route path="/bacheca" element={<BachecaPage gameId={GAME_ID} playerUid={effectivePlayerUid ?? ""} />} />
+            <Route path="/messaggi" element={<MessaggiPage gameId={GAME_ID} playerUid={effectivePlayerUid ?? ""} currentAuthUid={user?.uid ?? ""} />} />
+            <Route path="/griglione" element={<RiepilogoPage game={game} players={players} matches={matches} currentPlayer={effectivePlayer ?? undefined} />} />
             {isAdminSession && (
               <>
                 <Route path="/admin" element={<AdminPage game={game} players={players} matches={matches} onLogout={handleLogout} />} />
@@ -234,6 +328,7 @@ export default function App() {
           </Routes>
         </Suspense>
       </Layout>
+      {!isAdminSession && <Chatbot />}
     </BrowserRouter>
   );
 }

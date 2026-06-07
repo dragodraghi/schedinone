@@ -18,12 +18,17 @@ export default function EmptyState({ icon, title, description, action, accent = 
   const color = accentColors[accent];
   return (
     <div
-      className="glass rounded-2xl p-8 text-center animate-in flex flex-col items-center gap-2"
+      className="surface-panel-quiet p-6 text-center animate-in flex flex-col items-center gap-2"
       role="status"
     >
       <div
-        className="text-5xl mb-2"
-        style={{ filter: `drop-shadow(0 0 12px ${color === "var(--text-muted)" ? "rgba(100,116,139,0.3)" : color})` }}
+        className="mb-2 grid h-12 min-w-12 place-items-center rounded-lg px-3 text-sm font-black"
+        style={{
+          color,
+          border: `1px solid ${color === "var(--text-muted)" ? "var(--border)" : color}`,
+          background: color === "var(--text-muted)" ? "rgba(255,255,255,0.04)" : "rgba(0,212,255,0.07)",
+          fontFamily: "Outfit, sans-serif",
+        }}
         aria-hidden="true"
       >
         {icon}

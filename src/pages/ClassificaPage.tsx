@@ -1,50 +1,90 @@
 import PlayerRow from "../components/PlayerRow";
 import EmptyState from "../components/EmptyState";
+import Skeleton from "../components/Skeleton";
+import { getTopPlayers, rankPlayersForLeaderboard } from "../lib/playerOrdering";
 import type { Game, Player } from "../lib/types";
 
 interface Props {
   game: Game;
   player: Player;
   players: Player[];
+  loading?: boolean;
 }
 
-export default function ClassificaPage({ game, player, players }: Props) {
+export default function ClassificaPage({ game, player, players, loading = false }: Props) {
   const paidCount = players.filter((p) => p.paid).length;
   const prize = game.entryFee * paidCount;
+  const topPlayers = getTopPlayers(players);
+  const rankedPlayers = rankPlayersForLeaderboard(players);
+  const leader = topPlayers[0];
+  const hasTiedLeaders = topPlayers.length > 1;
+  const leaderTitle = !leader
+    ? "Classifica vuota"
+    : hasTiedLeaders
+    ? `${topPlayers.length} pari merito`
+    : leader.name;
+  const leaderSubtitle = !leader
+    ? "I punti compariranno dopo i risultati"
+    : hasTiedLeaders
+    ? `${leader.points} punti ciascuno`
+    : `${leader.points} punti`;
 
   return (
-    <div className="space-y-4 animate-in">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-black" style={{ fontFamily: 'Outfit, sans-serif' }}>Classifica</h1>
-        <div className="counter-pill px-3 py-1.5 rounded-full text-xs">
-          <span style={{ color: 'var(--accent)' }}>{players.length}</span>
-          <span style={{ color: 'var(--text-muted)' }}> giocatori</span>
+    <div className="space-y-5 animate-in">
+      <header className="page-head">
+        <div>
+          <p className="page-kicker">Punti torneo</p>
+          <h1 className="text-2xl sm:text-3xl font-black mt-1" style={{ fontFamily: "Outfit, sans-serif" }}>Classifica</h1>
         </div>
-      </div>
+        <div className="counter-pill px-3 py-2 rounded-lg text-xs">
+          <span style={{ color: "var(--accent)" }}>{players.length}</span>
+          <span style={{ color: "var(--text-muted)" }}> giocatori</span>
+        </div>
+      </header>
 
-      {/* Players list */}
+      <section className="surface-panel p-4 flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <p className="micro-label">In testa</p>
+          <p className="text-xl font-black truncate mt-1" style={{ fontFamily: "Outfit, sans-serif", color: "var(--gold)" }}>
+            {leaderTitle}
+          </p>
+          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+            {leaderSubtitle}
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="micro-label">Montepremi</p>
+          <p className="text-2xl font-black shimmer mt-1" style={{ fontFamily: "Outfit, sans-serif", color: "var(--gold)" }}>
+            EUR {prize}
+          </p>
+          <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+            {paidCount} x EUR {game.entryFee}
+          </p>
+        </div>
+      </section>
+
       <div className="space-y-2">
-        {players.map((p, i) => (
-          <PlayerRow key={p.id} rank={i + 1} name={p.name} points={p.points} isCurrentUser={p.id === player.id} />
+        {rankedPlayers.map(({ player: p, rank }) => (
+          <PlayerRow key={p.id} rank={rank} name={p.name} points={p.points} isCurrentUser={p.id === player.id} />
         ))}
       </div>
 
-      {players.length === 0 && (
+      {loading && players.length === 0 && (
+        <div className="space-y-2" aria-busy="true" aria-label="Caricamento classifica">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} height={56} rounded="0.75rem" />
+          ))}
+        </div>
+      )}
+
+      {!loading && players.length === 0 && (
         <EmptyState
-          icon="🏆"
+          icon="Trophy"
           title="Nessun giocatore iscritto"
           description="Appena i primi giocatori entreranno con il codice, li vedrai comparire qui."
           accent="muted"
         />
       )}
-
-      {/* Montepremi card */}
-      <div className="glass rounded-xl p-5 text-center">
-        <p className="text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Montepremi</p>
-        <p className="text-4xl font-black shimmer" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--gold)' }}>€{prize}</p>
-        <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>{paidCount} iscritti × €{game.entryFee}</p>
-      </div>
     </div>
   );
 }

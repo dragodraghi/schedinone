@@ -1,6 +1,8 @@
 import { useState } from "react";
+import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import InviteButton from "../components/InviteButton";
+import PaymentInfoCard from "../components/PaymentInfoCard";
 import { hardRefreshApp } from "../lib/appRefresh";
 import type { Game, Player, Match, ScheduleStatus } from "../lib/types";
 
@@ -10,6 +12,9 @@ interface Props {
   players: Player[];
   matches: Match[];
   isAdmin: boolean;
+  hasPlayerProfile?: boolean;
+  unreadAnnouncementCount?: number;
+  unreadPrivateMessageCount?: number;
   onLogout: () => void;
 }
 
@@ -31,13 +36,24 @@ function scheduleColor(status: ScheduleStatus): string {
   }
 }
 
-export default function ProfiloPage({ game, player, players, matches, isAdmin, onLogout }: Props) {
+export default function ProfiloPage({
+  game,
+  player,
+  players,
+  matches,
+  isAdmin,
+  hasPlayerProfile,
+  unreadAnnouncementCount = 0,
+  unreadPrivateMessageCount = 0,
+  onLogout,
+}: Props) {
   const [refreshingApp, setRefreshingApp] = useState(false);
   const phaseMatches = matches.filter((m) => m.phase === game.currentPhase);
   const filledCount = phaseMatches.filter((m) => player.predictions[m.id]).length;
   const rank = players.findIndex((p) => p.id === player.id) + 1;
   const rankText = rank > 0 ? `${rank}° su ${players.length}` : `- su ${players.length}`;
   const statusColor = scheduleColor(player.scheduleStatus);
+  const showPlayerLinks = !isAdmin || hasPlayerProfile;
 
   const handleHardRefresh = async () => {
     setRefreshingApp(true);
@@ -82,26 +98,7 @@ export default function ProfiloPage({ game, player, players, matches, isAdmin, o
         </div>
       </div>
 
-      <div
-        className="glass rounded-xl px-4 py-3 flex items-center justify-between"
-        style={{
-          borderColor: player.paid ? 'rgba(0,255,136,0.35)' : 'rgba(255,215,0,0.35)',
-          background: player.paid ? 'rgba(0,255,136,0.08)' : 'rgba(255,215,0,0.08)',
-        }}
-      >
-        <div>
-          <div className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>
-            Quota iscrizione
-          </div>
-          <div className="text-sm font-bold mt-0.5" style={{
-            color: player.paid ? 'var(--correct)' : 'var(--gold)',
-            fontFamily: 'Outfit, sans-serif',
-          }}>
-            {player.paid ? 'Pagata' : `In attesa · €${game.entryFee}`}
-          </div>
-        </div>
-        <div className="text-2xl">{player.paid ? '✅' : '⏳'}</div>
-      </div>
+      <PaymentInfoCard teamName={player.name} entryFee={game.entryFee} paid={player.paid} />
 
       <div className="glass rounded-xl p-4">
         <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', fontWeight: 700 }}>
@@ -115,18 +112,27 @@ export default function ProfiloPage({ game, player, players, matches, isAdmin, o
         </p>
       </div>
 
-      {!isAdmin && (
+      {showPlayerLinks && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Link
             to="/bacheca"
             className="glass rounded-xl p-4 card-tap"
             style={{ color: 'var(--text-primary)' }}
           >
-            <p className="font-black text-sm" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--gold)' }}>
-              📢 Avvisi Comitato
-            </p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-black text-sm" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--gold)' }}>
+                📢 Avvisi Comitato
+              </p>
+              {unreadAnnouncementCount > 0 && (
+                <span className="rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider" style={{ background: 'var(--wrong)', color: '#fff' }}>
+                  {unreadAnnouncementCount} da leggere
+                </span>
+              )}
+            </div>
             <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-              Comunicazioni e aggiornamenti ufficiali.
+              {unreadAnnouncementCount > 0
+                ? 'Apri e leggi la comunicazione di servizio.'
+                : 'Comunicazioni e aggiornamenti ufficiali.'}
             </p>
           </Link>
           <Link
@@ -134,11 +140,20 @@ export default function ProfiloPage({ game, player, players, matches, isAdmin, o
             className="glass rounded-xl p-4 card-tap"
             style={{ color: 'var(--text-primary)' }}
           >
-            <p className="font-black text-sm" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--accent)' }}>
-              📩 Contatta Comitato
-            </p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-black text-sm" style={{ fontFamily: 'Outfit, sans-serif', color: unreadPrivateMessageCount > 0 ? 'var(--wrong)' : 'var(--accent)' }}>
+                📩 Contatta Comitato
+              </p>
+              {unreadPrivateMessageCount > 0 && (
+                <span className="rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider" style={{ background: 'var(--wrong)', color: '#fff' }}>
+                  {unreadPrivateMessageCount} {unreadPrivateMessageCount === 1 ? 'risposta' : 'risposte'}
+                </span>
+              )}
+            </div>
             <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-              Per problemi con accesso, pagamento o schedina.
+              {unreadPrivateMessageCount > 0
+                ? 'Risposta personale del Comitato da leggere.'
+                : 'Per problemi con accesso, pagamento o schedina.'}
             </p>
           </Link>
         </div>
@@ -170,18 +185,50 @@ export default function ProfiloPage({ game, player, players, matches, isAdmin, o
         {refreshingApp ? "Aggiornamento..." : "Aggiorna app"}
       </button>
 
-      <button
-        onClick={onLogout}
-        className="glass w-full py-3 font-bold rounded-xl transition-all duration-200 hover:bg-red-600/10"
-        style={{
-          fontFamily: 'Outfit, sans-serif',
-          fontSize: '0.875rem',
-          color: 'var(--wrong)',
-          borderColor: 'rgba(255,51,102,0.4)',
-        }}
-      >
-        Esci
-      </button>
+      {isAdmin ? (
+        <button
+          onClick={onLogout}
+          className="glass w-full py-3 font-bold rounded-xl transition-all duration-200 hover:bg-red-600/10"
+          style={{
+            fontFamily: 'Outfit, sans-serif',
+            fontSize: '0.875rem',
+            color: 'var(--wrong)',
+            borderColor: 'rgba(255,51,102,0.4)',
+          }}
+        >
+          Esci
+        </button>
+      ) : (
+        <>
+          <div
+            className="status-panel px-4 py-3"
+            style={{
+              "--status-bg": "rgba(0, 212, 255, 0.08)",
+              "--status-border": "rgba(0, 212, 255, 0.28)",
+            } as CSSProperties}
+          >
+            <p className="font-black text-sm" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--accent)' }}>
+              Accesso salvato su questo dispositivo
+            </p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+              Usa sempre lo stesso browser o la stessa icona installata. Se cancelli i dati del sito o cambi browser,
+              chiedi al Comitato di recuperare la squadra.
+            </p>
+          </div>
+          <button
+            onClick={onLogout}
+            className="glass w-full py-3 font-bold rounded-xl transition-all duration-200"
+            style={{
+              fontFamily: 'Outfit, sans-serif',
+              fontSize: '0.875rem',
+              color: 'var(--gold)',
+              borderColor: 'rgba(255,215,0,0.4)',
+            }}
+          >
+            Entra come Comitato
+          </button>
+        </>
+      )}
     </div>
   );
 }

@@ -65,30 +65,30 @@ const REAL_KICKOFFS_UTC: Record<string, string> = {
   // Group A
   "Messico|Sudafrica": "2026-06-11T19:00:00Z",
   "Corea del Sud|Repubblica Ceca": "2026-06-12T02:00:00Z",
-  "Messico|Corea del Sud": "2026-06-18T01:00:00Z",
+  "Messico|Corea del Sud": "2026-06-19T01:00:00Z",
   "Repubblica Ceca|Sudafrica": "2026-06-18T16:00:00Z",
-  "Messico|Repubblica Ceca": "2026-06-24T01:00:00Z",
-  "Sudafrica|Corea del Sud": "2026-06-24T01:00:00Z",
+  "Repubblica Ceca|Messico": "2026-06-25T01:00:00Z",
+  "Sudafrica|Corea del Sud": "2026-06-25T01:00:00Z",
   // Group B
   "Canada|Bosnia-Erzegovina": "2026-06-12T19:00:00Z",
   "Qatar|Svizzera": "2026-06-13T19:00:00Z",
   "Svizzera|Bosnia-Erzegovina": "2026-06-18T19:00:00Z",
   "Canada|Qatar": "2026-06-18T22:00:00Z",
-  "Canada|Svizzera": "2026-06-24T19:00:00Z",
+  "Svizzera|Canada": "2026-06-24T19:00:00Z",
   "Bosnia-Erzegovina|Qatar": "2026-06-24T19:00:00Z",
   // Group C
   "Brasile|Marocco": "2026-06-13T22:00:00Z",
   "Haiti|Scozia": "2026-06-14T01:00:00Z",
   "Scozia|Marocco": "2026-06-19T22:00:00Z",
   "Brasile|Haiti": "2026-06-20T01:00:00Z",
-  "Brasile|Scozia": "2026-06-24T22:00:00Z",
+  "Scozia|Brasile": "2026-06-24T22:00:00Z",
   "Marocco|Haiti": "2026-06-24T22:00:00Z",
   // Group D
   "USA|Paraguay": "2026-06-13T01:00:00Z",
   "Australia|Turchia": "2026-06-14T04:00:00Z",
   "USA|Australia": "2026-06-19T19:00:00Z",
   "Turchia|Paraguay": "2026-06-20T04:00:00Z",
-  "USA|Turchia": "2026-06-26T02:00:00Z",
+  "Turchia|USA": "2026-06-26T02:00:00Z",
   "Paraguay|Australia": "2026-06-26T02:00:00Z",
   // Group E
   "Costa d'Avorio|Ecuador": "2026-06-14T17:00:00Z",
@@ -102,14 +102,14 @@ const REAL_KICKOFFS_UTC: Record<string, string> = {
   "Svezia|Tunisia": "2026-06-15T02:00:00Z",
   "Olanda|Svezia": "2026-06-20T17:00:00Z",
   "Tunisia|Giappone": "2026-06-21T04:00:00Z",
-  "Olanda|Tunisia": "2026-06-25T23:00:00Z",
+  "Tunisia|Olanda": "2026-06-25T23:00:00Z",
   "Giappone|Svezia": "2026-06-25T23:00:00Z",
   // Group G
   "Belgio|Egitto": "2026-06-15T19:00:00Z",
   "Iran|Nuova Zelanda": "2026-06-16T01:00:00Z",
   "Belgio|Iran": "2026-06-21T19:00:00Z",
   "Nuova Zelanda|Egitto": "2026-06-22T01:00:00Z",
-  "Belgio|Nuova Zelanda": "2026-06-27T03:00:00Z",
+  "Nuova Zelanda|Belgio": "2026-06-27T03:00:00Z",
   "Egitto|Iran": "2026-06-27T03:00:00Z",
   // Group H
   "Spagna|Capo Verde": "2026-06-15T16:00:00Z",
@@ -123,30 +123,36 @@ const REAL_KICKOFFS_UTC: Record<string, string> = {
   "Iraq|Norvegia": "2026-06-16T22:00:00Z",
   "Francia|Iraq": "2026-06-22T21:00:00Z",
   "Norvegia|Senegal": "2026-06-23T00:00:00Z",
-  "Francia|Norvegia": "2026-06-26T19:00:00Z",
+  "Norvegia|Francia": "2026-06-26T19:00:00Z",
   "Senegal|Iraq": "2026-06-26T19:00:00Z",
   // Group J
   "Argentina|Algeria": "2026-06-17T01:00:00Z",
   "Austria|Giordania": "2026-06-17T04:00:00Z",
   "Argentina|Austria": "2026-06-22T17:00:00Z",
   "Giordania|Algeria": "2026-06-23T03:00:00Z",
-  "Argentina|Giordania": "2026-06-28T02:00:00Z",
+  "Giordania|Argentina": "2026-06-28T02:00:00Z",
   "Algeria|Austria": "2026-06-28T02:00:00Z",
   // Group K
   "Portogallo|RD Congo": "2026-06-17T17:00:00Z",
   "Uzbekistan|Colombia": "2026-06-18T02:00:00Z",
   "Portogallo|Uzbekistan": "2026-06-23T17:00:00Z",
   "Colombia|RD Congo": "2026-06-24T02:00:00Z",
-  "Portogallo|Colombia": "2026-06-27T23:30:00Z",
+  "Colombia|Portogallo": "2026-06-27T23:30:00Z",
   "RD Congo|Uzbekistan": "2026-06-27T23:30:00Z",
   // Group L
   "Inghilterra|Croazia": "2026-06-17T20:00:00Z",
   "Ghana|Panama": "2026-06-17T23:00:00Z",
   "Inghilterra|Ghana": "2026-06-23T20:00:00Z",
   "Panama|Croazia": "2026-06-23T23:00:00Z",
-  "Inghilterra|Panama": "2026-06-28T21:00:00Z",
-  "Croazia|Ghana": "2026-06-28T21:00:00Z",
+  "Panama|Inghilterra": "2026-06-27T21:00:00Z",
+  "Croazia|Ghana": "2026-06-27T21:00:00Z",
 };
+
+function officialHomeAway(home: string, away: string): [string, string] {
+  if (REAL_KICKOFFS_UTC[`${home}|${away}`]) return [home, away];
+  if (REAL_KICKOFFS_UTC[`${away}|${home}`]) return [away, home];
+  return [home, away];
+}
 
 function realKickoff(home: string, away: string): Date | null {
   const direct = REAL_KICKOFFS_UTC[`${home}|${away}`];
@@ -183,8 +189,9 @@ export function buildWC2026Matches(): WCMatch[] {
   WC2026_GROUPS.forEach((g, gIdx) => {
     RR_PAIRS.forEach((mdPairs, mdIdx) => {
       mdPairs.forEach(([homeIdx, awayIdx], slotIdx) => {
-        const home = g.teams[homeIdx];
-        const away = g.teams[awayIdx];
+        const generatedHome = g.teams[homeIdx];
+        const generatedAway = g.teams[awayIdx];
+        const [home, away] = officialHomeAway(generatedHome, generatedAway);
         const kickoff = realKickoff(home, away) ?? syntheticKickoff(gIdx, mdIdx + 1, slotIdx);
         matches.push({
           id: `gir-${g.group}-md${mdIdx + 1}-${homeIdx}${awayIdx}`,

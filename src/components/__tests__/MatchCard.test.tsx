@@ -26,6 +26,18 @@ describe("MatchCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "1" }));
     expect(onPredict).toHaveBeenCalledWith("m1", "1");
   });
+  it("keeps the prediction when the selected button is clicked again", () => {
+    const onPredict = vi.fn();
+    render(<MatchCard match={match} prediction="1" onPredict={onPredict} disabled={false} />);
+    fireEvent.click(screen.getByRole("button", { name: "1" }));
+    expect(onPredict).toHaveBeenCalledWith("m1", "1");
+  });
+  it("clears the prediction from the dedicated remove button", () => {
+    const onPredict = vi.fn();
+    render(<MatchCard match={match} prediction="1" onPredict={onPredict} disabled={false} />);
+    fireEvent.click(screen.getByRole("button", { name: /cancella pronostico/i }));
+    expect(onPredict).toHaveBeenCalledWith("m1", null);
+  });
   it("highlights selected prediction", () => {
     render(<MatchCard match={match} prediction="X" onPredict={vi.fn()} disabled={false} />);
     const xBtn = screen.getByRole("button", { name: "X" });

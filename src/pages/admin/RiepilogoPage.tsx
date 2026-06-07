@@ -5,6 +5,7 @@ import Flag from "../../components/Flag";
 import Toast, { type ToastData } from "../../components/Toast";
 import { exportElementAsPdf, timestampSlug } from "../../lib/pdfExport";
 import { vibrate } from "../../lib/haptic";
+import { sortPlayersForLeaderboard } from "../../lib/playerOrdering";
 
 interface Props {
   game: Game;
@@ -37,7 +38,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
       container.style.maxHeight = "none";
       container.style.overflow = "visible";
 
-      const orientation = players.length > 6 ? "landscape" : "portrait";
+      const orientation = sortedPlayers.length > 6 ? "landscape" : "portrait";
       await exportElementAsPdf(container, {
         filename: `griglione-schedinone-${timestampSlug()}.pdf`,
         orientation,
@@ -63,17 +64,17 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
     return Array.from(seen).sort();
   }, [matches]);
 
-  // Only show accepted players when accessed from player view; admin sees all
+  // In player view the Griglione is temporarily private: only the current
+  // player's own schedina is shown. Admin keeps the full comparison view.
   const visiblePlayers = useMemo(() => {
     if (isPlayerView) {
-      return players.filter((p) => p.scheduleStatus === "accettata");
+      return currentPlayer ? [currentPlayer] : [];
     }
     return players;
-  }, [players, isPlayerView]);
+  }, [players, isPlayerView, currentPlayer]);
 
-  // Sort players by points descending
   const sortedPlayers = useMemo(
-    () => [...visiblePlayers].sort((a, b) => b.points - a.points),
+    () => sortPlayersForLeaderboard(visiblePlayers),
     [visiblePlayers]
   );
 

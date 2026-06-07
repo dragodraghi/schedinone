@@ -86,7 +86,7 @@ export default function QrCodeCard() {
           </div>
         </button>
 
-        {/* Reminder: comunicare il codice separatamente */}
+        {/* Reminder: comunicare la password separatamente */}
         <div
           className="rounded-lg p-3 text-center"
           style={{
@@ -98,10 +98,10 @@ export default function QrCodeCard() {
             className="text-[10px] uppercase tracking-wider"
             style={{ color: "var(--gold)", fontFamily: "Outfit, sans-serif", fontWeight: 700 }}
           >
-            Codice gioco
+            Password
           </p>
           <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-            Comunicalo separatamente ai giocatori (non è incluso nel link/QR).
+            Comunicala separatamente ai giocatori (non e' inclusa nel link/QR).
           </p>
         </div>
 
@@ -177,7 +177,7 @@ export default function QrCodeCard() {
                 Scansiona il QR per aprire l'app.
               </p>
               <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
-                Il codice gioco va comunicato a parte dal Comitato.
+                La password va comunicata a parte dal Comitato.
               </p>
             </div>
             <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>

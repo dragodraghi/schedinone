@@ -1,11 +1,24 @@
 import { useState, useEffect } from "react";
 import { collection, doc, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import { sortPlayersForLeaderboard } from "../lib/playerOrdering";
 import type { Player, ScheduleStatus, Sign } from "../lib/types";
+
+function asTimestamp(value: unknown): Player["lastAnnouncementReadAt"] {
+  return value && typeof value === "object" && "toMillis" in value && typeof value.toMillis === "function"
+    ? (value as Player["lastAnnouncementReadAt"])
+    : null;
+}
 
 function asScheduleStatus(value: unknown): ScheduleStatus {
   if (value === "inviata" || value === "accettata" || value === "rifiutata") return value;
   return "bozza";
+}
+
+function asStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out = value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  return out.length > 0 ? out : undefined;
 }
 
 function toPlayer(id: string, raw: Record<string, unknown>): Player {
@@ -28,6 +41,9 @@ function toPlayer(id: string, raw: Record<string, unknown>): Player {
     points: Number.isFinite(Number(raw.points)) ? Number(raw.points) : 0,
     paid: raw.paid === true,
     scheduleStatus: asScheduleStatus(raw.scheduleStatus),
+    multiDeviceEnabled: raw.multiDeviceEnabled === true,
+    deviceUids: asStringArray(raw.deviceUids),
+    lastAnnouncementReadAt: asTimestamp(raw.lastAnnouncementReadAt),
   };
 }
 
@@ -44,7 +60,7 @@ export function usePlayers(gameId: string, enabled = true) {
     const unsubscribe = onSnapshot(
       q,
       (snap) => {
-        const data = snap.docs.map((d) => toPlayer(d.id, d.data()));
+        const data = sortPlayersForLeaderboard(snap.docs.map((d) => toPlayer(d.id, d.data())));
         setPlayers(data);
         setLoading(false);
       },
@@ -72,7 +88,7 @@ export function usePublicPlayers(gameId: string, enabled = true) {
     const unsubscribe = onSnapshot(
       q,
       (snap) => {
-        setPlayers(snap.docs.map((d) => toPlayer(d.id, d.data())));
+        setPlayers(sortPlayersForLeaderboard(snap.docs.map((d) => toPlayer(d.id, d.data()))));
         setLoading(false);
       },
       (err) => {

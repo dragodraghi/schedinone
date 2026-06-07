@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import {
   collection,
@@ -11,8 +12,8 @@ import {
 import { db } from "../../lib/firebase";
 import { buildWC2026Matches, WC2026_GROUPS, countRealKickoffs } from "../../lib/worldcup2026";
 import { recalcPointsClient } from "../../lib/recalcPoints";
+import { getWorldCupSeedSafety } from "../../lib/adminSafety";
 import Toast, { type ToastData } from "../../components/Toast";
-import QrCodeCard from "../../components/QrCodeCard";
 import type { Game, Player, Match, Phase } from "../../lib/types";
 
 interface Props {
@@ -53,26 +54,22 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
     }
   };
 
-
   const paidCount = players.filter((p) => p.paid).length;
   const prize = game.entryFee * paidCount;
   const pendingCount = players.filter((p) => p.scheduleStatus === "inviata").length;
 
   const kpis = [
-    { label: "Iscritti", value: players.length, color: 'var(--accent)' },
-    { label: "Montepremi", value: `€${prize}`, color: 'var(--gold)' },
-    { label: "Partite", value: matches.length, color: 'var(--correct)' },
-    { label: "In attesa", value: pendingCount, color: 'var(--gold)' },
+    { label: "Iscritti", value: players.length, color: "var(--accent)" },
+    { label: "Montepremi", value: `EUR ${prize}`, color: "var(--gold)" },
+    { label: "Partite", value: matches.length, color: "var(--correct)" },
+    { label: "In attesa", value: pendingCount, color: "var(--gold)" },
   ];
 
   const actions = [
-    { to: "/admin/riepilogo", label: "Riepilogo Schedine", icon: "📊" },
-    { to: "/admin/schedine", label: "Schedine Ricevute", icon: "📬" },
-    { to: "/admin/risultati", label: "Gestisci Risultati", icon: "🔄" },
-    { to: "/admin/giocatori", label: "Gestisci Giocatori", icon: "👥" },
-    { to: "/admin/confronto", label: "Confronto Giocatori", icon: "⚔️" },
-    { to: "/admin/annunci", label: "Annunci", icon: "📢" },
-    { to: "/admin/messaggi", label: "Messaggi", icon: "💬" },
+    { to: "/admin/riepilogo", label: "Riepilogo Schedine", mark: "GRD" },
+    { to: "/admin/risultati", label: "Gestisci Risultati", mark: "RES" },
+    { to: "/admin/giocatori", label: "Gestisci Giocatori", mark: "PLY" },
+    { to: "/admin/confronto", label: "Confronto Giocatori", mark: "VS" },
   ];
 
   const handlePhaseChange = async (newPhase: Phase) => {
@@ -103,37 +100,21 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
     }
   };
 
-
-  /**
-   * Destructive: deletes every existing match doc and re-seeds with the real
-   * FIFA World Cup 2026 group stage (72 matches across 12 groups).
-   * Firestore writeBatch limit is 500 ops per batch — we're at 72 delete + 72
-   * create = 144 well under that, but we still split safely.
-   */
   const handleSeedWorldCup = async () => {
     setShowSeedConfirm(false);
     setSeeding(true);
     try {
       const matchesRef = collection(db, "games", game.id, "matches");
 
-      // 1. Delete all existing matches
       const existingSnap = await getDocs(matchesRef);
       const deleteBatch = writeBatch(db);
       existingSnap.docs.forEach((d) => deleteBatch.delete(d.ref));
       await deleteBatch.commit();
 
-      // 2. Insert the 72 matches with REAL FIFA kickoff dates (hardcoded
-      //    from the published schedule — see worldcup2026.ts REAL_KICKOFFS_UTC).
-      //    Matches with real kickoffs are marked "api" (so manual sync won't
-      //    overwrite); if any kickoff falls back to synthetic we mark it so.
       const newMatches = buildWC2026Matches();
       const writeBatchRef = writeBatch(db);
-      // REAL_KICKOFFS_UTC is an ISO date 2026-06-11 onwards; we know a
-      // kickoff is real if it's before July 2026 and came from the lookup.
-      // Simpler: the build function returns real-or-synthetic, so we do a
-      // shallow check on what synthetic dates look like.
-      const REAL_WINDOW_START = Date.UTC(2026, 5, 11, 0, 0); // 11 Jun
-      const REAL_WINDOW_END = Date.UTC(2026, 5, 30, 0, 0);   // 30 Jun
+      const REAL_WINDOW_START = Date.UTC(2026, 5, 11, 0, 0);
+      const REAL_WINDOW_END = Date.UTC(2026, 5, 30, 0, 0);
       for (const m of newMatches) {
         const ms = m.kickoff.getTime();
         const isReal = ms >= REAL_WINDOW_START && ms <= REAL_WINDOW_END;
@@ -168,38 +149,92 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
     (m) => WC2026_GROUPS.some((g) => g.teams.includes(m.homeTeam))
   );
 
-  // Count players who will lose data if we reseed
-  const atRiskPlayers = players.filter(
-    (p) => p.scheduleStatus === "inviata" || p.scheduleStatus === "accettata" ||
-      (p.predictions && Object.keys(p.predictions).length > 0)
-  ).length;
+  const seedSafety = getWorldCupSeedSafety(players);
+  const atRiskPlayers = seedSafety.atRiskPlayers;
+  const urgentActions = [
+    {
+      to: "/admin/schedine",
+      label: "Schedine da controllare",
+      value: pendingCount,
+      detail: pendingCount > 0 ? "In attesa di verifica" : "Nessuna in attesa",
+      mark: "IN",
+      color: pendingCount > 0 ? "var(--wrong)" : "var(--text-muted)",
+    },
+    {
+      to: "/admin/messaggi",
+      label: "Messaggi",
+      value: "Apri",
+      detail: "Richieste e risposte private",
+      mark: "MSG",
+      color: "var(--accent)",
+    },
+    {
+      to: "/admin/annunci",
+      label: "Annunci",
+      value: "Info",
+      detail: "Comunicazioni di servizio",
+      mark: "ANN",
+      color: "var(--gold)",
+    },
+  ];
 
   return (
-    <div className="space-y-6 animate-in">
+    <div className="space-y-5 animate-in">
       <Toast toast={toast} onDone={clearToast} />
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-black" style={{ fontFamily: 'Outfit, sans-serif' }}>Pannello COMITATO</h1>
-        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Gestione partita</p>
-      </div>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 gap-3">
+      <header className="page-head">
+        <div className="min-w-0">
+          <p className="page-kicker">Area Comitato</p>
+          <h1 className="mt-1 text-2xl font-black sm:text-3xl">Pannello operativo</h1>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">Gestione gioco, schedine e comunicazioni.</p>
+        </div>
+        <Link to="/" className="secondary-action grid shrink-0 place-items-center px-3 text-center text-[11px] uppercase tracking-[0.12em]">
+          Home
+        </Link>
+      </header>
+
+      <section aria-label="Urgenze Comitato" className="surface-panel p-4 sm:p-5">
+        <div className="mb-3">
+          <p className="page-kicker">Urgenze</p>
+          <h2 className="text-lg font-black">Cose da controllare</h2>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {urgentActions.map((action) => (
+            <Link key={action.to} to={action.to} className="admin-tile card-tap">
+              <span className="admin-mark">{action.mark}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-black text-[var(--text-primary)]">{action.label}</span>
+                <span className="micro-label mt-0.5 block">{action.detail}</span>
+              </span>
+              <span className="shrink-0 text-lg font-black leading-none" style={{ color: action.color }}>
+                {action.value}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {kpis.map((kpi) => (
-          <div key={kpi.label} className="glass rounded-xl p-3 text-center">
-            <p className="text-2xl font-black" style={{ fontFamily: 'Outfit, sans-serif', color: kpi.color }}>{kpi.value}</p>
-            <p className="text-[10px] uppercase tracking-wider mt-1" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>{kpi.label}</p>
+          <div key={kpi.label} className="kpi-card p-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-muted)]">{kpi.label}</p>
+            <p className="mt-2 text-2xl font-black leading-none" style={{ color: kpi.color }}>
+              {kpi.value}
+            </p>
           </div>
         ))}
-      </div>
+      </section>
 
-      {/* Phase management */}
-      <div className="glass rounded-xl p-4 space-y-3">
-        <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Avanza Fase</p>
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Fase corrente:{" "}
-          <span className="font-black capitalize" style={{ color: 'var(--accent)' }}>{game.currentPhase}</span>
-        </p>
+      <section className="surface-panel p-4 sm:p-5">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <p className="micro-label">Fase torneo</p>
+            <p className="mt-1 text-sm text-[var(--text-soft)]">
+              Fase corrente: <span className="font-black capitalize text-[var(--accent)]">{game.currentPhase}</span>
+            </p>
+          </div>
+          {savingPhase && <span className="micro-label text-[var(--accent)]">Salvataggio</span>}
+        </div>
         <div className="flex flex-wrap gap-2">
           {PHASES.map((phase) => {
             const isActive = game.currentPhase === phase;
@@ -208,14 +243,11 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
                 key={phase}
                 onClick={() => handlePhaseChange(phase)}
                 disabled={savingPhase}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all capitalize"
+                className="phase-chip px-3 transition-all disabled:opacity-50"
                 style={{
-                  fontFamily: 'Outfit, sans-serif',
-                  background: isActive ? 'rgba(0,212,255,0.2)' : 'rgba(255,255,255,0.05)',
-                  color: isActive ? 'var(--accent)' : 'var(--text-muted)',
-                  border: `1px solid ${isActive ? 'rgba(0,212,255,0.4)' : 'var(--border)'}`,
-                  boxShadow: isActive ? '0 0 8px rgba(0,212,255,0.25)' : 'none',
-                  opacity: savingPhase ? 0.6 : 1,
+                  background: isActive ? "rgba(0,212,255,0.14)" : undefined,
+                  borderColor: isActive ? "rgba(0,212,255,0.42)" : undefined,
+                  color: isActive ? "var(--accent)" : undefined,
                 }}
               >
                 {phase}
@@ -223,206 +255,173 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
             );
           })}
         </div>
-      </div>
+      </section>
 
-      {/* Condividi il gioco (QR + invite buttons) */}
-      <QrCodeCard />
-
-      {/* World Cup 2026 seed */}
-      <div className="glass rounded-xl p-4 space-y-3" style={{ border: '1px solid rgba(255, 215, 0, 0.25)' }}>
-        <div className="flex items-center justify-between">
+      <section
+        className="status-panel p-4 sm:p-5"
+        style={{
+          "--status-bg": hasRealSchedule ? "rgba(45, 212, 129, 0.1)" : "rgba(255, 215, 0, 0.1)",
+          "--status-border": hasRealSchedule ? "rgba(45, 212, 129, 0.32)" : "rgba(255, 215, 0, 0.3)",
+        } as CSSProperties}
+      >
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--gold)', fontFamily: 'Outfit, sans-serif', fontWeight: 700 }}>
-              🌍 Calendario Mondiali 2026
+            <p className="micro-label" style={{ color: hasRealSchedule ? "var(--pitch)" : "var(--gold)" }}>
+              Calendario Mondiali 2026
             </p>
-            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-              {hasRealSchedule ? "Calendario reale caricato — 48 squadre, 72 partite" : "Calendario placeholder — carica quello reale"}
+            <p className="mt-2 text-sm text-[var(--text-soft)]">
+              {hasRealSchedule ? "Calendario reale caricato: 48 squadre, 72 partite." : "Calendario placeholder: carica quello reale."}
             </p>
           </div>
-          {hasRealSchedule && <span className="text-lg">✅</span>}
+          <span
+            className="rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em]"
+            style={{
+              background: hasRealSchedule ? "rgba(45,212,129,0.12)" : "rgba(255,215,0,0.12)",
+              color: hasRealSchedule ? "var(--pitch)" : "var(--gold)",
+            }}
+          >
+            {hasRealSchedule ? "OK" : "TODO"}
+          </span>
         </div>
         <button
           onClick={() => setShowSeedConfirm(true)}
           disabled={seeding}
-          className="btn-glow w-full py-3 rounded-lg font-bold text-sm transition-all"
+          className="secondary-action mt-4 w-full px-4 disabled:opacity-50"
           style={{
-            fontFamily: 'Outfit, sans-serif',
-            background: hasRealSchedule
-              ? 'rgba(255,255,255,0.05)'
-              : 'linear-gradient(135deg, rgba(255,215,0,0.25), rgba(255,215,0,0.1))',
-            color: hasRealSchedule ? 'var(--text-muted)' : 'var(--gold)',
-            border: `1px solid ${hasRealSchedule ? 'var(--border)' : 'rgba(255,215,0,0.5)'}`,
-            opacity: seeding ? 0.6 : 1,
+            borderColor: hasRealSchedule ? "var(--border)" : "rgba(255,215,0,0.38)",
+            color: hasRealSchedule ? "var(--text-soft)" : "var(--gold)",
           }}
         >
           {seeding ? "Caricamento in corso..." : hasRealSchedule ? "Ricarica draw reale (sostituisce tutto)" : "Carica draw ufficiale 5 dicembre 2025"}
         </button>
-      </div>
+      </section>
 
-      {/* Confirm seed modal */}
       {showSeedConfirm && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center px-4"
-          style={{ background: 'rgba(4, 8, 16, 0.85)', backdropFilter: 'blur(8px)' }}
+          style={{ background: "rgba(4, 8, 16, 0.88)", backdropFilter: "blur(10px)" }}
         >
-          <div
-            className="glass rounded-2xl p-6 w-full max-w-sm space-y-4 animate-in"
-            style={{ border: '1px solid rgba(255,215,0,0.3)', boxShadow: '0 0 40px rgba(255,215,0,0.1)' }}
-          >
-            <h2 className="text-lg font-black" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--gold)' }}>
-              🌍 Caricare il calendario reale?
-            </h2>
-            <div className="text-sm space-y-2" style={{ color: 'var(--text-muted)' }}>
-              <p>Verranno <strong style={{ color: 'var(--wrong)' }}>cancellate tutte le partite esistenti</strong> e ricreate con il draw ufficiale del 5 dicembre 2025:</p>
-              <ul className="text-xs space-y-0.5 pl-4" style={{ color: 'var(--text-primary)' }}>
-                <li>• 48 squadre qualificate reali</li>
-                <li>• 12 gironi (A–L)</li>
-                <li>• 72 partite della fase a gironi</li>
-                <li>• <strong style={{ color: 'var(--correct)' }}>{countRealKickoffs()}/72 date reali FIFA</strong> (11–28 giugno 2026)</li>
+          <div className="modal-panel w-full max-w-sm space-y-4 p-5 animate-in">
+            <h2 className="text-lg font-black text-[var(--gold)]">Caricare il calendario reale?</h2>
+            <div className="space-y-2 text-sm text-[var(--text-muted)]">
+              <p>
+                Verranno <strong className="text-[var(--wrong)]">cancellate tutte le partite esistenti</strong> e
+                ricreate con il draw ufficiale del 5 dicembre 2025.
+              </p>
+              <ul className="space-y-1 pl-4 text-xs text-[var(--text-primary)]">
+                <li>48 squadre qualificate reali</li>
+                <li>12 gironi (A-L)</li>
+                <li>72 partite della fase a gironi</li>
+                <li>
+                  <strong className="text-[var(--correct)]">{countRealKickoffs()}/72 date reali FIFA</strong> (11-28
+                  giugno 2026)
+                </li>
               </ul>
               {atRiskPlayers > 0 ? (
                 <div
-                  className="rounded-lg p-3 mt-3"
+                  className="mt-3 rounded-lg p-3"
                   style={{
-                    background: 'rgba(255, 51, 102, 0.1)',
-                    border: '1px solid rgba(255, 51, 102, 0.4)',
+                    background: "rgba(255, 51, 102, 0.1)",
+                    border: "1px solid rgba(255, 51, 102, 0.4)",
                   }}
                 >
-                  <p className="text-xs font-black mb-1" style={{ color: 'var(--wrong)', fontFamily: 'Outfit, sans-serif' }}>
-                    ⚠️ ATTENZIONE: {atRiskPlayers} giocator{atRiskPlayers === 1 ? 'e ha' : 'i hanno'} già pronostici salvati
+                  <p className="mb-1 text-xs font-black text-[var(--wrong)]">
+                    ATTENZIONE: {atRiskPlayers} giocator{atRiskPlayers === 1 ? "e ha" : "i hanno"} gia' pronostici
+                    salvati
                   </p>
-                  <p className="text-[11px]" style={{ color: 'var(--text-primary)' }}>
+                  <p className="text-[11px] text-[var(--text-primary)]">
                     I loro pronostici saranno persi definitivamente. Procedi solo se sei sicuro al 100%.
                   </p>
                 </div>
               ) : (
-                <p className="text-xs mt-2" style={{ color: 'var(--correct)' }}>
-                  ✓ Nessun giocatore ha ancora inserito pronostici — operazione sicura.
+                <p className="mt-2 text-xs text-[var(--correct)]">
+                  Nessun giocatore ha ancora inserito pronostici: operazione sicura.
                 </p>
               )}
             </div>
             <div className="flex gap-3">
-              <button
-                onClick={() => setShowSeedConfirm(false)}
-                className="flex-1 py-2.5 rounded-xl font-bold text-sm glass transition-all"
-                style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--text-muted)' }}
-              >
+              <button onClick={() => setShowSeedConfirm(false)} className="secondary-action flex-1 px-3">
                 Annulla
               </button>
-              <button
-                onClick={handleSeedWorldCup}
-                className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all"
-                style={{
-                  fontFamily: 'Outfit, sans-serif',
-                  background: 'linear-gradient(135deg, #ffd700, #f59e0b)',
-                  color: '#040810',
-                  boxShadow: '0 0 20px rgba(255,215,0,0.25)',
-                }}
-              >
-                Sì, carica
-              </button>
+              {seedSafety.blocked ? (
+                <button disabled className="secondary-action flex-1 px-3 opacity-45">
+                  Bloccato
+                </button>
+              ) : (
+                <button onClick={handleSeedWorldCup} disabled={seedSafety.blocked} className="primary-action flex-1 px-3">
+                  Si, carica
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Action links */}
-      <div className="space-y-3">
-        {actions.map((action) => (
-          <Link
-            key={action.to}
-            to={action.to}
-            className="btn-glow glass block w-full py-3.5 rounded-xl text-center font-bold transition-all hover:bg-white/5"
-            style={{
-              fontFamily: 'Outfit, sans-serif',
-              fontSize: '0.875rem',
-              color: 'var(--text-primary)',
-            }}
-          >
-            {action.icon} {action.label}
-          </Link>
-        ))}
-
-        {/* Manual recalc — normally not needed (it runs automatically when
-            you save a result), but useful as a safety net or after bulk edits */}
+      <section>
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <p className="page-kicker">Operazioni</p>
+            <h2 className="text-lg font-black">Strumenti Comitato</h2>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {actions.map((action) => (
+            <Link key={action.to} to={action.to} className="admin-tile card-tap">
+              <span className="admin-mark">{action.mark}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-black text-[var(--text-primary)]">{action.label}</span>
+                <span className="micro-label mt-0.5 block">Apri sezione</span>
+              </span>
+            </Link>
+          ))}
+        </div>
         <button
           onClick={handleRecalcPoints}
           disabled={recalcing}
-          className="glass w-full py-3 rounded-xl text-center font-bold transition-all hover:bg-white/5"
-          style={{
-            fontFamily: 'Outfit, sans-serif',
-            fontSize: '0.8125rem',
-            color: recalcing ? 'var(--text-muted)' : 'var(--correct)',
-            borderColor: 'rgba(0,255,136,0.3)',
-            opacity: recalcing ? 0.6 : 1,
-          }}
+          className="secondary-action mt-3 w-full px-4 disabled:opacity-50"
+          style={{ borderColor: "rgba(0,255,136,0.28)", color: recalcing ? "var(--text-muted)" : "var(--correct)" }}
         >
-          {recalcing ? "Ricalcolo in corso..." : "🧮 Ricalcola punti classifica"}
+          {recalcing ? "Ricalcolo in corso..." : "Ricalcola punti classifica"}
         </button>
-      </div>
+      </section>
 
-      {/* TopScorer / Winner settings */}
-      <div className="glass rounded-xl p-4 space-y-3">
-        <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--gold)', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Pronostici Speciali</p>
-        <div className="space-y-2">
-          <div>
-            <label className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Capocannoniere</label>
+      <section className="surface-panel p-4 sm:p-5">
+        <p className="micro-label" style={{ color: "var(--gold)" }}>Pronostici speciali</p>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="micro-label mb-2 block">Capocannoniere</span>
             <input
               type="text"
               value={topScorerInput}
               onChange={(e) => setTopScorerInput(e.target.value)}
               placeholder="Nome giocatore"
-              className="w-full mt-1 px-3 py-2 bg-white/5 border rounded-lg text-sm text-white placeholder-[#475569] focus:outline-none transition-all"
-              style={{ borderColor: topScorerInput ? 'rgba(255,215,0,0.3)' : 'var(--border)' }}
+              className="app-field px-3 py-2 text-sm placeholder-[#475569]"
+              style={{ borderColor: topScorerInput ? "rgba(255,215,0,0.3)" : "var(--border)" }}
             />
-          </div>
-          <div>
-            <label className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', fontWeight: 600 }}>Vincitrice</label>
+          </label>
+          <label className="block">
+            <span className="micro-label mb-2 block">Vincitrice</span>
             <input
               type="text"
               value={winnerInput}
               onChange={(e) => setWinnerInput(e.target.value)}
               placeholder="Nome squadra"
-              className="w-full mt-1 px-3 py-2 bg-white/5 border rounded-lg text-sm text-white placeholder-[#475569] focus:outline-none transition-all"
-              style={{ borderColor: winnerInput ? 'rgba(255,215,0,0.3)' : 'var(--border)' }}
+              className="app-field px-3 py-2 text-sm placeholder-[#475569]"
+              style={{ borderColor: winnerInput ? "rgba(255,215,0,0.3)" : "var(--border)" }}
             />
-          </div>
-          <button
-            onClick={handleSaveSpecial}
-            disabled={savingSpecial}
-            className="w-full py-2.5 rounded-lg font-bold text-sm transition-all"
-            style={{
-              fontFamily: 'Outfit, sans-serif',
-              background: 'linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,215,0,0.1))',
-              color: 'var(--gold)',
-              border: '1px solid rgba(255,215,0,0.4)',
-              opacity: savingSpecial ? 0.6 : 1,
-            }}
-          >
-            {savingSpecial ? "Salvando..." : "Salva"}
-          </button>
+          </label>
         </div>
-      </div>
+        <button
+          onClick={handleSaveSpecial}
+          disabled={savingSpecial}
+          className="secondary-action mt-3 w-full px-4 disabled:opacity-50"
+          style={{ borderColor: "rgba(255,215,0,0.34)", color: "var(--gold)" }}
+        >
+          {savingSpecial ? "Salvando..." : "Salva pronostici speciali"}
+        </button>
+      </section>
 
-      <Link
-        to="/"
-        className="block text-center text-sm transition-colors"
-        style={{ color: 'var(--text-muted)' }}
-      >
-        ← Torna alla Dashboard
-      </Link>
-
-      {/* Logout */}
-      <button
-        onClick={onLogout}
-        className="glass w-full py-3 font-bold rounded-xl transition-all duration-200 hover:bg-red-600/10"
-        style={{
-          fontFamily: 'Outfit, sans-serif',
-          fontSize: '0.875rem',
-          color: 'var(--wrong)',
-          borderColor: 'rgba(255,51,102,0.4)',
-        }}
-      >
+      <button onClick={onLogout} className="danger-action w-full px-4">
         Esci
       </button>
     </div>

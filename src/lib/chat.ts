@@ -75,3 +75,8 @@ export async function markThreadRead(gameId: string, threadUid: string): Promise
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'markThreadRead');
   await fn({ gameId, threadUid });
 }
+
+export async function deleteChatMessage(gameId: string, threadUid: string, messageId: string): Promise<void> {
+  const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'deleteChatMessage');
+  await fn({ gameId, threadUid, messageId });
+}

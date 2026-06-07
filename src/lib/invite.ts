@@ -8,7 +8,7 @@ export const SHARE_URL = "https://schedinone-2026.web.app/?v=2026";
 
 /**
  * Build the invite message (Italian, WhatsApp-ready).
- * The access code is intentionally NOT included: it must be shared
+ * The password is intentionally NOT included: it must be shared
  * separately by the Comitato so it never travels in cleartext through
  * forwarded chats / app bundles.
  */
@@ -17,7 +17,7 @@ export function buildInviteMessage(): string {
     "⚽ *SCHEDINONE — Mondiali 2026*\n\n" +
     "Gioca con noi ai pronostici del Mondiale! Compila la schedina (1/X/2 + capocannoniere + vincitrice) e sfida tutti noi per il montepremi.\n\n" +
     `🔗 ${SHARE_URL}\n` +
-    "🔑 Chiedi al Comitato il codice gioco da inserire al primo accesso.\n\n" +
+    "🔑 Chiedi al Comitato la password da inserire al primo accesso.\n\n" +
     "Si installa sul telefono come un'app vera (Chrome → menu → Aggiungi a schermata Home). In bocca al lupo! 🍀"
   );
 }

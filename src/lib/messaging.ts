@@ -1,18 +1,7 @@
 import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { app, db } from './firebase';
-
-function buildSwUrl(): string {
-  const env = import.meta.env;
-  const qs = new URLSearchParams({
-    apiKey: env.VITE_FIREBASE_API_KEY ?? '',
-    authDomain: env.VITE_FIREBASE_AUTH_DOMAIN ?? '',
-    projectId: env.VITE_FIREBASE_PROJECT_ID ?? '',
-    messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? '',
-    appId: env.VITE_FIREBASE_APP_ID ?? '',
-  });
-  return `/firebase-messaging-sw.js?${qs.toString()}`;
-}
+import { registerFirebaseMessagingServiceWorker } from './messagingServiceWorker';
 
 export async function initPushForUser(uid: string): Promise<string | null> {
   try {
@@ -23,7 +12,7 @@ export async function initPushForUser(uid: string): Promise<string | null> {
     if (permission === 'default') permission = await Notification.requestPermission();
     if (permission !== 'granted') return null;
 
-    const registration = await navigator.serviceWorker.register(buildSwUrl());
+    const registration = await registerFirebaseMessagingServiceWorker();
     const messaging = getMessaging(app);
     const vapidKey = import.meta.env.VITE_FCM_VAPID_KEY as string | undefined;
     if (!vapidKey) {
@@ -42,7 +31,20 @@ export async function initPushForUser(uid: string): Promise<string | null> {
     onMessage(messaging, (payload) => {
       const title = payload.notification?.title ?? 'Schedinone';
       const body = payload.notification?.body ?? '';
-      if (Notification.permission === 'granted') new Notification(title, { body });
+      if (Notification.permission !== 'granted') return;
+      const options: NotificationOptions = {
+        body,
+        data: payload.data ?? {},
+        icon: '/og-image.png',
+        tag: payload.data?.threadUid ? `chat-${payload.data.threadUid}` : undefined,
+      };
+      if (typeof registration.showNotification === 'function') {
+        registration.showNotification(title, options).catch(() => {
+          new Notification(title, options);
+        });
+      } else {
+        new Notification(title, options);
+      }
     });
 
     return token;

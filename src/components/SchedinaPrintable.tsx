@@ -1,4 +1,5 @@
 import { forwardRef } from "react";
+import { getOrderedMatchGroups } from "../lib/matchGrouping";
 import type { Game, Match, Player, Sign } from "../lib/types";
 
 interface Props {
@@ -22,12 +23,7 @@ const SchedinaPrintable = forwardRef<HTMLDivElement, Props>(function SchedinaPri
   ref
 ) {
   const phaseMatches = matches.filter((m) => m.phase === game.currentPhase);
-  const groups = phaseMatches.reduce<Record<string, Match[]>>((acc, m) => {
-    const key = m.group ?? m.phase;
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(m);
-    return acc;
-  }, {});
+  const groups = getOrderedMatchGroups(phaseMatches);
 
   const filledCount = phaseMatches.filter((m) => predictions[m.id]).length;
   const generatedAt = new Date().toLocaleString("it-IT", {
@@ -120,7 +116,7 @@ const SchedinaPrintable = forwardRef<HTMLDivElement, Props>(function SchedinaPri
       </div>
 
       {/* Groups */}
-      {Object.entries(groups).map(([groupName, groupMatches]) => (
+      {groups.map(([groupName, groupMatches]) => (
         <div key={groupName} style={{ marginBottom: 18 }}>
           <div
             style={{

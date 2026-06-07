@@ -11,6 +11,8 @@ export interface Game {
   name: string;
   entryFee: number;
   admins: string[];
+  adminPlayerUids?: Record<string, string>;
+  playerDeviceAliases?: Record<string, string>;
   accessCode: string;
   adminCode?: string;
   adminCodeHash?: string;
@@ -53,6 +55,9 @@ export interface Player {
   points: number;
   paid: boolean;
   scheduleStatus: ScheduleStatus;
+  multiDeviceEnabled?: boolean;
+  deviceUids?: string[];
+  lastAnnouncementReadAt?: Timestamp | null;
 }
 
 export type AnnouncementStatus = 'draft' | 'published';
