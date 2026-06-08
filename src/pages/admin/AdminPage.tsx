@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -13,6 +13,7 @@ import { db } from "../../lib/firebase";
 import { buildWC2026Matches, WC2026_GROUPS, countRealKickoffs } from "../../lib/worldcup2026";
 import { recalcPointsClient } from "../../lib/recalcPoints";
 import { getWorldCupSeedSafety } from "../../lib/adminSafety";
+import { subscribeAllThreads } from "../../lib/chat";
 import Toast, { type ToastData } from "../../components/Toast";
 import type { Game, Player, Match, Phase } from "../../lib/types";
 
@@ -33,8 +34,20 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
   const [seeding, setSeeding] = useState(false);
   const [showSeedConfirm, setShowSeedConfirm] = useState(false);
   const [recalcing, setRecalcing] = useState(false);
+  const [unreadCommitteeMessages, setUnreadCommitteeMessages] = useState(0);
   const [toast, setToast] = useState<ToastData | null>(null);
   const clearToast = useCallback(() => setToast(null), []);
+
+  useEffect(() => {
+    return subscribeAllThreads(game.id, (threads) => {
+      setUnreadCommitteeMessages(
+        threads.reduce((total, thread) => {
+          const unread = Number(thread.unreadByCommittee);
+          return total + (Number.isFinite(unread) && unread > 0 ? unread : 0);
+        }, 0)
+      );
+    });
+  }, [game.id]);
 
   const handleRecalcPoints = async () => {
     setRecalcing(true);
@@ -163,10 +176,12 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
     {
       to: "/admin/messaggi",
       label: "Messaggi",
-      value: "Apri",
-      detail: "Richieste e risposte private",
+      value: unreadCommitteeMessages > 0 ? unreadCommitteeMessages : "Apri",
+      detail: unreadCommitteeMessages > 0
+        ? `${unreadCommitteeMessages} messagg${unreadCommitteeMessages === 1 ? "io" : "i"} da leggere`
+        : "Richieste e risposte private",
       mark: "MSG",
-      color: "var(--accent)",
+      color: unreadCommitteeMessages > 0 ? "var(--wrong)" : "var(--accent)",
     },
     {
       to: "/admin/annunci",
