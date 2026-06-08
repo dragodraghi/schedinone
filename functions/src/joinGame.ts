@@ -1,7 +1,7 @@
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as bcrypt from "bcryptjs";
-import { resolveExtraDeviceLinkTarget } from "./joinGameAccess";
+import { isReservedPlayerName, resolveExtraDeviceLinkTarget } from "./joinGameAccess";
 
 const MAX_NAME_LEN = 30;
 const MAX_CODE_LEN = 30;
@@ -112,6 +112,13 @@ export const joinGame = onCall(
     }
 
     const requestedName = name.trim();
+    if (isReservedPlayerName(requestedName)) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Questo nome non puo' essere usato come squadra. Usa il nome squadra corretto."
+      );
+    }
+
     const normalized = normalizeName(requestedName);
     const playerRef = db.doc(`games/${gameId}/players/${uid}`);
     const publicPlayerRef = db.doc(`games/${gameId}/publicPlayers/${uid}`);

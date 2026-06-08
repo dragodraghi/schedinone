@@ -160,7 +160,7 @@ export default function App() {
             `La squadra "${name}" e' gia' registrata. Usa il dispositivo originale o chiedi al Comitato.`
         );
       } else if (code === "functions/invalid-argument") {
-        setLoginError("Dati non validi. Controlla nome squadra e password.");
+        setLoginError(e.message || "Dati non validi. Controlla nome squadra e password.");
       } else if (code === "functions/not-found") {
         setLoginError("Gioco non trovato.");
       } else {

@@ -122,14 +122,20 @@ vi.mock("./pages/LoginPage", () => ({
   default: ({
     onLogin,
     onAdminLogin,
+    error,
   }: {
     onLogin: (name: string, code: string) => void;
     onAdminLogin: (email: string, password: string) => void;
+    error?: string;
   }) => (
     <div>
       <div>Login page</div>
+      {error && <div role="alert">{error}</div>}
       <button type="button" onClick={() => onLogin("THE FLOWERS", "GIOCA2026")}>
         Player login
+      </button>
+      <button type="button" onClick={() => onLogin("Comitato", "GIOCA2026")}>
+        Committee name player login
       </button>
       <button type="button" onClick={() => onAdminLogin("admin@example.test", "password")}>
         Admin login
@@ -232,11 +238,31 @@ describe("App player session switching", () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /player login/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /^player login$/i }));
     fireEvent.click(await screen.findByRole("button", { name: /complete splash/i }));
 
     expect(await screen.findByText("Profile Italia")).toBeInTheDocument();
     expect(useCurrentPlayerMock).toHaveBeenCalledWith("schedinone-2026", "player-1", true);
+  });
+
+  it("shows the server message when a reserved player name is rejected", async () => {
+    authUser = { uid: "anonymous-no-player", isAnonymous: true };
+    functionsMocks.httpsCallable.mockReturnValue(
+      vi.fn(async () => {
+        throw {
+          code: "functions/invalid-argument",
+          message: "Questo nome non puo' essere usato come squadra. Usa il nome squadra corretto.",
+        };
+      })
+    );
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /committee name player login/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Questo nome non puo' essere usato come squadra. Usa il nome squadra corretto."
+    );
   });
 
   it("passes private committee replies to the player home", async () => {

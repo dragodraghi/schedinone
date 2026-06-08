@@ -14,6 +14,22 @@ export function resolveExtraDeviceLinkTarget(
   return isFreshDraftPlayer(playerData) ? matchingPlayerUid : null;
 }
 
+const RESERVED_PLAYER_NAMES = new Set([
+  "admin",
+  "administrator",
+  "amministratore",
+  "comitato",
+  "committee",
+  "staff",
+]);
+
+export function isReservedPlayerName(name: string): boolean {
+  const normalized = name.trim().toLowerCase();
+  if (!normalized) return false;
+  if (normalized.includes("@")) return true;
+  return RESERVED_PLAYER_NAMES.has(normalized);
+}
+
 function isFreshDraftPlayer(playerData: {
   scheduleStatus?: unknown;
   predictions?: unknown;

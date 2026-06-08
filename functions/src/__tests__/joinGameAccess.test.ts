@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveExtraDeviceLinkTarget } from "../joinGameAccess";
+import { isReservedPlayerName, resolveExtraDeviceLinkTarget } from "../joinGameAccess";
 
 describe("resolveExtraDeviceLinkTarget", () => {
   it("links a different anonymous uid to a multi-device player", () => {
@@ -61,5 +61,24 @@ describe("resolveExtraDeviceLinkTarget", () => {
         multiDeviceEnabled: true,
       })
     ).toBeNull();
+  });
+});
+
+describe("isReservedPlayerName", () => {
+  it("blocks committee/admin names from the player login", () => {
+    expect(isReservedPlayerName("comitato")).toBe(true);
+    expect(isReservedPlayerName(" Comitato ")).toBe(true);
+    expect(isReservedPlayerName("admin")).toBe(true);
+    expect(isReservedPlayerName("amministratore")).toBe(true);
+  });
+
+  it("blocks email-like values in the team-name field", () => {
+    expect(isReservedPlayerName("comitato@schedinone.local")).toBe(true);
+  });
+
+  it("allows normal team names", () => {
+    expect(isReservedPlayerName("Italia")).toBe(false);
+    expect(isReservedPlayerName("THE FLOWERS")).toBe(false);
+    expect(isReservedPlayerName("Sorelle Dessanti")).toBe(false);
   });
 });
