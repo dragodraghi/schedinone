@@ -1,6 +1,6 @@
 import { MemoryRouter } from "react-router-dom";
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import RiepilogoPage from "../RiepilogoPage";
 import type { Game, Match, Player } from "../../../lib/types";
 
@@ -37,7 +37,12 @@ const match: Match = {
   locked: false,
 };
 
-function makePlayer(id: string, name: string, prediction: "1" | "X" | "2"): Player {
+function makePlayer(
+  id: string,
+  name: string,
+  prediction: "1" | "X" | "2",
+  scheduleStatus: Player["scheduleStatus"] = "bozza"
+): Player {
   return {
     id,
     name,
@@ -47,47 +52,102 @@ function makePlayer(id: string, name: string, prediction: "1" | "X" | "2"): Play
     winnerPick: "Italia",
     points: 0,
     paid: true,
-    scheduleStatus: "bozza",
+    scheduleStatus,
   };
 }
 
+function renderRiepilogo(players: Player[], currentPlayer?: Player) {
+  render(
+    <MemoryRouter>
+      <RiepilogoPage
+        game={game}
+        matches={[match]}
+        players={players}
+        currentPlayer={currentPlayer}
+      />
+    </MemoryRouter>
+  );
+}
+
 describe("RiepilogoPage player visibility", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("mostra al giocatore solo la propria schedina nel griglione", () => {
     const currentPlayer = makePlayer("player-1", "Mario Rossi", "1");
     const otherPlayer = makePlayer("player-2", "Luigi Verdi", "2");
 
-    render(
-      <MemoryRouter>
-        <RiepilogoPage
-          game={game}
-          matches={[match]}
-          players={[currentPlayer, otherPlayer]}
-          currentPlayer={currentPlayer}
-        />
-      </MemoryRouter>
-    );
+    renderRiepilogo([currentPlayer, otherPlayer], currentPlayer);
 
     expect(screen.getByTitle("Mario Rossi")).toBeInTheDocument();
     expect(screen.queryByTitle("Luigi Verdi")).not.toBeInTheDocument();
-    expect(screen.getByText("1 giocatori · 1 partite")).toBeInTheDocument();
+    expect(screen.getByText(/1 giocatori/)).toBeInTheDocument();
   });
 
   it("lascia al Comitato la vista completa di tutte le schedine", () => {
     const currentPlayer = makePlayer("player-1", "Mario Rossi", "1");
     const otherPlayer = makePlayer("player-2", "Luigi Verdi", "2");
 
-    render(
-      <MemoryRouter>
-        <RiepilogoPage
-          game={game}
-          matches={[match]}
-          players={[currentPlayer, otherPlayer]}
-        />
-      </MemoryRouter>
-    );
+    renderRiepilogo([currentPlayer, otherPlayer]);
 
     expect(screen.getByTitle("Mario Rossi")).toBeInTheDocument();
     expect(screen.getByTitle("Luigi Verdi")).toBeInTheDocument();
-    expect(screen.getByText("2 giocatori · 1 partite")).toBeInTheDocument();
+    expect(screen.getByText(/2 giocatori/)).toBeInTheDocument();
+  });
+
+  it("non apre il griglione completo prima della chiusura anche se tutte le schedine sono accettate", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-10T17:59:00Z"));
+    const currentPlayer = makePlayer("player-1", "Mario Rossi", "1", "accettata");
+    const otherPlayer = makePlayer("player-2", "Luigi Verdi", "2", "accettata");
+
+    renderRiepilogo([currentPlayer, otherPlayer], currentPlayer);
+
+    expect(screen.getByTitle("Mario Rossi")).toBeInTheDocument();
+    expect(screen.queryByTitle("Luigi Verdi")).not.toBeInTheDocument();
+  });
+
+  it("non apre il griglione completo dopo la chiusura se manca una schedina", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-10T18:01:00Z"));
+    const currentPlayer = makePlayer("player-1", "Mario Rossi", "1", "accettata");
+    const otherPlayer = makePlayer("player-2", "Luigi Verdi", "2", "bozza");
+
+    renderRiepilogo([currentPlayer, otherPlayer], currentPlayer);
+
+    expect(screen.getByTitle("Mario Rossi")).toBeInTheDocument();
+    expect(screen.queryByTitle("Luigi Verdi")).not.toBeInTheDocument();
+  });
+
+  it("apre il griglione completo ai giocatori dopo la chiusura quando tutte le schedine sono accettate", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-10T18:01:00Z"));
+    const currentPlayer = makePlayer("player-1", "Mario Rossi", "1", "accettata");
+    const otherPlayer = makePlayer("player-2", "Luigi Verdi", "2", "accettata");
+
+    renderRiepilogo([currentPlayer, otherPlayer], currentPlayer);
+
+    expect(screen.getByTitle("Mario Rossi")).toBeInTheDocument();
+    expect(screen.getByTitle("Luigi Verdi")).toBeInTheDocument();
+    expect(screen.getByText(/2 giocatori/)).toBeInTheDocument();
+  });
+
+  it("apre automaticamente il griglione completo quando passa l'orario di chiusura", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-10T17:59:00Z"));
+    const currentPlayer = makePlayer("player-1", "Mario Rossi", "1", "accettata");
+    const otherPlayer = makePlayer("player-2", "Luigi Verdi", "2", "accettata");
+
+    renderRiepilogo([currentPlayer, otherPlayer], currentPlayer);
+
+    expect(screen.queryByTitle("Luigi Verdi")).not.toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(120000);
+    });
+
+    expect(screen.getByTitle("Luigi Verdi")).toBeInTheDocument();
+    expect(screen.getByText(/2 giocatori/)).toBeInTheDocument();
   });
 });

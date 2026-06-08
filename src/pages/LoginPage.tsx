@@ -162,7 +162,7 @@ export default function LoginPage({ onLogin, onAdminLogin, error }: Props) {
                 <h3 className="mb-1 font-black text-[var(--gold)]">3. Invia al Comitato</h3>
                 <p className="text-[var(--text-muted)]">
                   Tocca "Salva e Invia al Comitato". La schedina si blocca e viene inviata. Il Comitato la accettera' e
-                  i tuoi pronostici saranno visibili a tutti.
+                  i tuoi pronostici entreranno nel Griglione finale.
                 </p>
               </section>
 
@@ -204,7 +204,7 @@ export default function LoginPage({ onLogin, onAdminLogin, error }: Props) {
                     <strong>Classifica</strong> - punti e montepremi
                   </p>
                   <p>
-                    <strong>Griglione</strong> - tutti i pronostici accettati
+                    <strong>Griglione</strong> - la tua schedina ora, tutte le accettate dopo la chiusura
                   </p>
                 </div>
               </section>

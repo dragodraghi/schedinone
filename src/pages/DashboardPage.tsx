@@ -56,7 +56,7 @@ export default function DashboardPage({
     },
     accettata: {
       label: "Accettata",
-      detail: "Visibile nel Griglione",
+      detail: "Confermata dal Comitato",
       color: "var(--correct)",
     },
     rifiutata: {

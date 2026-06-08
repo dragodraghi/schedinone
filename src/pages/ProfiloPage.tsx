@@ -108,7 +108,7 @@ export default function ProfiloPage({
           {scheduleLabel(player.scheduleStatus)}
         </p>
         <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-          La fase corrente è {game.currentPhase}. I pronostici accettati sono visibili nel Griglione.
+          La fase corrente è {game.currentPhase}. Il Griglione completo si apre dopo la chiusura e con tutte le schedine accettate.
         </p>
       </div>
 

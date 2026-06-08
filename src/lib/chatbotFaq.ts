@@ -152,12 +152,13 @@ export const FAQ_LIST: FaqEntry[] = [
     keywords: ["griglione", "tabellone", "tutti i pronostici", "vedere altri"],
     question: "📊 Cos'è il Griglione?",
     answer:
-      "È la tabella con TUTTI i pronostici di tutti i giocatori, una colonna per persona.\n\n" +
-      "Ci vedi:\n" +
+      "È la tabella che serve a confrontare i pronostici.\n\n" +
+      "Prima dell'apertura completa, ogni giocatore vede solo la propria schedina: così nessuno prende vantaggi mentre gli altri stanno ancora compilando.\n\n" +
+      "Il Griglione completo con tutte le schedine accettate si apre solo dopo la chiusura e quando tutte le schedine sono accettate dal Comitato.\n\n" +
+      "Dopo l'apertura completa:\n" +
       "• Verde = pronostico azzeccato\n" +
       "• Rosso = pronostico sbagliato\n" +
-      "• Azzurro = pronostico inserito, partita non ancora giocata\n\n" +
-      "Si aggiorna in diretta mano a mano che escono i risultati.",
+      "• Azzurro = pronostico inserito, partita non ancora giocata",
     followups: ["confronto", "classifica"],
   },
   {
@@ -216,8 +217,8 @@ export const FAQ_LIST: FaqEntry[] = [
     keywords: ["privacy", "dati", "gdpr", "vedere", "visibili", "altri"],
     question: "🔒 Chi può vedere i miei pronostici?",
     answer:
-      "Fino a quando NON invii al Comitato → solo tu.\n\n" +
-      "Appena il Comitato ACCETTA la tua schedina → diventa visibile a tutti i giocatori nel Griglione (per trasparenza).\n\n" +
+      "Prima dell'apertura completa del Griglione, gli altri giocatori non vedono i tuoi pronostici: tu vedi solo la tua schedina.\n\n" +
+      "Il Griglione completo si apre solo dopo la chiusura e quando tutte le schedine sono accettate dal Comitato.\n\n" +
       "Il nome della tua squadra e' visibile in classifica. Nessun altro dato personale viene raccolto.",
   },
 ];

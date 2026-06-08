@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import type { Game, Player, Match } from "../../lib/types";
 import Flag from "../../components/Flag";
@@ -6,6 +6,7 @@ import Toast, { type ToastData } from "../../components/Toast";
 import { exportElementAsPdf, timestampSlug } from "../../lib/pdfExport";
 import { vibrate } from "../../lib/haptic";
 import { sortPlayersForLeaderboard } from "../../lib/playerOrdering";
+import { getCloseAt } from "../../lib/scheduleRules";
 
 interface Props {
   game: Game;
@@ -18,13 +19,38 @@ interface Props {
 const BG_DEEP = "#040810";
 const BG_CARD = "rgba(15, 23, 42, 1)"; // opaque version of --bg-card
 
+function mergeCurrentPlayer(players: Player[], currentPlayer?: Player): Player[] {
+  if (!currentPlayer) return players;
+  return [currentPlayer, ...players.filter((player) => player.id !== currentPlayer.id)];
+}
+
+function canShowFullPlayerGriglione(game: Game, players: Player[], matches: Match[], now = new Date()): boolean {
+  if (players.length === 0) return false;
+  if (!players.every((player) => player.scheduleStatus === "accettata")) return false;
+
+  const closeTimes = matches
+    .filter((match) => match.phase === "gironi")
+    .map((match) => getCloseAt(game, match).getTime())
+    .filter((time) => Number.isFinite(time));
+
+  if (closeTimes.length === 0) return false;
+  return now.getTime() >= Math.min(...closeTimes);
+}
+
 export default function RiepilogoPage({ game, players, matches, currentPlayer }: Props) {
   const [groupFilter, setGroupFilter] = useState<string>("Tutti");
   const [exportingPdf, setExportingPdf] = useState(false);
   const [toast, setToast] = useState<ToastData | null>(null);
+  const [now, setNow] = useState(() => new Date());
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
   const isPlayerView = !!currentPlayer;
+
+  useEffect(() => {
+    if (!isPlayerView) return;
+    const id = window.setInterval(() => setNow(new Date()), 60000);
+    return () => window.clearInterval(id);
+  }, [isPlayerView]);
 
   const handleExportPdf = async () => {
     if (!tableContainerRef.current) return;
@@ -64,14 +90,24 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
     return Array.from(seen).sort();
   }, [matches]);
 
-  // In player view the Griglione is temporarily private: only the current
-  // player's own schedina is shown. Admin keeps the full comparison view.
+  const playersForVisibilityGate = useMemo(
+    () => mergeCurrentPlayer(players, currentPlayer),
+    [players, currentPlayer]
+  );
+  const fullPlayerGriglioneOpen = useMemo(
+    () => canShowFullPlayerGriglione(game, playersForVisibilityGate, matches, now),
+    [game, playersForVisibilityGate, matches, now]
+  );
+
+  // In player view the Griglione stays private until the deadline has passed
+  // and every schedina is accepted. Admin keeps the full comparison view.
   const visiblePlayers = useMemo(() => {
     if (isPlayerView) {
+      if (fullPlayerGriglioneOpen) return playersForVisibilityGate;
       return currentPlayer ? [currentPlayer] : [];
     }
     return players;
-  }, [players, isPlayerView, currentPlayer]);
+  }, [players, isPlayerView, currentPlayer, fullPlayerGriglioneOpen, playersForVisibilityGate]);
 
   const sortedPlayers = useMemo(
     () => sortPlayersForLeaderboard(visiblePlayers),
