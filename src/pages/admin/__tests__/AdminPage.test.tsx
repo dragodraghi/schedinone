@@ -1,8 +1,8 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminPage from '../AdminPage';
-import type { Game, Player, Thread } from '../../../lib/types';
+import type { Game, Match, Player, Thread } from '../../../lib/types';
 
 vi.mock('../../../lib/firebase', () => ({
   db: {},
@@ -43,6 +43,19 @@ const pendingPlayer: Player = {
 };
 
 const threadTime = { toDate: () => new Date('2026-01-01T00:00:00Z') } as Thread['lastMessageAt'];
+
+const realScheduleMatches: Match[] = Array.from({ length: 72 }, (_, index) => ({
+  id: `match-${index + 1}`,
+  phase: 'gironi',
+  group: 'A',
+  homeTeam: index === 0 ? 'Italia' : 'USA',
+  awayTeam: 'Canada',
+  kickoff: new Date(`2026-06-${String((index % 18) + 11).padStart(2, '0')}T20:00:00Z`),
+  kickoffSource: 'api',
+  result: null,
+  score: null,
+  locked: false,
+}));
 
 describe('AdminPage', () => {
   beforeEach(() => {
@@ -131,5 +144,19 @@ describe('AdminPage', () => {
 
     expect(await within(messagesLink).findByText('3')).toBeInTheDocument();
     expect(within(messagesLink).getByText(/messaggi da leggere/i)).toBeInTheDocument();
+  });
+
+  it('non mette la ricarica distruttiva del calendario subito a portata quando il draw reale e gia caricato', () => {
+    render(
+      <MemoryRouter>
+        <AdminPage game={game} players={[pendingPlayer]} matches={realScheduleMatches} onLogout={vi.fn()} />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByRole('button', { name: /Ricarica draw reale/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Mostra manutenzione calendario/i }));
+
+    expect(screen.getByRole('button', { name: /Ricarica draw reale/i })).toBeInTheDocument();
   });
 });

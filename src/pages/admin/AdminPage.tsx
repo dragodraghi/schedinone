@@ -33,6 +33,7 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
   const [savingSpecial, setSavingSpecial] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [showSeedConfirm, setShowSeedConfirm] = useState(false);
+  const [showCalendarMaintenance, setShowCalendarMaintenance] = useState(false);
   const [recalcing, setRecalcing] = useState(false);
   const [unreadCommitteeMessages, setUnreadCommitteeMessages] = useState(0);
   const [toast, setToast] = useState<ToastData | null>(null);
@@ -298,17 +299,47 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
             {hasRealSchedule ? "OK" : "TODO"}
           </span>
         </div>
-        <button
-          onClick={() => setShowSeedConfirm(true)}
-          disabled={seeding}
-          className="secondary-action mt-4 w-full px-4 disabled:opacity-50"
-          style={{
-            borderColor: hasRealSchedule ? "var(--border)" : "rgba(255,215,0,0.38)",
-            color: hasRealSchedule ? "var(--text-soft)" : "var(--gold)",
-          }}
-        >
-          {seeding ? "Caricamento in corso..." : hasRealSchedule ? "Ricarica draw reale (sostituisce tutto)" : "Carica draw ufficiale 5 dicembre 2025"}
-        </button>
+        {hasRealSchedule ? (
+          <div className="mt-4 space-y-3">
+            <button
+              onClick={() => setShowCalendarMaintenance((value) => !value)}
+              className="secondary-action w-full px-4"
+              style={{ borderColor: "var(--border)", color: "var(--text-soft)" }}
+            >
+              {showCalendarMaintenance ? "Nascondi manutenzione calendario" : "Mostra manutenzione calendario"}
+            </button>
+            {showCalendarMaintenance && (
+              <div
+                className="rounded-xl p-3"
+                style={{
+                  background: "rgba(255, 51, 102, 0.08)",
+                  border: "1px solid rgba(255, 51, 102, 0.28)",
+                }}
+              >
+                <p className="mb-3 text-xs text-[var(--text-primary)]">
+                  Area riservata: ricaricare il draw cancella e ricrea tutte le partite.
+                </p>
+                <button
+                  onClick={() => setShowSeedConfirm(true)}
+                  disabled={seeding}
+                  className="secondary-action w-full px-4 disabled:opacity-50"
+                  style={{ borderColor: "rgba(255, 51, 102, 0.38)", color: "var(--wrong)" }}
+                >
+                  {seeding ? "Caricamento in corso..." : "Ricarica draw reale (sostituisce tutto)"}
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowSeedConfirm(true)}
+            disabled={seeding}
+            className="secondary-action mt-4 w-full px-4 disabled:opacity-50"
+            style={{ borderColor: "rgba(255,215,0,0.38)", color: "var(--gold)" }}
+          >
+            {seeding ? "Caricamento in corso..." : "Carica draw ufficiale 5 dicembre 2025"}
+          </button>
+        )}
       </section>
 
       {showSeedConfirm && (

@@ -68,6 +68,16 @@ async function seedData() {
       score: null,
       locked: false,
     });
+    await db.doc(`games/${GAME_ID}/resultProposals/m1`).set({
+      matchId: "m1",
+      homeTeam: "Italia",
+      awayTeam: "Francia",
+      score: "2-0",
+      result: "1",
+      source: "api-football",
+      status: "pending",
+      fetchedAt: firebase.firestore.Timestamp.fromDate(new Date("2026-06-11T21:00:00Z")),
+    });
     await db.doc(`games/${GAME_ID}/players/player-1`).set({
       ...playerData("Alice"),
       multiDeviceEnabled: true,
@@ -266,6 +276,32 @@ describeRules("Firestore rules", () => {
         unexpected: true,
       })
     );
+  });
+
+  it("keeps automatic result proposals committee-only and read-delete-only", async () => {
+    const adminDb = signedIn("admin-1");
+    const playerDb = anonymous("player-1");
+
+    await assertSucceeds(adminDb.doc(`games/${GAME_ID}/resultProposals/m1`).get());
+    await assertFails(playerDb.doc(`games/${GAME_ID}/resultProposals/m1`).get());
+    await assertFails(
+      adminDb.doc(`games/${GAME_ID}/resultProposals/m2`).set({
+        matchId: "m2",
+        homeTeam: "Italia",
+        awayTeam: "Francia",
+        score: "1-1",
+        result: "X",
+        source: "browser",
+        status: "pending",
+        fetchedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      })
+    );
+    await assertFails(
+      adminDb.doc(`games/${GAME_ID}/resultProposals/m1`).update({
+        status: "ignored",
+      })
+    );
+    await assertSucceeds(adminDb.doc(`games/${GAME_ID}/resultProposals/m1`).delete());
   });
 
   it("requires chat messages to use server timestamps and allowed keys", async () => {

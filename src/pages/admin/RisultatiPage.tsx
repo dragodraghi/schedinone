@@ -1,10 +1,15 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { doc, Timestamp, updateDoc } from "firebase/firestore";
+import { deleteDoc, doc, Timestamp, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import Flag from "../../components/Flag";
 import Toast, { type ToastData } from "../../components/Toast";
 import { recalcPointsClient } from "../../lib/recalcPoints";
+import {
+  fetchResultProposalsNow,
+  subscribeResultProposals,
+  type ResultProposal,
+} from "../../lib/resultProposals";
 import type { Match, Sign } from "../../lib/types";
 
 interface Props {
@@ -30,8 +35,19 @@ export default function RisultatiPage({ matches, gameId }: Props) {
   const [editScore, setEditScore] = useState("");
   const [editResult, setEditResult] = useState<Sign | null>(null);
   const [editKickoff, setEditKickoff] = useState("");
+  const [resultProposals, setResultProposals] = useState<Record<string, ResultProposal>>({});
+  const [checkingProposals, setCheckingProposals] = useState(false);
+  const [proposalBusyId, setProposalBusyId] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastData | null>(null);
   const clearToast = useCallback(() => setToast(null), []);
+
+  useEffect(() => {
+    return subscribeResultProposals(gameId, (proposals) => {
+      setResultProposals(
+        Object.fromEntries(proposals.map((proposal) => [proposal.matchId, proposal]))
+      );
+    });
+  }, [gameId]);
 
   const startEditResult = (match: Match) => {
     setEditingId(match.id);
@@ -59,7 +75,7 @@ export default function RisultatiPage({ matches, gameId }: Props) {
       // on a Blaze plan). Admins have write permission on player docs.
       const report = await recalcPointsClient(gameId);
       setToast({
-        message: `Risultato salvato · ${report.playersUpdated} giocator${
+        message: `Risultato salvato - ${report.playersUpdated} giocator${
           report.playersUpdated === 1 ? "e" : "i"
         } aggiornat${report.playersUpdated === 1 ? "o" : "i"}`,
         type: "success",
@@ -67,6 +83,73 @@ export default function RisultatiPage({ matches, gameId }: Props) {
     } catch (err) {
       console.error("Save result error:", err);
       setToast({ message: "Errore nel salvataggio", type: "error" });
+    }
+  };
+
+  const handleFetchProposals = async () => {
+    setCheckingProposals(true);
+    try {
+      const report = await fetchResultProposalsNow(gameId);
+      if (!report.configured) {
+        setToast({
+          message: report.message || "Ricerca automatica non configurata: manca la chiave API.",
+          type: "error",
+        });
+        return;
+      }
+      setToast({
+        message:
+          report.proposalsUpdated > 0
+            ? `${report.proposalsUpdated} propost${
+                report.proposalsUpdated === 1 ? "a" : "e"
+              } aggiornat${report.proposalsUpdated === 1 ? "a" : "e"}`
+            : "Nessuna nuova proposta trovata",
+        type: "success",
+      });
+    } catch (err) {
+      console.error("Fetch result proposals error:", err);
+      setToast({ message: "Errore nella ricerca automatica", type: "error" });
+    } finally {
+      setCheckingProposals(false);
+    }
+  };
+
+  const handleConfirmProposal = async (proposal: ResultProposal) => {
+    setProposalBusyId(proposal.id);
+    try {
+      const matchRef = doc(db, "games", gameId, "matches", proposal.matchId);
+      await updateDoc(matchRef, {
+        result: proposal.result,
+        score: proposal.score,
+        locked: true,
+        resultSource: "manual",
+      });
+      await deleteDoc(doc(db, "games", gameId, "resultProposals", proposal.id));
+      const report = await recalcPointsClient(gameId);
+      setToast({
+        message: `Proposta confermata - ${report.playersUpdated} giocator${
+          report.playersUpdated === 1 ? "e" : "i"
+        } aggiornat${report.playersUpdated === 1 ? "o" : "i"}`,
+        type: "success",
+      });
+    } catch (err) {
+      console.error("Confirm result proposal error:", err);
+      setToast({ message: "Errore nella conferma della proposta", type: "error" });
+    } finally {
+      setProposalBusyId(null);
+    }
+  };
+
+  const handleDiscardProposal = async (proposal: ResultProposal) => {
+    setProposalBusyId(proposal.id);
+    try {
+      await deleteDoc(doc(db, "games", gameId, "resultProposals", proposal.id));
+      setToast({ message: "Proposta scartata", type: "success" });
+    } catch (err) {
+      console.error("Discard result proposal error:", err);
+      setToast({ message: "Errore nello scarto della proposta", type: "error" });
+    } finally {
+      setProposalBusyId(null);
     }
   };
 
@@ -103,9 +186,24 @@ export default function RisultatiPage({ matches, gameId }: Props) {
     <div className="space-y-6 animate-in">
       <Toast toast={toast} onDone={clearToast} />
       {/* Header */}
-      <h1 className="text-2xl font-black" style={{ fontFamily: "Outfit, sans-serif" }}>
-        Gestione Partite
-      </h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-black" style={{ fontFamily: "Outfit, sans-serif" }}>
+            Gestione Partite
+          </h1>
+          <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+            Le proposte automatiche diventano ufficiali solo dopo conferma del Comitato.
+          </p>
+        </div>
+        <button
+          onClick={handleFetchProposals}
+          disabled={checkingProposals}
+          className="secondary-action px-4 disabled:opacity-50"
+          style={{ borderColor: "rgba(0,212,255,0.28)", color: "var(--accent)" }}
+        >
+          {checkingProposals ? "Ricerca in corso..." : "Cerca risultati automatici"}
+        </button>
+      </div>
 
       <Link
         to="/admin"
@@ -123,7 +221,14 @@ export default function RisultatiPage({ matches, gameId }: Props) {
           >
             {phase}
           </h2>
-          {phaseMatches.map((match) => (
+          {phaseMatches.map((match) => {
+            const proposal = resultProposals[match.id];
+            const showProposal =
+              proposal &&
+              (match.result !== proposal.result || (match.score ?? "") !== proposal.score);
+            const proposalBusy = proposal ? proposalBusyId === proposal.id : false;
+
+            return (
             <div key={match.id} className="glass rounded-xl p-4 space-y-2">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <span
@@ -276,6 +381,52 @@ export default function RisultatiPage({ matches, gameId }: Props) {
                 </div>
               )}
 
+              {showProposal && editingId !== match.id && (
+                <div
+                  className="rounded-lg p-3 space-y-3"
+                  style={{
+                    background: "rgba(255, 215, 0, 0.08)",
+                    border: "1px solid rgba(255, 215, 0, 0.24)",
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-wider text-[var(--gold)]">
+                        Proposta automatica
+                      </p>
+                      <p className="mt-1 text-sm text-[var(--text-primary)]">
+                        {proposal.score} - segno <strong>{proposal.result}</strong>
+                      </p>
+                    </div>
+                    <span className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+                      {proposal.source}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleConfirmProposal(proposal)}
+                      disabled={proposalBusy}
+                      className="flex-1 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                      style={{
+                        fontFamily: "Outfit, sans-serif",
+                        background: "linear-gradient(135deg, var(--correct), #00cc6a)",
+                        color: "#040810",
+                      }}
+                    >
+                      {proposalBusy ? "Conferma..." : "Conferma proposta"}
+                    </button>
+                    <button
+                      onClick={() => handleDiscardProposal(proposal)}
+                      disabled={proposalBusy}
+                      className="flex-1 py-2 rounded-lg text-xs transition-all glass hover:bg-white/5 disabled:opacity-50"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      Scarta
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {editingId !== match.id && (
                 <div className="flex gap-2">
                   <button
@@ -295,7 +446,8 @@ export default function RisultatiPage({ matches, gameId }: Props) {
                 </div>
               )}
             </div>
-          ))}
+          );
+          })}
         </div>
       ))}
     </div>

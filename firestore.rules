@@ -292,6 +292,11 @@ service cloud.firestore {
         allow delete: if isGameAdmin(gameId);
       }
 
+      match /resultProposals/{proposalId} {
+        allow read, delete: if isGameAdmin(gameId);
+        allow create, update: if false;
+      }
+
       match /players/{playerId} {
         allow read: if isSignedIn() && (
           isPlayerDevice(gameId, playerId)
