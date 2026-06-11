@@ -341,6 +341,13 @@ body.pdf-export .pdf-gold { color: #b8860b !important; }
 body.pdf-export .pdf-correct { color: #008a4a !important; }
 body.pdf-export .pdf-wrong { color: #c11f44 !important; }
 body.pdf-export .pdf-hide { display: none !important; }
+/* Griglione: sticky chrome cells carry opaque dark inline backgrounds that
+   would swallow the (forced dark) text on paper — flatten them for the
+   PDF snapshot. Only applies inside the html2canvas clone, never in-app. */
+body.pdf-export .pdf-sticky-cell {
+  position: static !important;
+  background: #ffffff !important;
+}
 
 /* Chatbot typing indicator */
 @keyframes typingBlink {

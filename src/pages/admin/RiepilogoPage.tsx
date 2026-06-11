@@ -26,30 +26,46 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
   const isPlayerView = !!currentPlayer;
 
   const handleExportPdf = async () => {
-    if (!tableContainerRef.current) return;
+    const container = tableContainerRef.current;
+    if (!container) return;
     setExportingPdf(true);
     vibrate("tap");
+    // Snapshot the inline styles we temporarily change so the in-app grid
+    // is always restored, even if the capture throws midway.
+    const prev = {
+      maxHeight: container.style.maxHeight,
+      overflowX: container.style.overflowX,
+      overflowY: container.style.overflowY,
+      width: container.style.width,
+      scrollTop: container.scrollTop,
+      scrollLeft: container.scrollLeft,
+    };
     try {
-      // Temporarily unconstrain the max-height so the full grid is rendered
-      const container = tableContainerRef.current;
-      const prevMaxHeight = container.style.maxHeight;
-      const prevOverflow = container.style.overflow;
+      // Unclamp height and width so html2canvas sees the full grid
+      // (header included), not just the scrolled viewport.
       container.style.maxHeight = "none";
-      container.style.overflow = "visible";
+      container.style.overflowX = "visible";
+      container.style.overflowY = "visible";
+      container.style.width = "max-content";
 
       const orientation = players.length > 6 ? "landscape" : "portrait";
       await exportElementAsPdf(container, {
         filename: `griglione-schedinone-${timestampSlug()}.pdf`,
         orientation,
+        // Re-stamp the player-names header on every PDF page
+        repeatHeaderSelector: "thead",
       });
-
-      container.style.maxHeight = prevMaxHeight;
-      container.style.overflow = prevOverflow;
       setToast({ message: "Griglione scaricato!", type: "success" });
     } catch (err) {
       console.error("PDF export error:", err);
       setToast({ message: "Errore nel download del PDF", type: "error" });
     } finally {
+      container.style.maxHeight = prev.maxHeight;
+      container.style.overflowX = prev.overflowX;
+      container.style.overflowY = prev.overflowY;
+      container.style.width = prev.width;
+      container.scrollTop = prev.scrollTop;
+      container.scrollLeft = prev.scrollLeft;
       setExportingPdf(false);
     }
   };
@@ -210,6 +226,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
             <tr>
               {/* Column 1: "Partita" */}
               <th
+                className="pdf-sticky-cell"
                 style={{
                   position: "sticky",
                   top: 0,
@@ -234,6 +251,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
               </th>
               {/* Column 2: "Ris." */}
               <th
+                className="pdf-sticky-cell"
                 style={{
                   position: "sticky",
                   top: 0,
@@ -261,6 +279,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                 return (
                   <th
                     key={player.id}
+                    className="pdf-sticky-cell"
                     style={{
                       position: "sticky",
                       top: 0,
@@ -288,7 +307,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                       {isMe && <span className="ml-0.5 text-[8px]">★</span>}
                     </div>
                     <div
-                      className="text-[10px] font-black"
+                      className="pdf-gold text-[10px] font-black"
                       style={{ color: "var(--gold)" }}
                     >
                       {player.points}pt
@@ -314,7 +333,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                     }}
                   >
                     <span
-                      className="group-header text-[10px] uppercase tracking-widest"
+                      className="pdf-accent group-header text-[10px] uppercase tracking-widest"
                       style={{ color: "var(--accent)" }}
                     >
                       GRUPPO {groupKey}
@@ -330,6 +349,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                   >
                     {/* Sticky: match name */}
                     <td
+                      className="pdf-sticky-cell"
                       style={{
                         position: "sticky",
                         left: 0,
@@ -365,6 +385,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
 
                     {/* Sticky: result */}
                     <td
+                      className="pdf-sticky-cell"
                       style={{
                         position: "sticky",
                         left: 140,
@@ -443,7 +464,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                 }}
               >
                 <span
-                  className="text-[10px] uppercase tracking-widest font-black"
+                  className="pdf-gold text-[10px] uppercase tracking-widest font-black"
                   style={{ fontFamily: "Outfit, sans-serif", color: "var(--gold)" }}
                 >
                   Pronostici Speciali
@@ -454,6 +475,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
             {/* Capocannoniere row */}
             <tr style={{ borderBottom: "1px solid var(--border)" }}>
               <td
+                className="pdf-sticky-cell"
                 style={{
                   position: "sticky",
                   left: 0,
@@ -467,7 +489,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                 }}
               >
                 <div
-                  className="text-[11px] font-black"
+                  className="pdf-gold text-[11px] font-black"
                   style={{ fontFamily: "Outfit, sans-serif", color: "var(--gold)" }}
                 >
                   ⚽ Capocannoniere
@@ -480,6 +502,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
               </td>
               {/* Result cell */}
               <td
+                className="pdf-sticky-cell"
                 style={{
                   position: "sticky",
                   left: 140,
@@ -535,6 +558,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
             {/* Vincitrice row */}
             <tr style={{ borderBottom: "1px solid var(--border)" }}>
               <td
+                className="pdf-sticky-cell"
                 style={{
                   position: "sticky",
                   left: 0,
@@ -548,7 +572,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                 }}
               >
                 <div
-                  className="text-[11px] font-black"
+                  className="pdf-gold text-[11px] font-black"
                   style={{ fontFamily: "Outfit, sans-serif", color: "var(--gold)" }}
                 >
                   🏆 Vincitrice
@@ -561,6 +585,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
               </td>
               {/* Result cell */}
               <td
+                className="pdf-sticky-cell"
                 style={{
                   position: "sticky",
                   left: 140,

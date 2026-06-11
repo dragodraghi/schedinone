@@ -9,6 +9,12 @@ interface PdfOptions {
   margin?: number;
   /** Background color to composite the canvas onto. Default "#ffffff" for printable output. */
   background?: string;
+  /**
+   * CSS selector (resolved within `element`) of a header to repeat at the top
+   * of every page after the first, e.g. "thead" for tables — so column labels
+   * stay visible on multi-page output.
+   */
+  repeatHeaderSelector?: string;
 }
 
 /**
@@ -26,7 +32,19 @@ export async function exportElementAsPdf(
     orientation = "portrait",
     margin = 10,
     background = "#ffffff",
+    repeatHeaderSelector,
   } = options;
+
+  // Measure the header (if any) before rasterizing, while the element is
+  // laid out exactly as it will be captured.
+  let headerRatio = 0;
+  if (repeatHeaderSelector) {
+    const headerEl = element.querySelector(repeatHeaderSelector);
+    const elementHeight = element.getBoundingClientRect().height;
+    if (headerEl && elementHeight > 0) {
+      headerRatio = headerEl.getBoundingClientRect().height / elementHeight;
+    }
+  }
 
   // 2x DPI for sharper text on rasterized output
   const canvas = await html2canvas(element, {
@@ -62,44 +80,65 @@ export async function exportElementAsPdf(
     // Fits on a single page
     pdf.addImage(imgData, "JPEG", margin, margin, availableWidth, imgHeightMm);
   } else {
-    // Multi-page: slice the canvas vertically
-    let remainingPx = canvas.height;
-    let sourceYPx = 0;
+    // Multi-page: slice the canvas vertically. Pages after the first get the
+    // header re-stamped on top so column labels stay readable throughout.
     const pageHeightPx = availableHeight * pxPerMm;
+    let headerPx = Math.round(canvas.height * headerRatio);
+    // Safety: a header taller than half a page would leave no room for rows
+    if (headerPx >= pageHeightPx * 0.5) headerPx = 0;
 
-    while (remainingPx > 0) {
-      const sliceHeightPx = Math.min(pageHeightPx, remainingPx);
-      // Draw this slice onto a temp canvas so we can export just the slice
+    let sourceYPx = 0;
+    let pageIndex = 0;
+    while (sourceYPx < canvas.height) {
+      const headerOnPagePx = pageIndex > 0 ? headerPx : 0;
+      const contentHeightPx = Math.min(
+        pageHeightPx - headerOnPagePx,
+        canvas.height - sourceYPx
+      );
+      // Draw header + slice onto a temp canvas so we can export just the slice
       const sliceCanvas = document.createElement("canvas");
       sliceCanvas.width = canvas.width;
-      sliceCanvas.height = sliceHeightPx;
+      sliceCanvas.height = headerOnPagePx + contentHeightPx;
       const ctx = sliceCanvas.getContext("2d");
       if (!ctx) throw new Error("Canvas 2D context unavailable");
       ctx.fillStyle = background;
       ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+      if (headerOnPagePx > 0) {
+        ctx.drawImage(
+          canvas,
+          0,
+          0,
+          canvas.width,
+          headerOnPagePx,
+          0,
+          0,
+          canvas.width,
+          headerOnPagePx
+        );
+      }
       ctx.drawImage(
         canvas,
         0,
         sourceYPx,
         canvas.width,
-        sliceHeightPx,
+        contentHeightPx,
         0,
-        0,
+        headerOnPagePx,
         canvas.width,
-        sliceHeightPx
+        contentHeightPx
       );
       const sliceData = sliceCanvas.toDataURL("image/jpeg", 0.92);
-      if (sourceYPx > 0) pdf.addPage();
+      if (pageIndex > 0) pdf.addPage();
       pdf.addImage(
         sliceData,
         "JPEG",
         margin,
         margin,
         availableWidth,
-        sliceHeightPx / pxPerMm
+        sliceCanvas.height / pxPerMm
       );
-      sourceYPx += sliceHeightPx;
-      remainingPx -= sliceHeightPx;
+      sourceYPx += contentHeightPx;
+      pageIndex++;
     }
   }
 
