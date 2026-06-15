@@ -39,6 +39,7 @@ function toPlayer(id: string, raw: Record<string, unknown>): Player {
     topScorerPick: typeof raw.topScorerPick === "string" ? raw.topScorerPick : "",
     winnerPick: typeof raw.winnerPick === "string" ? raw.winnerPick : "",
     points: Number.isFinite(Number(raw.points)) ? Number(raw.points) : 0,
+    previousRank: Number.isFinite(Number(raw.previousRank)) ? Number(raw.previousRank) : null,
     paid: raw.paid === true,
     scheduleStatus: asScheduleStatus(raw.scheduleStatus),
     multiDeviceEnabled: raw.multiDeviceEnabled === true,

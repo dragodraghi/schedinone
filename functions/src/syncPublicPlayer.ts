@@ -64,6 +64,7 @@ export const syncPublicPlayer = onDocumentWritten(
       name: typeof after.name === "string" ? after.name : "Giocatore",
       joinedAt: after.joinedAt ?? null,
       points: Number.isFinite(Number(after.points)) ? Number(after.points) : 0,
+      previousRank: Number.isFinite(Number(after.previousRank)) ? Number(after.previousRank) : null,
       paid: after.paid === true,
       scheduleStatus: status,
       predictions: accepted && after.predictions && typeof after.predictions === "object"

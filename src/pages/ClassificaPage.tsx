@@ -65,7 +65,7 @@ export default function ClassificaPage({ game, player, players, loading = false 
 
       <div className="space-y-2">
         {rankedPlayers.map(({ player: p, rank }) => (
-          <PlayerRow key={p.id} rank={rank} name={p.name} points={p.points} isCurrentUser={p.id === player.id} />
+          <PlayerRow key={p.id} rank={rank} name={p.name} points={p.points} previousRank={p.previousRank} isCurrentUser={p.id === player.id} />
         ))}
       </div>
 

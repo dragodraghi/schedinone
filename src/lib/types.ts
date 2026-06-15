@@ -53,6 +53,10 @@ export interface Player {
   topScorerPick: string;
   winnerPick: string;
   points: number;
+  /** Leaderboard rank held just before the most recent points recalc.
+   *  Used to show movement arrows in the standings. null/undefined = no
+   *  prior snapshot yet (e.g. before the first result, or a new player). */
+  previousRank?: number | null;
   paid: boolean;
   scheduleStatus: ScheduleStatus;
   multiDeviceEnabled?: boolean;
