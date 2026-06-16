@@ -1,6 +1,6 @@
 import Flag from "./Flag";
 import { rankPlayersForLeaderboard } from "../lib/playerOrdering";
-import type { Game, Match, Player } from "../lib/types";
+import type { Game, Match, Phase, Player, Sign } from "../lib/types";
 
 interface Props {
   players: Player[];
@@ -8,6 +8,37 @@ interface Props {
   game: Game;
   /** Optional player UID to highlight (the viewer themselves). */
   highlightId?: string;
+}
+
+const phaseLabels: Record<Phase, string> = {
+  gironi: "Gironi",
+  ottavi: "Ottavi",
+  quarti: "Quarti",
+  semifinali: "Semifinali",
+  finale: "Finale",
+};
+
+function matchLabel(match: Match): string {
+  return `${match.homeTeam} - ${match.awayTeam}`;
+}
+
+function sortMatchesForComparison(matches: Match[], phases: Phase[]): Match[] {
+  const phaseOrder = new Map(phases.map((phase, index) => [phase, index]));
+  return [...matches].sort((a, b) => {
+    const phaseDiff = (phaseOrder.get(a.phase) ?? 999) - (phaseOrder.get(b.phase) ?? 999);
+    if (phaseDiff !== 0) return phaseDiff;
+
+    const timeDiff = a.kickoff.getTime() - b.kickoff.getTime();
+    if (Number.isFinite(timeDiff) && timeDiff !== 0) return timeDiff;
+
+    return a.id.localeCompare(b.id);
+  });
+}
+
+function predictionColor(match: Match, prediction: Sign | undefined): string {
+  if (!prediction) return "var(--text-muted)";
+  if (!match.result) return "var(--text-primary)";
+  return prediction === match.result ? "var(--correct)" : "var(--wrong)";
 }
 
 /**
@@ -46,9 +77,177 @@ export default function ComparisonTable({ players, matches, game, highlightId }:
   const totalMax = Math.max(...players.map((p) => p.points));
 
   const rankedPlayers = rankPlayersForLeaderboard(players);
+  const rankedComparisonPlayers = rankedPlayers.map(({ player }) => player);
+  const scheduleMatches = sortMatchesForComparison(matches, game.phases);
 
   return (
     <div className="space-y-3">
+      {scheduleMatches.length > 0 && (
+        <section
+          className="glass rounded-xl p-4 space-y-3"
+          aria-label="Schedina partita per partita"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2
+                className="text-sm font-black"
+                style={{ fontFamily: "Outfit, sans-serif", color: "var(--text-primary)" }}
+              >
+                Schedina partita per partita
+              </h2>
+              <p className="text-[11px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+                {scheduleMatches.length} partite, {players.length} giocatori selezionati
+              </p>
+            </div>
+            <span
+              className="rounded-lg px-2 py-1 text-[10px] font-black shrink-0"
+              style={{
+                color: "var(--accent)",
+                background: "rgba(0, 212, 255, 0.08)",
+                border: "1px solid rgba(0, 212, 255, 0.22)",
+                fontFamily: "Outfit, sans-serif",
+              }}
+            >
+              1 / X / 2
+            </span>
+          </div>
+
+          <div
+            className="rounded-xl border"
+            style={{
+              borderColor: "var(--border)",
+              maxHeight: "64vh",
+              overflow: "auto",
+            }}
+          >
+            <table
+              className="w-full border-collapse text-xs"
+              style={{
+                minWidth: Math.max(560, 270 + rankedComparisonPlayers.length * 58),
+              }}
+            >
+              <thead>
+                <tr>
+                  <th
+                    scope="col"
+                    className="sticky top-0 z-10 px-2 py-2 text-left"
+                    style={{
+                      background: "rgba(4, 8, 16, 0.96)",
+                      color: "var(--text-muted)",
+                      fontFamily: "Outfit, sans-serif",
+                      width: 210,
+                    }}
+                  >
+                    Partita
+                  </th>
+                  <th
+                    scope="col"
+                    className="sticky top-0 z-10 px-2 py-2 text-center"
+                    style={{
+                      background: "rgba(4, 8, 16, 0.96)",
+                      color: "var(--text-muted)",
+                      fontFamily: "Outfit, sans-serif",
+                      width: 54,
+                    }}
+                  >
+                    Ris.
+                  </th>
+                  {rankedComparisonPlayers.map((player) => (
+                    <th
+                      key={player.id}
+                      scope="col"
+                      className="sticky top-0 z-10 px-1.5 py-2 text-center"
+                      style={{
+                        background: "rgba(4, 8, 16, 0.96)",
+                        color: "var(--text-muted)",
+                        fontFamily: "Outfit, sans-serif",
+                        width: 58,
+                      }}
+                      title={player.name}
+                    >
+                      <span className="block truncate">{player.name}</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {scheduleMatches.map((match, index) => {
+                  const label = matchLabel(match);
+                  const resultText = match.result ?? "-";
+                  const resultTitle = match.result
+                    ? `Risultato: ${match.result}${match.score ? ` (${match.score})` : ""}`
+                    : "Risultato non inserito";
+                  return (
+                    <tr key={match.id} style={{ borderTop: "1px solid var(--border)" }}>
+                      <th scope="row" className="px-2 py-2 text-left align-middle">
+                        <span
+                          className="block truncate font-black"
+                          style={{ fontFamily: "Outfit, sans-serif", color: "var(--text-primary)" }}
+                          title={label}
+                        >
+                          {label}
+                        </span>
+                        <span
+                          className="block text-[10px] uppercase tracking-wider"
+                          style={{ color: "var(--text-muted)" }}
+                        >
+                          {match.group ? `Girone ${match.group}` : phaseLabels[match.phase]} - partita {index + 1}
+                        </span>
+                      </th>
+                      <td
+                        className="px-2 py-2 text-center align-middle font-black"
+                        style={{ color: match.result ? "var(--gold)" : "var(--text-muted)" }}
+                        title={resultTitle}
+                      >
+                        {resultText}
+                      </td>
+                      {rankedComparisonPlayers.map((player) => {
+                        const prediction = player.predictions[match.id];
+                        const isCorrect = prediction && match.result && prediction === match.result;
+                        const isWrong = prediction && match.result && prediction !== match.result;
+                        return (
+                          <td
+                            key={`${match.id}-${player.id}`}
+                            className="px-1.5 py-2 text-center align-middle"
+                            style={{
+                              background: isCorrect
+                                ? "rgba(0,255,136,0.08)"
+                                : isWrong
+                                ? "rgba(255,51,102,0.08)"
+                                : "transparent",
+                            }}
+                          >
+                            <span
+                              aria-label={`Pronostico ${player.name} per ${label}`}
+                              className="inline-flex h-6 min-w-6 items-center justify-center rounded-md font-black"
+                              style={{
+                                fontFamily: "Outfit, sans-serif",
+                                color: predictionColor(match, prediction),
+                                border: `1px solid ${
+                                  isCorrect
+                                    ? "rgba(0,255,136,0.28)"
+                                    : isWrong
+                                    ? "rgba(255,51,102,0.28)"
+                                    : "var(--border)"
+                                }`,
+                                background: "rgba(255,255,255,0.04)",
+                              }}
+                              title={prediction ?? "Mancante"}
+                            >
+                              {prediction ?? "-"}
+                            </span>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       {rankedPlayers.map(({ player: p, rank }) => {
         const isMe = highlightId === p.id;
         const isTotalLeader = p.points === totalMax && p.points > 0 && players.length > 1;

@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import ClassificaPage from "../ClassificaPage";
 import type { Game, Player } from "../../lib/types";
@@ -36,7 +37,11 @@ describe("ClassificaPage", () => {
     const tied = player({ id: "tied", name: "Seconda Squadra", points: 10 });
     const third = player({ id: "third", name: "Terza Squadra", points: 8 });
 
-    render(<ClassificaPage game={game} player={first} players={[first, tied, third]} />);
+    render(
+      <MemoryRouter>
+        <ClassificaPage game={game} player={first} players={[first, tied, third]} />
+      </MemoryRouter>
+    );
 
     expect(screen.getByText("2 pari merito")).toBeInTheDocument();
     expect(screen.getByText("10 punti ciascuno")).toBeInTheDocument();

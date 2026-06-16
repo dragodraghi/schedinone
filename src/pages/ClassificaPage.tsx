@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import PlayerRow from "../components/PlayerRow";
 import EmptyState from "../components/EmptyState";
 import Skeleton from "../components/Skeleton";
@@ -62,6 +63,16 @@ export default function ClassificaPage({ game, player, players, loading = false 
           </p>
         </div>
       </section>
+
+      {players.length > 0 && (
+        <Link
+          to="/confronto"
+          className="secondary-action flex items-center justify-center w-full px-4"
+          style={{ borderColor: "rgba(0,212,255,0.28)", color: "var(--accent)" }}
+        >
+          Confronta squadre
+        </Link>
+      )}
 
       <div className="space-y-2">
         {rankedPlayers.map(({ player: p, rank }) => (

@@ -36,6 +36,7 @@ const GiocatoriPage = lazy(() => import("./pages/admin/GiocatoriPage"));
 const RiepilogoPage = lazy(() => import("./pages/admin/RiepilogoPage"));
 const SchedineRicevutePage = lazy(() => import("./pages/admin/SchedineRicevutePage"));
 const ConfrontoPage = lazy(() => import("./pages/admin/ConfrontoPage"));
+const ConfrontoGiocatorePage = lazy(() => import("./pages/ConfrontoPage"));
 
 const GAME_ID = import.meta.env.VITE_GAME_ID || "schedinone-2026";
 type SessionMode = "player" | "admin" | null;
@@ -308,6 +309,7 @@ export default function App() {
               }
             />
             <Route path="/classifica" element={<ClassificaPage game={game} player={safePlayer} players={players} loading={playersLoading} />} />
+            <Route path="/confronto" element={<ConfrontoGiocatorePage game={game} player={safePlayer} players={players} matches={matches} />} />
             <Route path="/profilo" element={<ProfiloPage game={game} player={safePlayer} players={players} matches={matches} isAdmin={isAdminSession} hasPlayerProfile={hasAdminPlayerProfile} unreadAnnouncementCount={unreadAnnouncementCount} unreadPrivateMessageCount={unreadPrivateMessageCount} onLogout={handleLogout} />} />
             <Route path="/bacheca" element={<BachecaPage gameId={GAME_ID} playerUid={effectivePlayerUid ?? ""} />} />
             <Route path="/messaggi" element={<MessaggiPage gameId={GAME_ID} playerUid={effectivePlayerUid ?? ""} currentAuthUid={user?.uid ?? ""} />} />
