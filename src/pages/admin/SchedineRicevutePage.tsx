@@ -422,13 +422,13 @@ export default function SchedineRicevutePage({
 
                 {isGolden && (
                   <div
-                    className="rounded-xl border p-3"
+                    className="rounded-xl border p-2.5"
                     style={{
                       background: "rgba(255,255,255,0.035)",
                       borderColor: "var(--border)",
                     }}
                   >
-                    <div className="mb-2 flex items-center justify-between gap-2">
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
                       <p
                         className="text-xs font-black uppercase tracking-[0.14em]"
                         style={{ color: "var(--gold)", fontFamily: "Outfit, sans-serif" }}
@@ -445,32 +445,35 @@ export default function SchedineRicevutePage({
                         Nessuna scelta salvata.
                       </p>
                     ) : (
-                      <div className="space-y-2">
+                      <div
+                        data-testid={`golden-picks-compact-${player.id}`}
+                        className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3"
+                      >
                         {goldenPredictionMatches.map((match) => {
                           const sign = goldenPredictions[match.id];
                           const winner = selectedTeam(match, sign);
                           return (
                             <div
                               key={match.id}
-                              className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-lg px-3 py-2"
+                              className="grid grid-cols-[minmax(0,1fr)_minmax(78px,auto)] gap-2 rounded-md px-2 py-1.5"
                               style={{
                                 background: "rgba(4,8,16,0.34)",
                                 border: "1px solid rgba(255,255,255,0.07)",
                               }}
                             >
                               <div className="min-w-0">
-                                <p className="text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>
+                                <p className="text-[9px] font-bold uppercase tracking-[0.08em]" style={{ color: "var(--text-muted)" }}>
                                   {phaseLabel(match.phase)} · {match.bracketSlot ?? match.id}
                                 </p>
-                                <p className="mt-0.5 truncate text-xs" style={{ color: "var(--text-soft)" }}>
+                                <p className="truncate text-[11px]" style={{ color: "var(--text-soft)" }}>
                                   {match.homeTeam} - {match.awayTeam}
                                 </p>
                               </div>
                               <div className="min-w-0 text-right">
-                                <p className="text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>
+                                <p className="text-[9px] font-bold uppercase tracking-[0.08em]" style={{ color: "var(--text-muted)" }}>
                                   Passa
                                 </p>
-                                <p className="mt-0.5 max-w-[140px] truncate text-sm font-black" style={{ color: "var(--correct)" }}>
+                                <p className="max-w-[118px] truncate text-xs font-black" style={{ color: "var(--correct)" }}>
                                   {winner}
                                 </p>
                               </div>
