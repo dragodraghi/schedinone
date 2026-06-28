@@ -4,6 +4,12 @@ import { Link } from "react-router-dom";
 import { doc, updateDoc, writeBatch } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import Toast, { type ToastData } from "../../components/Toast";
+import {
+  applyBracketPredictions,
+  qualifierPredictionsFromPlayer,
+  selectedTeam,
+  sortBracketMatches,
+} from "../../lib/bracket";
 import type { Game, Player, Match, ScheduleStatus } from "../../lib/types";
 
 interface Props {
@@ -18,6 +24,23 @@ interface Props {
 }
 
 type FilterTab = "Tutte" | "In attesa" | "Accettate" | "Rifiutate";
+
+function phaseLabel(phase: Match["phase"]): string {
+  switch (phase) {
+    case "sedicesimi":
+      return "Sedicesimi";
+    case "ottavi":
+      return "Ottavi";
+    case "quarti":
+      return "Quarti";
+    case "semifinali":
+      return "Semifinali";
+    case "finale":
+      return "Finale";
+    default:
+      return "Gironi";
+  }
+}
 
 function statusLabel(status: ScheduleStatus): string {
   switch (status) {
@@ -307,6 +330,12 @@ export default function SchedineRicevutePage({
             const isInviata = player.scheduleStatus === "inviata";
             const acceptKey = player.id + "accettata";
             const rejectKey = player.id + "rifiutata";
+            const goldenPredictions = isGolden ? qualifierPredictionsFromPlayer(player.predictions) : {};
+            const goldenPredictionMatches = isGolden
+              ? sortBracketMatches(applyBracketPredictions(matches, goldenPredictions)).filter(
+                  (match) => goldenPredictions[match.id]
+                )
+              : [];
 
             return (
               <div
@@ -390,6 +419,68 @@ export default function SchedineRicevutePage({
                     </span>
                   </div>
                 </div>
+
+                {isGolden && (
+                  <div
+                    className="rounded-xl border p-3"
+                    style={{
+                      background: "rgba(255,255,255,0.035)",
+                      borderColor: "var(--border)",
+                    }}
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p
+                        className="text-xs font-black uppercase tracking-[0.14em]"
+                        style={{ color: "var(--gold)", fontFamily: "Outfit, sans-serif" }}
+                      >
+                        Schedina compilata
+                      </p>
+                      <span className="text-[10px] font-bold" style={{ color: "var(--text-muted)" }}>
+                        {goldenPredictionMatches.length}/{matches.length}
+                      </span>
+                    </div>
+
+                    {goldenPredictionMatches.length === 0 ? (
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                        Nessuna scelta salvata.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {goldenPredictionMatches.map((match) => {
+                          const sign = goldenPredictions[match.id];
+                          const winner = selectedTeam(match, sign);
+                          return (
+                            <div
+                              key={match.id}
+                              className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-lg px-3 py-2"
+                              style={{
+                                background: "rgba(4,8,16,0.34)",
+                                border: "1px solid rgba(255,255,255,0.07)",
+                              }}
+                            >
+                              <div className="min-w-0">
+                                <p className="text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>
+                                  {phaseLabel(match.phase)} · {match.bracketSlot ?? match.id}
+                                </p>
+                                <p className="mt-0.5 truncate text-xs" style={{ color: "var(--text-soft)" }}>
+                                  {match.homeTeam} - {match.awayTeam}
+                                </p>
+                              </div>
+                              <div className="min-w-0 text-right">
+                                <p className="text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>
+                                  Passa
+                                </p>
+                                <p className="mt-0.5 max-w-[140px] truncate text-sm font-black" style={{ color: "var(--correct)" }}>
+                                  {winner}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {isInviata && (
                   <div className="flex gap-2 pt-1">

@@ -132,7 +132,12 @@ describe("SchedineRicevutePage payment guard", () => {
     );
 
     expect(screen.getByRole("heading", { name: /schedine golden/i })).toBeInTheDocument();
-    expect(screen.getByText("2/2")).toBeInTheDocument();
+    expect(screen.getAllByText("2/2").length).toBeGreaterThan(0);
+    expect(screen.getByText("Schedina compilata")).toBeInTheDocument();
+    expect(screen.getAllByText(/r32-01/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Italia").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/r16-01/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Vincente r32-02").length).toBeGreaterThan(0);
     expect(screen.queryByText(/capocannoniere/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/vincitrice/i)).not.toBeInTheDocument();
   });

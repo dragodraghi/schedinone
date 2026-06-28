@@ -165,6 +165,38 @@ describe("GoldenPlusAdminPanel", () => {
     expect(within(row).getByRole("button", { name: /annulla pagamento giallorossa/i })).toBeInTheDocument();
   });
 
+  it("shows a Golden submitted schedules section with accepted players", async () => {
+    renderPanel({
+      goldenPlayers: [
+        {
+          ...classicPlayers[0],
+          id: "golden-1",
+          name: "Giallorossa",
+          scheduleStatus: "accettata",
+          predictions: { "r32-01": "1" },
+        },
+        {
+          ...classicPlayers[0],
+          id: "golden-2",
+          name: "Muzzo",
+          scheduleStatus: "bozza",
+          predictions: {},
+        },
+      ],
+    });
+
+    const section = await screen.findByTestId("golden-compiled-section");
+
+    expect(within(section).getByRole("heading", { name: /schedine compilate/i })).toBeInTheDocument();
+    expect(section).toHaveTextContent("1 compilata");
+    expect(within(section).getByText("Giallorossa")).toBeInTheDocument();
+    expect(within(section).getByText("Accettata")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /apri schedine compilate/i })).toHaveAttribute(
+      "href",
+      "/admin/golden-schedine"
+    );
+  });
+
   it("blocks new approvals after the Golden Plus deadline but still allows revokes", async () => {
     renderPanel({
       accessClosesAt: new Date("2026-06-28T18:00:00Z"),

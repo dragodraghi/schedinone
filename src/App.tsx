@@ -500,7 +500,17 @@ export default function App() {
                 <Route path="/admin/riepilogo" element={<RiepilogoPage game={game} players={players} matches={matches} />} />
                 <Route path="/admin/schedine" element={<SchedineRicevutePage players={players} matches={matches} gameId={CLASSIC_GAME_ID} game={game} />} />
                 <Route path="/admin/confronto" element={<ConfrontoPage game={game} players={players} matches={matches} />} />
-                <Route path="/admin/golden-plus" element={<GoldenPlusAdminPanel players={players} currentUid={user?.uid ?? ""} accessClosesAt={goldenAccessClosesAt} />} />
+                <Route
+                  path="/admin/golden-plus"
+                  element={
+                    <GoldenPlusAdminPanel
+                      players={players}
+                      goldenPlayers={goldenPlayersForAdmin}
+                      currentUid={user?.uid ?? ""}
+                      accessClosesAt={goldenAccessClosesAt}
+                    />
+                  }
+                />
                 <Route
                   path="/admin/golden-schedine"
                   element={

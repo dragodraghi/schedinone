@@ -8,6 +8,7 @@ import type { GoldenAccess, Player } from "../../lib/types";
 
 type Props = {
   players: Player[];
+  goldenPlayers?: Player[];
   currentUid: string;
   accessClosesAt?: Date | null;
   now?: Date;
@@ -29,6 +30,7 @@ function toAccess(id: string, raw: Record<string, unknown>): GoldenAccess {
 
 export default function GoldenPlusAdminPanel({
   players,
+  goldenPlayers = [],
   currentUid,
   accessClosesAt = null,
   now = new Date(),
@@ -54,6 +56,8 @@ export default function GoldenPlusAdminPanel({
 
   const pending = accessItems.filter((access) => access.status === "pending");
   const approved = accessItems.filter((access) => access.status === "approved");
+  const compiledGoldenPlayers = goldenPlayers.filter((player) => player.scheduleStatus !== "bozza");
+  const acceptedGoldenPlayers = compiledGoldenPlayers.filter((player) => player.scheduleStatus === "accettata");
 
   const approveAccess = async (access: GoldenAccess) => {
     await updateDoc(doc(db, "games", GOLDEN_GAME_ID, "access", access.id), {
@@ -138,6 +142,49 @@ export default function GoldenPlusAdminPanel({
               <span className="micro-label mt-0.5 block">Inserisci la qualificata</span>
             </span>
           </Link>
+        </div>
+      </section>
+
+      <section className="surface-panel p-4" data-testid="golden-compiled-section">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-lg font-black">Schedine compilate</h2>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              {compiledGoldenPlayers.length} compilat{compiledGoldenPlayers.length === 1 ? "a" : "e"} ·{" "}
+              {acceptedGoldenPlayers.length} accettat{acceptedGoldenPlayers.length === 1 ? "a" : "e"}
+            </p>
+          </div>
+          <Link to="/admin/golden-schedine" className="secondary-action px-3" aria-label="Apri schedine compilate">
+            Apri
+          </Link>
+        </div>
+
+        <div className="mt-3 space-y-2">
+          {compiledGoldenPlayers.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">Nessuna schedina Golden compilata.</p>
+          ) : (
+            compiledGoldenPlayers.map((player) => {
+              const picksCount = Object.keys(player.predictions).length;
+              return (
+                <div key={player.id} className="admin-tile">
+                  <span className="admin-mark">SG</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-black text-[var(--text-primary)]">{player.name}</span>
+                    <span className="micro-label mt-0.5 block">{picksCount} scelte salvate</span>
+                  </span>
+                  <span
+                    className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+                      player.scheduleStatus === "accettata"
+                        ? "border-[rgba(0,255,136,0.34)] bg-[rgba(0,255,136,0.09)] text-[var(--correct)]"
+                        : "border-[rgba(0,212,255,0.34)] bg-[rgba(0,212,255,0.09)] text-[var(--accent)]"
+                    }`}
+                  >
+                    {player.scheduleStatus === "accettata" ? "Accettata" : "In attesa"}
+                  </span>
+                </div>
+              );
+            })
+          )}
         </div>
       </section>
 
