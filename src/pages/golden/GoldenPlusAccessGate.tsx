@@ -81,12 +81,24 @@ export default function GoldenPlusAccessGate({
     }
   };
 
+  if (access?.status === "rejected" || access?.status === "revoked") {
+    return (
+      <div className="surface-panel p-4">
+        <p className="text-sm font-black text-[var(--wrong)]">Accesso Golden Plus non attivo</p>
+        <p className="mt-1 text-xs text-[var(--text-muted)]">Contatta il Comitato per chiarimenti.</p>
+      </div>
+    );
+  }
+
+  if (player) {
+    return <>{children}</>;
+  }
+
   if (accessLoading) {
     return <div className="surface-panel p-4 text-sm text-[var(--text-muted)]">Caricamento Golden Plus...</div>;
   }
 
   if (access?.status === "approved") {
-    if (player) return <>{children}</>;
     return (
       <div className="surface-panel p-4 text-sm text-[var(--text-muted)]">
         {joinError ? (
@@ -109,21 +121,12 @@ export default function GoldenPlusAccessGate({
     );
   }
 
-  if (access?.status === "rejected" || access?.status === "revoked") {
+  if (!accessOpen) {
     return (
       <div className="surface-panel p-4">
-        <p className="text-sm font-black text-[var(--wrong)]">Accesso Golden Plus non attivo</p>
-        <p className="mt-1 text-xs text-[var(--text-muted)]">Contatta il Comitato per chiarimenti.</p>
-      </div>
-    );
-  }
-
-    if (!accessOpen) {
-      return (
-        <div className="surface-panel p-4">
-          <p className="text-sm font-black text-[var(--wrong)]">Richieste Golden Plus chiuse</p>
-          <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Le iscrizioni si sono chiuse il {formatGoldenAccessClosesAt(accessClosesAt)}.
+        <p className="text-sm font-black text-[var(--wrong)]">Richieste Golden Plus chiuse</p>
+        <p className="mt-1 text-xs text-[var(--text-muted)]">
+          Le iscrizioni si sono chiuse il {formatGoldenAccessClosesAt(accessClosesAt)}.
         </p>
       </div>
     );

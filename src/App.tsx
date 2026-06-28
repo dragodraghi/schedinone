@@ -109,19 +109,23 @@ export default function App() {
         ? linkedGoldenAccess
         : directGoldenAccess ?? linkedGoldenAccess;
   const goldenAccessLoading = directGoldenAccessLoading || linkedGoldenAccessLoading;
-  const hasGoldenAccess = goldenAccess?.status === "approved";
-  const shouldLoadGolden = authReady && (hasGoldenAccess || isAdminSession || isGoldenRoute);
-  const { game: goldenGame } = useGame(GOLDEN_GAME_ID, shouldLoadGolden);
-  const { matches: goldenMatches } = useMatches(GOLDEN_GAME_ID, shouldLoadGolden);
   const goldenPlayerLookupUid =
     isAdminSession && adminPlayerUid
       ? adminPlayerUid
       : goldenIdentityUid ?? currentAuthUid;
+  const shouldCheckGoldenPlayer =
+    authReady &&
+    !!goldenPlayerLookupUid &&
+    (!!effectivePlayerUid || isAdminSession || isGoldenRoute);
   const { player: goldenPlayer } = useCurrentPlayer(
     GOLDEN_GAME_ID,
     goldenPlayerLookupUid ?? undefined,
-    authReady && hasGoldenAccess && !!goldenPlayerLookupUid
+    shouldCheckGoldenPlayer
   );
+  const hasGoldenAccess = goldenAccess?.status === "approved" || !!goldenPlayer;
+  const shouldLoadGolden = authReady && (hasGoldenAccess || isAdminSession || isGoldenRoute);
+  const { game: goldenGame } = useGame(GOLDEN_GAME_ID, shouldLoadGolden);
+  const { matches: goldenMatches } = useMatches(GOLDEN_GAME_ID, shouldLoadGolden);
   const { players: goldenAdminPlayers, loading: goldenAdminPlayersLoading } = usePlayers(
     GOLDEN_GAME_ID,
     authReady && isAdminSession
