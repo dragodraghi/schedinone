@@ -14,6 +14,7 @@ interface Props {
   latestAnnouncementTitle?: string;
   unreadPrivateMessageCount?: number;
   latestPrivateMessagePreview?: string;
+  hasGoldenAccess?: boolean;
 }
 
 export default function DashboardPage({
@@ -24,6 +25,7 @@ export default function DashboardPage({
   latestAnnouncementTitle,
   unreadPrivateMessageCount = 0,
   latestPrivateMessagePreview,
+  hasGoldenAccess = false,
 }: Props) {
   const phaseMatches = matches.filter((m) => m.phase === game.currentPhase);
   const totalMatches = phaseMatches.length;
@@ -175,6 +177,35 @@ export default function DashboardPage({
             </div>
             <span className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider" style={{ background: "var(--wrong)", color: "#fff" }}>
               Apri
+            </span>
+          </div>
+        </Link>
+      )}
+
+      {hasGoldenAccess && (
+        <Link
+          to="/golden-plus"
+          className="action-card block p-4 card-tap"
+          style={{ "--card-accent": "var(--gold)" } as CSSProperties}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="micro-label">Golden Plus</p>
+              <p
+                className="mt-2 text-lg font-black leading-tight"
+                style={{ fontFamily: "Outfit, sans-serif", color: "var(--gold)" }}
+              >
+                Apri Golden Plus
+              </p>
+              <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                Tabellone, invio e classifica Golden.
+              </p>
+            </div>
+            <span
+              className="shrink-0 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider"
+              style={{ background: "rgba(255,215,0,0.16)", color: "var(--gold)" }}
+            >
+              GP
             </span>
           </div>
         </Link>

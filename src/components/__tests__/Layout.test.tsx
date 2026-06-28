@@ -42,6 +42,18 @@ describe("Layout", () => {
     expect(screen.getByRole("link", { name: /profilo/i })).toHaveClass("shrink-0");
   });
 
+  it("places Golden next to the main schedina tab for approved players", () => {
+    render(
+      <MemoryRouter>
+        <Layout hasGoldenAccess><div>Content</div></Layout>
+      </MemoryRouter>
+    );
+
+    const labels = screen.getAllByRole("link").map((link) => link.textContent);
+
+    expect(labels.slice(0, 3)).toEqual(["26Home", "1X2Schedina", "GPGolden"]);
+  });
+
   it("does not render the player schedina tab for admins", () => {
     render(
       <MemoryRouter>

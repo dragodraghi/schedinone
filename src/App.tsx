@@ -489,7 +489,7 @@ export default function App() {
       <Layout isAdmin={isAdminSession} hasPlayerProfile={hasAdminPlayerProfile} hasGoldenAccess={hasGoldenAccess}>
         <Suspense fallback={<PageSkeleton />}>
           <Routes>
-            <Route path="/" element={<DashboardPage game={game} player={safePlayer} players={players} matches={matches} unreadAnnouncementCount={unreadAnnouncementCount} latestAnnouncementTitle={latestUnreadAnnouncementTitle} unreadPrivateMessageCount={unreadPrivateMessageCount} latestPrivateMessagePreview={latestPrivateMessagePreview} />} />
+            <Route path="/" element={<DashboardPage game={game} player={safePlayer} players={players} matches={matches} unreadAnnouncementCount={unreadAnnouncementCount} latestAnnouncementTitle={latestUnreadAnnouncementTitle} unreadPrivateMessageCount={unreadPrivateMessageCount} latestPrivateMessagePreview={latestPrivateMessagePreview} hasGoldenAccess={hasGoldenAccess} />} />
             <Route
               path="/schedina"
               element={

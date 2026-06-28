@@ -80,6 +80,19 @@ describe("DashboardPage", () => {
     expect(screen.getByText(/Pagamento ricevuto/i)).toBeInTheDocument();
   });
 
+  it("shows a prominent Golden Plus entry point for approved players", () => {
+    render(
+      <MemoryRouter>
+        <DashboardPage game={game} player={player} players={[player]} matches={[]} hasGoldenAccess />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("link", { name: /apri golden plus/i })).toHaveAttribute(
+      "href",
+      "/golden-plus"
+    );
+  });
+
   it("keeps the home page focused on committee, schedule and next match actions", () => {
     render(
       <MemoryRouter>

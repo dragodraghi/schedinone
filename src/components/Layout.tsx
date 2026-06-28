@@ -32,6 +32,10 @@ const adminPlayerTabs = [
 
 function addGoldenTab(tabs: typeof baseTabs, enabled?: boolean) {
   if (!enabled) return tabs;
+  const schedinaIndex = tabs.findIndex((tab) => tab.to === "/schedina");
+  if (schedinaIndex >= 0) {
+    return [...tabs.slice(0, schedinaIndex + 1), goldenTab, ...tabs.slice(schedinaIndex + 1)];
+  }
   const profileIndex = tabs.findIndex((tab) => tab.to === "/profilo");
   if (profileIndex < 0) return [...tabs, goldenTab];
   return [...tabs.slice(0, profileIndex), goldenTab, ...tabs.slice(profileIndex)];

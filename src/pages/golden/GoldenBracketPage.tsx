@@ -52,6 +52,7 @@ export default function GoldenBracketPage({ game, player, matches, gameId }: Pro
   const isReadOnly = localStatus === "inviata" || localStatus === "accettata";
   const filledCount = matches.filter((match) => predictions[match.id]).length;
   const allFilled = matches.length > 0 && filledCount === matches.length;
+  const missingCount = Math.max(matches.length - filledCount, 0);
 
   const persistDraft = useCallback(
     async (nextPredictions: QualifierPredictions, submit: boolean) => {
@@ -127,6 +128,24 @@ export default function GoldenBracketPage({ game, player, matches, gameId }: Pro
         Classifica Golden
       </Link>
 
+      {!isReadOnly && matches.length > 0 && (
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={!allFilled || saving}
+          className="primary-action sticky top-2 z-20 w-full px-4 py-3 text-center disabled:opacity-55"
+        >
+          <span className="block text-sm font-black uppercase tracking-wider">
+            {saving ? "Salvataggio..." : "Invia tabellone al Comitato"}
+          </span>
+          {!saving && !allFilled && (
+            <span className="mt-0.5 block text-[11px] font-bold normal-case tracking-normal opacity-80">
+              Mancano {missingCount} scelt{missingCount === 1 ? "a" : "e"}
+            </span>
+          )}
+        </button>
+      )}
+
       {isReadOnly && (
         <div className="status-panel px-4 py-3">
           <p className="text-sm font-black text-[var(--accent)]">Tabellone inviato</p>
@@ -163,20 +182,6 @@ export default function GoldenBracketPage({ game, player, matches, gameId }: Pro
         </div>
       )}
 
-      {!isReadOnly && matches.length > 0 && (
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={!allFilled || saving}
-          className="primary-action w-full disabled:opacity-40"
-        >
-          {saving
-            ? "Salvataggio..."
-            : allFilled
-            ? "Invia tabellone al Comitato"
-            : `Mancano ${matches.length - filledCount} scelt${matches.length - filledCount === 1 ? "a" : "e"}`}
-        </button>
-      )}
     </div>
   );
 }

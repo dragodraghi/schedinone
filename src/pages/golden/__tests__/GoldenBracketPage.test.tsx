@@ -112,6 +112,13 @@ describe("GoldenBracketPage", () => {
     );
   });
 
+  it("keeps the submit button visible even while picks are still missing", () => {
+    renderPage();
+
+    expect(screen.getByRole("button", { name: /invia tabellone al comitato/i })).toBeDisabled();
+    expect(screen.getByText(/mancano 4 scelte/i)).toBeInTheDocument();
+  });
+
   it("keeps the desktop bracket inside a horizontal touch scroller", () => {
     renderPage();
 
