@@ -14,7 +14,11 @@ function asScheduleStatus(value) {
 }
 
 function nameKey(name) {
-  return encodeURIComponent(String(name).trim().toLowerCase());
+  return String(name)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/gi, "")
+    .toLowerCase();
 }
 
 admin.initializeApp({ credential: admin.credential.cert(loadServiceAccount()) });

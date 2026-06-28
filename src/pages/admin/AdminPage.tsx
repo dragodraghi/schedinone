@@ -26,6 +26,9 @@ interface Props {
 
 const PHASES: Phase[] = ["gironi", "ottavi", "quarti", "semifinali", "finale"];
 
+const formatStatusCount = (count: number, singular: string, plural: string) =>
+  `${count} ${count === 1 ? singular : plural}`;
+
 export default function AdminPage({ game, players, matches, onLogout }: Props) {
   const [savingPhase, setSavingPhase] = useState(false);
   const [topScorerInput, setTopScorerInput] = useState(game.topScorer ?? "");
@@ -71,6 +74,61 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
   const paidCount = players.filter((p) => p.paid).length;
   const prize = game.entryFee * paidCount;
   const pendingCount = players.filter((p) => p.scheduleStatus === "inviata").length;
+  const acceptedCount = players.filter((p) => p.scheduleStatus === "accettata").length;
+  const draftCount = players.filter((p) => p.scheduleStatus === "bozza").length;
+  const rejectedCount = players.filter((p) => p.scheduleStatus === "rifiutata").length;
+  const submittedCount = pendingCount + acceptedCount;
+  const totalPlayers = players.length;
+  const submissionRate = totalPlayers > 0 ? Math.round((submittedCount / totalPlayers) * 100) : 0;
+  const acceptedRate = totalPlayers > 0 ? Math.round((acceptedCount / totalPlayers) * 100) : 0;
+  const submissionSummaryCards = [
+    {
+      label: "Iscritti totali",
+      value: totalPlayers,
+      caption: "Squadre registrate",
+      color: "var(--accent)",
+    },
+    {
+      label: "Schedine inviate/accettate",
+      value: `${submittedCount} di ${totalPlayers}`,
+      caption: "Consegnate al Comitato",
+      color: "var(--accent)",
+    },
+    {
+      label: "Accettate dal Comitato",
+      value: `${acceptedCount} di ${totalPlayers} accettate`,
+      caption: "Valide per il gioco",
+      color: "var(--correct)",
+    },
+    {
+      label: "Da accettare",
+      value: pendingCount,
+      caption: "In attesa di verifica",
+      color: "var(--gold)",
+    },
+  ];
+  const submissionStats = [
+    {
+      label: formatStatusCount(acceptedCount, "accettata", "accettate"),
+      caption: "Ok Comitato",
+      color: "var(--correct)",
+    },
+    {
+      label: `${pendingCount} da accettare`,
+      caption: "In verifica",
+      color: "var(--gold)",
+    },
+    {
+      label: `${draftCount} in bozza`,
+      caption: "Ancora modificabili",
+      color: "var(--accent)",
+    },
+    {
+      label: formatStatusCount(rejectedCount, "rifiutata", "rifiutate"),
+      caption: "Da sistemare",
+      color: "var(--wrong)",
+    },
+  ];
 
   const kpis = [
     { label: "Iscritti", value: players.length, color: "var(--accent)" },
@@ -84,6 +142,9 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
     { to: "/admin/risultati", label: "Gestisci Risultati", mark: "RES" },
     { to: "/admin/giocatori", label: "Gestisci Giocatori", mark: "PLY" },
     { to: "/admin/confronto", label: "Confronto Giocatori", mark: "VS" },
+    { to: "/admin/golden-plus", label: "Golden Plus", mark: "GP" },
+    { to: "/admin/golden-schedine", label: "Schedine Golden", mark: "GS" },
+    { to: "/admin/golden-risultati", label: "Risultati Golden", mark: "GR" },
   ];
 
   const handlePhaseChange = async (newPhase: Phase) => {
@@ -226,6 +287,60 @@ export default function AdminPage({ game, players, matches, onLogout }: Props) {
                 {action.value}
               </span>
             </Link>
+          ))}
+        </div>
+      </section>
+
+      <section aria-label="Riepilogo iscrizioni" className="surface-panel p-4 sm:p-5">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="page-kicker">Riepilogo iscrizioni</p>
+            <h2 className="mt-1 text-lg font-black">Stato schedine</h2>
+          </div>
+          <p className="text-xs text-[var(--text-muted)]">
+            Consegnate {submissionRate}% · Accettate {acceptedRate}%
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {submissionSummaryCards.map((card) => (
+            <div key={card.label} className="kpi-card p-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                {card.label}
+              </p>
+              <p className="mt-2 text-xl font-black leading-tight" style={{ color: card.color }}>
+                {card.value}
+              </p>
+              <p className="mt-1 text-[11px] leading-snug text-[var(--text-muted)]">{card.caption}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 space-y-2" aria-hidden="true">
+          <div className="h-2 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-[var(--accent)] transition-all"
+              style={{ width: `${submissionRate}%` }}
+            />
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-[var(--correct)] transition-all"
+              style={{ width: `${acceptedRate}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 border-t border-[var(--border)] pt-4 sm:grid-cols-4">
+          {submissionStats.map((stat) => (
+            <div key={stat.caption} className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                {stat.caption}
+              </p>
+              <p className="mt-1 truncate text-sm font-black" style={{ color: stat.color }}>
+                {stat.label}
+              </p>
+            </div>
           ))}
         </div>
       </section>

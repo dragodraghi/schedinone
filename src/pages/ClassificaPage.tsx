@@ -10,9 +10,24 @@ interface Props {
   player: Player;
   players: Player[];
   loading?: boolean;
+  title?: string;
+  kicker?: string;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  showCompareLink?: boolean;
 }
 
-export default function ClassificaPage({ game, player, players, loading = false }: Props) {
+export default function ClassificaPage({
+  game,
+  player,
+  players,
+  loading = false,
+  title = "Classifica",
+  kicker = "Punti torneo",
+  emptyTitle = "Nessun giocatore iscritto",
+  emptyDescription = "Appena i primi giocatori entreranno con il codice, li vedrai comparire qui.",
+  showCompareLink = true,
+}: Props) {
   const paidCount = players.filter((p) => p.paid).length;
   const prize = game.entryFee * paidCount;
   const topPlayers = getTopPlayers(players);
@@ -34,8 +49,8 @@ export default function ClassificaPage({ game, player, players, loading = false 
     <div className="space-y-5 animate-in">
       <header className="page-head">
         <div>
-          <p className="page-kicker">Punti torneo</p>
-          <h1 className="text-2xl sm:text-3xl font-black mt-1" style={{ fontFamily: "Outfit, sans-serif" }}>Classifica</h1>
+          <p className="page-kicker">{kicker}</p>
+          <h1 className="text-2xl sm:text-3xl font-black mt-1" style={{ fontFamily: "Outfit, sans-serif" }}>{title}</h1>
         </div>
         <div className="counter-pill px-3 py-2 rounded-lg text-xs">
           <span style={{ color: "var(--accent)" }}>{players.length}</span>
@@ -64,7 +79,7 @@ export default function ClassificaPage({ game, player, players, loading = false 
         </div>
       </section>
 
-      {players.length > 0 && (
+      {showCompareLink && players.length > 0 && (
         <Link
           to="/confronto"
           className="secondary-action flex items-center justify-center w-full px-4"
@@ -91,8 +106,8 @@ export default function ClassificaPage({ game, player, players, loading = false 
       {!loading && players.length === 0 && (
         <EmptyState
           icon="Trophy"
-          title="Nessun giocatore iscritto"
-          description="Appena i primi giocatori entreranno con il codice, li vedrai comparire qui."
+          title={emptyTitle}
+          description={emptyDescription}
           accent="muted"
         />
       )}

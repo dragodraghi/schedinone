@@ -1,17 +1,18 @@
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import * as bcrypt from "bcryptjs";
-import { isReservedPlayerName, resolveExtraDeviceLinkTarget } from "./joinGameAccess";
+import {
+  canonicalPlayerNameKey,
+  isReservedPlayerName,
+  resolveJoinIdentity,
+  resolveExtraDeviceLinkTarget,
+} from "./joinGameAccess";
+import { verifyAccessCode } from "./joinGameAccessCode";
 
 const MAX_NAME_LEN = 30;
 const MAX_CODE_LEN = 30;
 
 function normalizeName(name: string): string {
   return name.trim().toLowerCase();
-}
-
-function nameKey(name: string): string {
-  return encodeURIComponent(name);
 }
 
 function publicPlayerData(data: admin.firestore.DocumentData) {
@@ -65,13 +66,11 @@ export const joinGame = onCall(
 
     if (
       typeof gameId !== "string" ||
-      typeof name !== "string" ||
-      typeof code !== "string" ||
       !gameId.trim() ||
-      !name.trim() ||
-      !code.trim() ||
-      name.length > MAX_NAME_LEN ||
-      code.length > MAX_CODE_LEN
+      (name !== undefined && typeof name !== "string") ||
+      (code !== undefined && typeof code !== "string") ||
+      (typeof name === "string" && name.length > MAX_NAME_LEN) ||
+      (typeof code === "string" && code.length > MAX_CODE_LEN)
     ) {
       throw new HttpsError("invalid-argument", "Parametri mancanti o non validi.");
     }
@@ -93,25 +92,44 @@ export const joinGame = onCall(
       );
     }
 
-    // Prefer the private hash. The legacy plaintext fallback should be removed
-    // after running scripts/migrate-access-code.mjs --apply in production.
-    const privateRef = gameRef.collection("private").doc("config");
-    const privateSnap = await privateRef.get();
-    let codeOk = false;
-    if (privateSnap.exists) {
-      const hash = (privateSnap.data() ?? {}).accessCodeHash as string | undefined;
-      if (typeof hash === "string" && hash.length > 0) {
-        codeOk = await bcrypt.compare(code, hash);
+    const gameMode = gameData.mode === "golden-plus" ? "golden-plus" : "classic";
+    const accessData =
+      gameMode === "golden-plus"
+        ? (await db.doc(`games/${gameId}/access/${uid}`).get()).data()
+        : undefined;
+    let joinIdentity: { effectiveName: string; skipCodeCheck: boolean };
+    try {
+      joinIdentity = resolveJoinIdentity({
+        gameMode,
+        name,
+        code,
+        accessData,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Parametri mancanti o non validi.";
+      if (message.includes("Golden Plus")) {
+        throw new HttpsError(
+          message.includes("incompleto") ? "failed-precondition" : "permission-denied",
+          message
+        );
       }
-    }
-    if (!codeOk && typeof gameData.accessCode === "string") {
-      codeOk = code === gameData.accessCode;
-    }
-    if (!codeOk) {
-      throw new HttpsError("permission-denied", "Password non valida.");
+      throw new HttpsError("invalid-argument", message);
     }
 
-    const requestedName = name.trim();
+    if (!joinIdentity.skipCodeCheck) {
+      // Use only the private hash; the legacy plaintext game accessCode is no longer accepted.
+      const privateRef = gameRef.collection("private").doc("config");
+      const privateSnap = await privateRef.get();
+      const hash = privateSnap.exists
+        ? ((privateSnap.data() ?? {}).accessCodeHash as string | undefined)
+        : undefined;
+      const codeOk = await verifyAccessCode(code as string, hash, gameData.accessCode);
+      if (!codeOk) {
+        throw new HttpsError("permission-denied", "Password non valida.");
+      }
+    }
+
+    const requestedName = joinIdentity.effectiveName;
     if (isReservedPlayerName(requestedName)) {
       throw new HttpsError(
         "invalid-argument",
@@ -120,9 +138,13 @@ export const joinGame = onCall(
     }
 
     const normalized = normalizeName(requestedName);
+    const canonicalName = canonicalPlayerNameKey(requestedName);
+    if (!canonicalName) {
+      throw new HttpsError("invalid-argument", "Nome squadra non valido.");
+    }
     const playerRef = db.doc(`games/${gameId}/players/${uid}`);
     const publicPlayerRef = db.doc(`games/${gameId}/publicPlayers/${uid}`);
-    const nameRef = db.doc(`games/${gameId}/playerNames/${nameKey(normalized)}`);
+    const nameRef = db.doc(`games/${gameId}/playerNames/${canonicalName}`);
 
     async function linkExtraDevice(targetUid: string) {
       const targetRef = db.doc(`games/${gameId}/players/${targetUid}`);
@@ -159,7 +181,9 @@ export const joinGame = onCall(
     if (dup.empty) {
       const all = await db.collection(`games/${gameId}/players`).get();
       const clash = all.docs.find(
-        (d) => typeof d.data().name === "string" && normalizeName(d.data().name) === normalized
+        (d) =>
+          typeof d.data().name === "string" &&
+          canonicalPlayerNameKey(d.data().name) === canonicalName
       );
       if (clash && clash.id !== uid) {
         return linkExtraDevice(clash.id);
@@ -216,6 +240,7 @@ export const joinGame = onCall(
         uid,
         name: requestedName,
         nameLower: normalized,
+        canonicalName,
         createdAt: joinedAt,
       });
       tx.set(playerRef, playerData);

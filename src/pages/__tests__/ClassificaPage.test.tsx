@@ -48,4 +48,41 @@ describe("ClassificaPage", () => {
     expect(screen.queryByText("Prima Squadra")).toBeInTheDocument();
     expect(screen.queryByText("Seconda Squadra")).toBeInTheDocument();
   });
+
+  it("renders a Golden Plus leaderboard for qualifier points", () => {
+    const goldenGame: Game = {
+      ...game,
+      id: "schedinone-golden-plus-2026",
+      name: "Schedinone Golden Plus",
+      entryFee: 20,
+      mode: "golden-plus",
+      predictionMode: "qualifier",
+      specialPicksEnabled: false,
+      phases: ["sedicesimi", "ottavi", "quarti", "semifinali", "finale"],
+      currentPhase: "sedicesimi",
+    };
+    const leader = player({ id: "leader", name: "THE FLOWERS", points: 4, paid: true });
+    const second = player({ id: "second", name: "7 e Muzzo", points: 3, paid: true });
+
+    render(
+      <MemoryRouter>
+        <ClassificaPage
+          game={goldenGame}
+          player={second}
+          players={[second, leader]}
+          title="Classifica Golden"
+          kicker="Golden Plus"
+          emptyDescription="Appena il Comitato inserisce i risultati, ogni passaggio turno indovinato vale 1 punto."
+          showCompareLink={false}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("heading", { name: /classifica golden/i })).toBeInTheDocument();
+    expect(screen.getByText("Golden Plus")).toBeInTheDocument();
+    expect(screen.getAllByText("THE FLOWERS").length).toBeGreaterThan(0);
+    expect(screen.getByText("4 punti")).toBeInTheDocument();
+    expect(screen.getByText((_content, node) => node?.textContent === "EUR 40")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /confronta squadre/i })).not.toBeInTheDocument();
+  });
 });

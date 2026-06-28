@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import SchedineRicevutePage from "../SchedineRicevutePage";
-import type { Game, Player } from "../../../lib/types";
+import type { Game, Match, Player } from "../../../lib/types";
 
 vi.mock("firebase/firestore", () => ({
   doc: vi.fn(),
@@ -41,12 +41,12 @@ const basePlayer: Player = {
   scheduleStatus: "inviata",
 };
 
-function renderPage(players: Player[]) {
+function renderPage(players: Player[], overrides?: { game?: Game; matches?: Match[] }) {
   return render(
     <MemoryRouter>
       <SchedineRicevutePage
         players={players}
-        matches={[
+        matches={overrides?.matches ?? [
           {
             id: "m1",
             phase: "gironi",
@@ -59,19 +59,19 @@ function renderPage(players: Player[]) {
             locked: false,
           },
         ]}
-        gameId="world-cup-2026"
-        game={game}
+        gameId={overrides?.game?.id ?? "world-cup-2026"}
+        game={overrides?.game ?? game}
       />
     </MemoryRouter>
   );
 }
 
 describe("SchedineRicevutePage payment guard", () => {
-  it("does not allow accepting an unpaid submitted schedule", () => {
+  it("allows accepting an unpaid submitted schedule and keeps it marked as unpaid", () => {
     renderPage([basePlayer]);
 
     expect(screen.getByText("Non pagato")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /pagamento mancante/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /accetta schedina/i })).not.toBeDisabled();
   });
 
   it("allows accepting a paid submitted schedule", () => {
@@ -79,5 +79,61 @@ describe("SchedineRicevutePage payment guard", () => {
 
     expect(screen.getByText("Pagato")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /accetta schedina/i })).not.toBeDisabled();
+  });
+
+  it("counts every Golden Plus bracket pick instead of only the current phase", () => {
+    const goldenGame: Game = {
+      ...game,
+      id: "schedinone-golden-plus-2026",
+      name: "Schedinone Golden Plus 2026",
+      phases: ["sedicesimi", "ottavi"],
+      currentPhase: "sedicesimi",
+      mode: "golden-plus",
+      predictionMode: "qualifier",
+      specialPicksEnabled: false,
+    };
+    const goldenMatches: Match[] = [
+      {
+        id: "r32-01",
+        phase: "sedicesimi",
+        group: null,
+        homeTeam: "Italia",
+        awayTeam: "Brasile",
+        kickoff: new Date("2026-06-28T19:00:00Z"),
+        result: null,
+        score: null,
+        locked: false,
+      },
+      {
+        id: "r16-01",
+        phase: "ottavi",
+        group: null,
+        homeTeam: "Vincente r32-01",
+        awayTeam: "Vincente r32-02",
+        kickoff: new Date("2026-07-04T19:00:00Z"),
+        result: null,
+        score: null,
+        locked: false,
+      },
+    ];
+
+    renderPage(
+      [
+        {
+          ...basePlayer,
+          name: "Giallorossa",
+          predictions: { "r32-01": "1", "r16-01": "2" },
+          topScorerPick: "",
+          winnerPick: "",
+          paid: true,
+        },
+      ],
+      { game: goldenGame, matches: goldenMatches }
+    );
+
+    expect(screen.getByRole("heading", { name: /schedine golden/i })).toBeInTheDocument();
+    expect(screen.getByText("2/2")).toBeInTheDocument();
+    expect(screen.queryByText(/capocannoniere/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/vincitrice/i)).not.toBeInTheDocument();
   });
 });

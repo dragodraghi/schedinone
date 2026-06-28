@@ -5,21 +5,31 @@ import { db } from "../../lib/firebase";
 import Flag from "../../components/Flag";
 import Toast, { type ToastData } from "../../components/Toast";
 import { recalcPointsClient } from "../../lib/recalcPoints";
+import { getChronologicalMatchDayGroups } from "../../lib/matchGrouping";
 import {
   fetchResultProposalsNow,
   subscribeResultProposals,
   type ResultProposal,
 } from "../../lib/resultProposals";
-import type { Match, Sign } from "../../lib/types";
+import type { Match, PredictionMode, Sign } from "../../lib/types";
 
 interface Props {
   matches: Match[];
   gameId: string;
+  predictionMode?: PredictionMode;
+  title?: string;
+  backTo?: string;
+  backLabel?: string;
+  showAutomaticProposals?: boolean;
 }
 
-const signs: Sign[] = ["1", "X", "2"];
-
 type EditMode = "result" | "kickoff";
+
+function proposalSourceLabel(source: string): string {
+  if (source === "fifa-official") return "Fonte FIFA ufficiale";
+  if (source === "api-football") return "API-Football";
+  return source;
+}
 
 /** Format a Date as a datetime-local input value in the user's local time zone. */
 function toLocalInput(d: Date): string {
@@ -29,7 +39,20 @@ function toLocalInput(d: Date): string {
   )}:${pad(d.getMinutes())}`;
 }
 
-export default function RisultatiPage({ matches, gameId }: Props) {
+function matchContextLabel(match: Match): string {
+  if (match.phase === "gironi" && match.group) return `Gruppo ${match.group}`;
+  return match.phase;
+}
+
+export default function RisultatiPage({
+  matches,
+  gameId,
+  predictionMode = "result",
+  title = "Gestione Partite",
+  backTo = "/admin",
+  backLabel = "Admin",
+  showAutomaticProposals = true,
+}: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState<EditMode>("result");
   const [editScore, setEditScore] = useState("");
@@ -40,14 +63,19 @@ export default function RisultatiPage({ matches, gameId }: Props) {
   const [proposalBusyId, setProposalBusyId] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastData | null>(null);
   const clearToast = useCallback(() => setToast(null), []);
+  const signs: Sign[] = predictionMode === "qualifier" ? ["1", "2"] : ["1", "X", "2"];
 
   useEffect(() => {
+    if (!showAutomaticProposals) {
+      setResultProposals({});
+      return;
+    }
     return subscribeResultProposals(gameId, (proposals) => {
       setResultProposals(
         Object.fromEntries(proposals.map((proposal) => [proposal.matchId, proposal]))
       );
     });
-  }, [gameId]);
+  }, [gameId, showAutomaticProposals]);
 
   const startEditResult = (match: Match) => {
     setEditingId(match.id);
@@ -176,11 +204,7 @@ export default function RisultatiPage({ matches, gameId }: Props) {
     }
   };
 
-  const groupedByPhase = matches.reduce<Record<string, Match[]>>((acc, m) => {
-    if (!acc[m.phase]) acc[m.phase] = [];
-    acc[m.phase].push(m);
-    return acc;
-  }, {});
+  const dayGroups = getChronologicalMatchDayGroups(matches);
 
   return (
     <div className="space-y-6 animate-in">
@@ -189,39 +213,43 @@ export default function RisultatiPage({ matches, gameId }: Props) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-black" style={{ fontFamily: "Outfit, sans-serif" }}>
-            Gestione Partite
+            {title}
           </h1>
           <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
-            Le proposte automatiche diventano ufficiali solo dopo conferma del Comitato.
+            {showAutomaticProposals
+              ? "Le proposte dalla fonte FIFA ufficiale diventano risultati validi solo dopo conferma del Comitato."
+              : "Inserisci la qualificata confermata: 1 per la squadra a sinistra, 2 per quella a destra."}
           </p>
         </div>
-        <button
-          onClick={handleFetchProposals}
-          disabled={checkingProposals}
-          className="secondary-action px-4 disabled:opacity-50"
-          style={{ borderColor: "rgba(0,212,255,0.28)", color: "var(--accent)" }}
-        >
-          {checkingProposals ? "Ricerca in corso..." : "Cerca risultati automatici"}
-        </button>
+        {showAutomaticProposals && (
+          <button
+            onClick={handleFetchProposals}
+            disabled={checkingProposals}
+            className="secondary-action px-4 disabled:opacity-50"
+            style={{ borderColor: "rgba(0,212,255,0.28)", color: "var(--accent)" }}
+          >
+            {checkingProposals ? "Ricerca in corso..." : "Cerca risultati automatici"}
+          </button>
+        )}
       </div>
 
       <Link
-        to="/admin"
+        to={backTo}
         className="block text-center text-sm transition-colors"
         style={{ color: "var(--text-muted)" }}
       >
-        ← Admin
+        ← {backLabel}
       </Link>
 
-      {Object.entries(groupedByPhase).map(([phase, phaseMatches]) => (
-        <div key={phase} className="space-y-2">
+      {dayGroups.map((dayGroup) => (
+        <div key={dayGroup.key} className="space-y-2">
           <h2
             className="group-header text-[11px] uppercase tracking-wider"
             style={{ color: "var(--accent)" }}
           >
-            {phase}
+            {dayGroup.label}
           </h2>
-          {phaseMatches.map((match) => {
+          {dayGroup.matches.map((match) => {
             const proposal = resultProposals[match.id];
             const showProposal =
               proposal &&
@@ -264,7 +292,7 @@ export default function RisultatiPage({ matches, gameId }: Props) {
               {/* Kickoff info — always visible */}
               {match.kickoff && editingId !== match.id && (
                 <div className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                  ⏱️{" "}
+                  {matchContextLabel(match)} -{" "}
                   {match.kickoff.toLocaleString("it-IT", {
                     weekday: "short",
                     day: "2-digit",
@@ -399,7 +427,7 @@ export default function RisultatiPage({ matches, gameId }: Props) {
                       </p>
                     </div>
                     <span className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
-                      {proposal.source}
+                      {proposalSourceLabel(proposal.source)}
                     </span>
                   </div>
                   <div className="flex gap-2">

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isReservedPlayerName, resolveExtraDeviceLinkTarget } from "../joinGameAccess";
+import {
+  canonicalPlayerNameKey,
+  isReservedPlayerName,
+  resolveJoinIdentity,
+  resolveExtraDeviceLinkTarget,
+} from "../joinGameAccess";
 
 describe("resolveExtraDeviceLinkTarget", () => {
   it("links a different anonymous uid to a multi-device player", () => {
@@ -80,5 +85,77 @@ describe("isReservedPlayerName", () => {
     expect(isReservedPlayerName("Italia")).toBe(false);
     expect(isReservedPlayerName("THE FLOWERS")).toBe(false);
     expect(isReservedPlayerName("Sorelle Dessanti")).toBe(false);
+  });
+});
+
+describe("canonicalPlayerNameKey", () => {
+  it("treats apostrophe, space, accent and punctuation variants as the same team name", () => {
+    const variants = ["S’anca", "S anca", "S'anca", "S.anca", " sanca "];
+
+    expect(variants.map(canonicalPlayerNameKey)).toEqual([
+      "sanca",
+      "sanca",
+      "sanca",
+      "sanca",
+      "sanca",
+    ]);
+  });
+
+  it("keeps meaningful letters and numbers for normal team names", () => {
+    expect(canonicalPlayerNameKey("Éire Abú 2026")).toBe("eireabu2026");
+    expect(canonicalPlayerNameKey("A.C. Picchia 2026")).toBe("acpicchia2026");
+  });
+});
+
+describe("resolveJoinIdentity", () => {
+  it("uses approved Golden Plus access as the effective team name without a code", () => {
+    expect(
+      resolveJoinIdentity({
+        gameMode: "golden-plus",
+        name: "",
+        code: "",
+        accessData: {
+          status: "approved",
+          displayName: "Team Golden",
+        },
+      })
+    ).toEqual({
+      effectiveName: "Team Golden",
+      skipCodeCheck: true,
+    });
+  });
+
+  it("rejects Golden Plus access that is missing or not approved", () => {
+    expect(() =>
+      resolveJoinIdentity({
+        gameMode: "golden-plus",
+        name: "",
+        code: "",
+        accessData: { status: "pending", displayName: "Team Golden" },
+      })
+    ).toThrow("Accesso Golden Plus non autorizzato.");
+  });
+
+  it("keeps classic joins on team name plus required access code", () => {
+    expect(
+      resolveJoinIdentity({
+        gameMode: "classic",
+        name: "THE FLOWERS",
+        code: "GIOCA2026",
+      })
+    ).toEqual({
+      effectiveName: "THE FLOWERS",
+      skipCodeCheck: false,
+    });
+  });
+
+  it("rejects classic joins without an access code", () => {
+    expect(() =>
+      resolveJoinIdentity({
+        gameMode: "classic",
+        name: "THE FLOWERS",
+        code: "",
+      })
+    ).toThrow("Parametri mancanti o non validi.");
   });
 });

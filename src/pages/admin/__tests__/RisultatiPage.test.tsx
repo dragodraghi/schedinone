@@ -32,20 +32,32 @@ const proposalMocks = vi.hoisted(() => ({
 
 vi.mock('../../../lib/resultProposals', () => proposalMocks);
 
-const matches: Match[] = [
-  {
-    id: 'match-1',
+function makeMatch(id: string, group: string, kickoff: string): Match {
+  return {
+    id,
     phase: 'gironi',
-    group: 'A',
-    homeTeam: 'Italia',
-    awayTeam: 'Canada',
-    kickoff: new Date('2026-06-11T20:00:00Z'),
+    group,
+    homeTeam: `Casa ${group}`,
+    awayTeam: `Trasferta ${group}`,
+    kickoff: new Date(kickoff),
     kickoffSource: 'api',
     result: null,
     score: null,
     locked: false,
-  },
+  };
+}
+
+const matches: Match[] = [
+  makeMatch('match-3', 'C', '2026-06-13T22:00:00Z'),
+  makeMatch('match-1', 'A', '2026-06-12T11:00:00Z'),
+  makeMatch('match-2', 'B', '2026-06-12T10:00:00Z'),
 ];
+
+function textContaining(value: string): HTMLElement {
+  const element = screen.getAllByText((content) => content.includes(value))[0];
+  if (!element) throw new Error(`Missing text containing ${value}`);
+  return element;
+}
 
 describe('RisultatiPage', () => {
   beforeEach(() => {
@@ -70,7 +82,7 @@ describe('RisultatiPage', () => {
             score: '2-0',
             result: '1',
             status: 'pending',
-            source: 'api-football',
+            source: 'fifa-official',
             fetchedAt: null,
           },
         ]);
@@ -87,6 +99,12 @@ describe('RisultatiPage', () => {
     );
 
     expect(await screen.findByText(/Proposta automatica/i)).toBeInTheDocument();
+    expect(screen.getByText(/12 giugno/i)).toBeInTheDocument();
+    expect(
+      textContaining('Casa B').compareDocumentPosition(textContaining('Casa A')) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(screen.getAllByText(/Fonte FIFA ufficiale/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/2-0/)).toBeInTheDocument();
     expect(firestoreMocks.updateDoc).not.toHaveBeenCalled();
 
@@ -122,5 +140,55 @@ describe('RisultatiPage', () => {
       expect(proposalMocks.fetchResultProposalsNow).toHaveBeenCalledWith('schedinone-2026');
     });
     expect(firestoreMocks.updateDoc).not.toHaveBeenCalled();
+  });
+
+  it('gestisce i risultati Golden Plus solo con qualificata 1 o 2', async () => {
+    const goldenMatch: Match = {
+      id: 'r32-01',
+      phase: 'sedicesimi',
+      group: null,
+      homeTeam: 'Italia',
+      awayTeam: 'Brasile',
+      kickoff: new Date('2026-06-28T19:00:00Z'),
+      result: null,
+      score: null,
+      locked: false,
+    };
+
+    render(
+      <MemoryRouter>
+        <RisultatiPage
+          matches={[goldenMatch]}
+          gameId="schedinone-golden-plus-2026"
+          predictionMode="qualifier"
+          title="Risultati Golden"
+          showAutomaticProposals={false}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('heading', { name: /risultati golden/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /cerca risultati automatici/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /inserisci risultato/i }));
+
+    expect(screen.getByRole('button', { name: '1' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'X' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '2' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '2' }));
+    fireEvent.click(screen.getByRole('button', { name: /salva risultato/i }));
+
+    await waitFor(() => {
+      expect(firestoreMocks.updateDoc).toHaveBeenCalledWith(
+        { path: 'games/schedinone-golden-plus-2026/matches/r32-01' },
+        {
+          result: '2',
+          score: '',
+          resultSource: 'manual',
+        }
+      );
+    });
+    expect(recalcMocks.recalcPointsClient).toHaveBeenCalledWith('schedinone-golden-plus-2026');
   });
 });

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import type { Game, Player, Match } from "../../lib/types";
 import Flag from "../../components/Flag";
+import GriglionePrintable, { calculateGriglionePdfLayout } from "../../components/GriglionePrintable";
 import Toast, { type ToastData } from "../../components/Toast";
 import { exportElementAsPdf, timestampSlug } from "../../lib/pdfExport";
 import { vibrate } from "../../lib/haptic";
@@ -18,6 +19,26 @@ interface Props {
 // Solid background colors for sticky cells (no transparency bleed-through)
 const BG_DEEP = "#040810";
 const BG_CARD = "rgba(15, 23, 42, 1)"; // opaque version of --bg-card
+const PLAYER_COL_MIN_WIDTH = 92;
+const PLAYER_COL_MAX_WIDTH = 108;
+
+function sortPlayersForPrintable(players: Player[]): Player[] {
+  return [...players].sort((a, b) => {
+    const joinedDiff = a.joinedAt.getTime() - b.joinedAt.getTime();
+    if (joinedDiff !== 0) return joinedDiff;
+    return a.name.localeCompare(b.name, "it", { sensitivity: "base" });
+  });
+}
+
+function sortMatchesForPrintable(matches: Match[]): Match[] {
+  return matches
+    .filter((match) => match.phase === "gironi")
+    .sort((a, b) => {
+      const kickoffDiff = a.kickoff.getTime() - b.kickoff.getTime();
+      if (kickoffDiff !== 0) return kickoffDiff;
+      return a.id.localeCompare(b.id);
+    });
+}
 
 function mergeCurrentPlayer(players: Player[], currentPlayer?: Player): Player[] {
   if (!currentPlayer) return players;
@@ -43,6 +64,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
   const [toast, setToast] = useState<ToastData | null>(null);
   const [now, setNow] = useState(() => new Date());
   const tableContainerRef = useRef<HTMLDivElement>(null);
+  const printableRef = useRef<HTMLDivElement>(null);
 
   const isPlayerView = !!currentPlayer;
 
@@ -53,25 +75,27 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
   }, [isPlayerView]);
 
   const handleExportPdf = async () => {
-    if (!tableContainerRef.current) return;
+    if (!printableRef.current) return;
     setExportingPdf(true);
     vibrate("tap");
     try {
-      // Temporarily unconstrain the max-height so the full grid is rendered
-      const container = tableContainerRef.current;
-      const prevMaxHeight = container.style.maxHeight;
-      const prevOverflow = container.style.overflow;
-      container.style.maxHeight = "none";
-      container.style.overflow = "visible";
+      if (printablePlayers.length === 0) {
+        setToast({ message: "Nessuna schedina accettata da stampare", type: "error" });
+        return;
+      }
+      if (printableMatches.length === 0) {
+        setToast({ message: "Nessuna partita dei gironi da stampare", type: "error" });
+        return;
+      }
 
-      const orientation = sortedPlayers.length > 6 ? "landscape" : "portrait";
-      await exportElementAsPdf(container, {
+      const layout = calculateGriglionePdfLayout(printablePlayers.length, printableMatches.length);
+      await exportElementAsPdf(printableRef.current, {
         filename: `griglione-schedinone-${timestampSlug()}.pdf`,
-        orientation,
+        orientation: layout.orientation,
+        format: layout.format,
+        margin: 0,
       });
 
-      container.style.maxHeight = prevMaxHeight;
-      container.style.overflow = prevOverflow;
       setToast({ message: "Griglione scaricato!", type: "success" });
     } catch (err) {
       console.error("PDF export error:", err);
@@ -140,6 +164,11 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
   }, [filteredGironiMatches]);
 
   const sortedGroupKeys = useMemo(() => Object.keys(matchesByGroup).sort(), [matchesByGroup]);
+  const printablePlayers = useMemo(
+    () => sortPlayersForPrintable(visiblePlayers.filter((player) => player.scheduleStatus === "accettata")),
+    [visiblePlayers]
+  );
+  const printableMatches = useMemo(() => sortMatchesForPrintable(matches), [matches]);
 
   // Cell color based on prediction state
   function cellStyle(player: Player, match: Match): React.CSSProperties {
@@ -170,6 +199,22 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
   return (
     <div className="space-y-4 animate-in">
       <Toast toast={toast} onDone={() => setToast(null)} />
+      <div
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          left: -100000,
+          top: 0,
+          pointerEvents: "none",
+        }}
+      >
+        <GriglionePrintable
+          ref={printableRef}
+          game={game}
+          players={printablePlayers}
+          matches={printableMatches}
+        />
+      </div>
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div>
@@ -305,23 +350,31 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                       background: isMe ? "rgba(0,212,255,0.08)" : BG_CARD,
                       borderBottom: isMe ? "2px solid rgba(0,212,255,0.5)" : "1px solid var(--border)",
                       borderRight: "1px solid var(--border)",
-                      padding: "6px 6px",
+                      padding: "6px 7px",
                       textAlign: "center",
-                      minWidth: 52,
-                      maxWidth: 72,
+                      minWidth: PLAYER_COL_MIN_WIDTH,
+                      maxWidth: PLAYER_COL_MAX_WIDTH,
                       boxShadow: isMe ? "0 0 12px rgba(0,212,255,0.15)" : "none",
                     }}
                   >
                     <div
-                      className="text-[11px] font-bold truncate"
+                      className="text-[11px] font-bold"
                       style={{
                         fontFamily: "Outfit, sans-serif",
                         color: isMe ? "var(--accent)" : "var(--text-primary)",
-                        maxWidth: 64,
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        minHeight: 24,
+                        maxWidth: PLAYER_COL_MAX_WIDTH - 14,
+                        overflow: "hidden",
+                        overflowWrap: "anywhere",
+                        whiteSpace: "normal",
+                        lineHeight: 1.08,
                       }}
                       title={player.name}
                     >
-                      {player.name.split(" ")[0]}
+                      {player.name}
                       {isMe && <span className="ml-0.5 text-[8px]">★</span>}
                     </div>
                     <div
@@ -449,7 +502,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                             borderLeft: isMe ? "1px solid rgba(0,212,255,0.3)" : undefined,
                             padding: "4px 6px",
                             textAlign: "center",
-                            minWidth: 52,
+                            minWidth: PLAYER_COL_MIN_WIDTH,
                             background: isMe && !style.background ? "rgba(0,212,255,0.04)" : style.background,
                           }}
                         >
@@ -555,6 +608,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                       borderBottom: "1px solid var(--border)",
                       padding: "4px 4px",
                       textAlign: "center",
+                      minWidth: PLAYER_COL_MIN_WIDTH,
                     }}
                   >
                     <span
@@ -636,6 +690,7 @@ export default function RiepilogoPage({ game, players, matches, currentPlayer }:
                       borderBottom: "1px solid var(--border)",
                       padding: "4px 4px",
                       textAlign: "center",
+                      minWidth: PLAYER_COL_MIN_WIDTH,
                     }}
                   >
                     <span

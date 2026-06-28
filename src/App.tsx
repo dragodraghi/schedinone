@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { auth } from "./lib/firebase";
 import { signOut, signInWithEmailAndPassword } from "firebase/auth";
@@ -9,25 +9,29 @@ import { useGame } from "./hooks/useGame";
 import { useMatches } from "./hooks/useMatches";
 import { useCurrentPlayer, usePlayers, usePublicPlayers } from "./hooks/usePlayers";
 import { useLoadingTimeout } from "./hooks/useLoadingTimeout";
+import { useGoldenAccess, useGoldenAccessList } from "./hooks/useGoldenAccess";
 import { hardRefreshApp } from "./lib/appRefresh";
+import { CLASSIC_GAME_ID, GOLDEN_GAME_ID } from "./lib/games";
 import Layout from "./components/Layout";
 import SplashScreen from "./components/SplashScreen";
 import PageSkeleton from "./components/PageSkeleton";
-import Chatbot from "./components/Chatbot";
+import { AnnouncementLoginModal } from "./components/AnnouncementLoginModal";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import SchedinaPage from "./pages/SchedinaPage";
 import ClassificaPage from "./pages/ClassificaPage";
-import ProfiloPage from "./pages/ProfiloPage";
-import BachecaPage from "./pages/BachecaPage";
-import MessaggiPage from "./pages/MessaggiPage";
-import { initPushForUser } from "./lib/messaging";
 import { getAdminPlayerUid, getEffectivePlayerUid } from "./lib/adminPlayer";
-import { countUnreadAnnouncements, subscribeAnnouncementsForPlayer } from "./lib/announcements";
+import { countUnreadAnnouncements, markAnnouncementsRead, subscribeAnnouncementsForPlayer } from "./lib/announcements";
 import { subscribeThread } from "./lib/chat";
+import { getGoldenAccessClosesAt } from "./lib/goldenAccessWindow";
+import { mergeGoldenPlayersWithAccessPayments } from "./lib/goldenPayments";
 import type { Announcement, Thread } from "./lib/types";
 
 // Admin + Griglione routes are lazy-loaded to keep initial bundle small
+const ProfiloPage = lazy(() => import("./pages/ProfiloPage"));
+const BachecaPage = lazy(() => import("./pages/BachecaPage"));
+const MessaggiPage = lazy(() => import("./pages/MessaggiPage"));
+const Chatbot = lazy(() => import("./components/Chatbot"));
 const AdminPage = lazy(() => import("./pages/admin/AdminPage"));
 const AdminAnnunciPage = lazy(() => import("./pages/admin/AdminAnnunciPage"));
 const AdminMessaggiPage = lazy(() => import("./pages/admin/AdminMessaggiPage"));
@@ -36,9 +40,11 @@ const GiocatoriPage = lazy(() => import("./pages/admin/GiocatoriPage"));
 const RiepilogoPage = lazy(() => import("./pages/admin/RiepilogoPage"));
 const SchedineRicevutePage = lazy(() => import("./pages/admin/SchedineRicevutePage"));
 const ConfrontoPage = lazy(() => import("./pages/admin/ConfrontoPage"));
+const GoldenPlusAdminPanel = lazy(() => import("./pages/admin/GoldenPlusAdminPanel"));
 const ConfrontoGiocatorePage = lazy(() => import("./pages/ConfrontoPage"));
+const GoldenPlusAccessGate = lazy(() => import("./pages/golden/GoldenPlusAccessGate"));
+const GoldenBracketPage = lazy(() => import("./pages/golden/GoldenBracketPage"));
 
-const GAME_ID = import.meta.env.VITE_GAME_ID || "schedinone-2026";
 type SessionMode = "player" | "admin" | null;
 type JoinGameResponse = {
   ok: boolean;
@@ -51,10 +57,12 @@ type SessionPlayerLink = {
 };
 
 export default function App() {
+  const currentPath = typeof window === "undefined" ? "/" : window.location.pathname;
+  const isGoldenRoute = currentPath === "/golden-plus" || currentPath.startsWith("/golden-plus/");
   const { user, loading: authLoading } = useAuth();
   const authReady = !authLoading && !!user;
-  const { game, loading: gameLoading } = useGame(GAME_ID, authReady);
-  const { matches } = useMatches(GAME_ID, authReady);
+  const { game, loading: gameLoading } = useGame(CLASSIC_GAME_ID, authReady);
+  const { matches } = useMatches(CLASSIC_GAME_ID, authReady);
   const [loggedIn, setLoggedIn] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
   const [loginError, setLoginError] = useState("");
@@ -62,6 +70,7 @@ export default function App() {
   const [sessionMode, setSessionMode] = useState<SessionMode>(null);
   const [sessionPlayerLink, setSessionPlayerLink] = useState<SessionPlayerLink | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [loginReadAnnouncementIds, setLoginReadAnnouncementIds] = useState<string[]>([]);
   const [privateThread, setPrivateThread] = useState<Thread | null>(null);
   const handleSplashComplete = useCallback(() => setShowSplash(false), []);
 
@@ -73,9 +82,43 @@ export default function App() {
     sessionPlayerLink && sessionPlayerLink.authUid === user?.uid ? sessionPlayerLink.playerUid : null;
   const effectivePlayerUid = sessionMode === "player" && sessionPlayerUid ? sessionPlayerUid : mappedPlayerUid;
   const hasAdminPlayerProfile = isAdminSession && !!adminPlayerUid;
-  const { players: publicPlayers, loading: publicPlayersLoading } = usePublicPlayers(GAME_ID, authReady);
-  const { players: adminPlayers, loading: adminPlayersLoading } = usePlayers(GAME_ID, authReady && isAdminSession);
-  const { player: currentPlayer } = useCurrentPlayer(GAME_ID, effectivePlayerUid, authReady && !!effectivePlayerUid);
+  const goldenIdentityUid =
+    isAdminSession && adminPlayerUid
+      ? adminPlayerUid
+      : effectivePlayerUid ?? user?.uid ?? null;
+  const { players: publicPlayers, loading: publicPlayersLoading } = usePublicPlayers(CLASSIC_GAME_ID, authReady);
+  const { players: adminPlayers, loading: adminPlayersLoading } = usePlayers(CLASSIC_GAME_ID, authReady && isAdminSession);
+  const { player: currentPlayer } = useCurrentPlayer(CLASSIC_GAME_ID, effectivePlayerUid, authReady && !!effectivePlayerUid);
+  const { access: goldenAccess, loading: goldenAccessLoading } = useGoldenAccess(
+    GOLDEN_GAME_ID,
+    goldenIdentityUid,
+    authReady
+  );
+  const hasGoldenAccess = goldenAccess?.status === "approved";
+  const shouldLoadGolden = authReady && (hasGoldenAccess || isAdminSession || isGoldenRoute);
+  const { game: goldenGame } = useGame(GOLDEN_GAME_ID, shouldLoadGolden);
+  const { matches: goldenMatches } = useMatches(GOLDEN_GAME_ID, shouldLoadGolden);
+  const { player: goldenPlayer } = useCurrentPlayer(
+    GOLDEN_GAME_ID,
+    user?.uid ?? undefined,
+    authReady && hasGoldenAccess && !!user?.uid
+  );
+  const { players: goldenAdminPlayers, loading: goldenAdminPlayersLoading } = usePlayers(
+    GOLDEN_GAME_ID,
+    authReady && isAdminSession
+  );
+  const { players: goldenPublicPlayers, loading: goldenPublicPlayersLoading } = usePublicPlayers(
+    GOLDEN_GAME_ID,
+    shouldLoadGolden && !isAdminSession
+  );
+  const { accessItems: goldenAccessItems } = useGoldenAccessList(GOLDEN_GAME_ID, authReady && isAdminSession);
+  const goldenPlayersForAdmin = useMemo(
+    () => mergeGoldenPlayersWithAccessPayments(goldenAdminPlayers, goldenAccessItems),
+    [goldenAdminPlayers, goldenAccessItems]
+  );
+  const goldenLeaderboardPlayers = isAdminSession ? goldenPlayersForAdmin : goldenPublicPlayers;
+  const goldenLeaderboardLoading = isAdminSession ? goldenAdminPlayersLoading : goldenPublicPlayersLoading;
+  const goldenAccessClosesAt = getGoldenAccessClosesAt(goldenGame, goldenMatches);
   const players = isAdminSession ? adminPlayers : publicPlayers;
   const playersLoading = isAdminSession ? adminPlayersLoading : publicPlayersLoading;
   const initializing = authLoading || !user;
@@ -102,7 +145,19 @@ export default function App() {
 
   useEffect(() => {
     if (loggedIn && user) {
-      initPushForUser(user.uid).catch(() => {});
+      let cancelled = false;
+      const uid = user.uid;
+      import("./lib/messaging")
+        .then(({ initPushForUser }) => {
+          if (!cancelled) {
+            return initPushForUser(uid);
+          }
+          return null;
+        })
+        .catch(() => {});
+      return () => {
+        cancelled = true;
+      };
     }
   }, [loggedIn, user]);
 
@@ -111,15 +166,19 @@ export default function App() {
       setAnnouncements([]);
       return;
     }
-    return subscribeAnnouncementsForPlayer(GAME_ID, effectivePlayerUid, setAnnouncements);
+    return subscribeAnnouncementsForPlayer(CLASSIC_GAME_ID, effectivePlayerUid, setAnnouncements);
   }, [loggedIn, effectivePlayerUid]);
+
+  useEffect(() => {
+    setLoginReadAnnouncementIds([]);
+  }, [effectivePlayerUid]);
 
   useEffect(() => {
     if (!loggedIn || !effectivePlayerUid) {
       setPrivateThread(null);
       return;
     }
-    return subscribeThread(GAME_ID, effectivePlayerUid, setPrivateThread);
+    return subscribeThread(CLASSIC_GAME_ID, effectivePlayerUid, setPrivateThread);
   }, [loggedIn, effectivePlayerUid]);
 
   // Player login via team name + password. Admin access is separate (email+password).
@@ -143,7 +202,7 @@ export default function App() {
         { gameId: string; name: string; code: string },
         JoinGameResponse
       >(functions, "joinGame");
-      const joinResult = await callJoin({ gameId: GAME_ID, name: name.trim(), code });
+      const joinResult = await callJoin({ gameId: CLASSIC_GAME_ID, name: name.trim(), code });
       const joinedPlayerUid = joinResult.data.playerUid?.trim() || firebaseUser.uid;
 
       setSessionPlayerLink({ authUid: firebaseUser.uid, playerUid: joinedPlayerUid });
@@ -257,6 +316,104 @@ export default function App() {
     );
   }
 
+  const goldenPlusRouteElement = (
+    <GoldenPlusAccessGate
+      gameId={GOLDEN_GAME_ID}
+      access={goldenAccess}
+      accessLoading={goldenAccessLoading}
+      userUid={goldenIdentityUid ?? ""}
+      player={goldenPlayer}
+      accessClosesAt={goldenAccessClosesAt}
+    >
+      {goldenGame ? (
+        <GoldenBracketPage
+          game={goldenGame}
+          player={
+            goldenPlayer ??
+            goldenLeaderboardPlayers.find((item) => item.id === goldenIdentityUid) ?? {
+              id: user?.uid ?? goldenIdentityUid ?? "",
+              name: goldenAccess?.displayName ?? "Giocatore",
+              joinedAt: new Date(),
+              predictions: {},
+              topScorerPick: "",
+              winnerPick: "",
+              points: 0,
+              paid: goldenAccess?.paid === true,
+              scheduleStatus: "bozza" as const,
+              lastAnnouncementReadAt: null,
+            }
+          }
+          matches={goldenMatches}
+          gameId={GOLDEN_GAME_ID}
+        />
+      ) : (
+        <PageSkeleton />
+      )}
+    </GoldenPlusAccessGate>
+  );
+
+  const goldenClassificaRouteElement = (
+    <GoldenPlusAccessGate
+      gameId={GOLDEN_GAME_ID}
+      access={goldenAccess}
+      accessLoading={goldenAccessLoading}
+      userUid={goldenIdentityUid ?? ""}
+      player={goldenPlayer}
+      accessClosesAt={goldenAccessClosesAt}
+    >
+      {goldenGame ? (
+        <ClassificaPage
+          game={goldenGame}
+          player={
+            goldenPlayer ??
+            goldenLeaderboardPlayers.find((item) => item.id === goldenIdentityUid) ?? {
+              id: user?.uid ?? goldenIdentityUid ?? "",
+              name: goldenAccess?.displayName ?? "Giocatore",
+              joinedAt: new Date(),
+              predictions: {},
+              topScorerPick: "",
+              winnerPick: "",
+              points: 0,
+              paid: goldenAccess?.paid === true,
+              scheduleStatus: "bozza" as const,
+              lastAnnouncementReadAt: null,
+            }
+          }
+          players={goldenLeaderboardPlayers}
+          loading={goldenLeaderboardLoading}
+          title="Classifica Golden"
+          kicker="Golden Plus"
+          emptyDescription="Appena il Comitato inserisce i risultati, ogni passaggio turno indovinato vale 1 punto."
+          showCompareLink={false}
+        />
+      ) : (
+        <PageSkeleton />
+      )}
+    </GoldenPlusAccessGate>
+  );
+
+  if (!loggedIn && isGoldenRoute) {
+    return (
+      <BrowserRouter>
+        <main
+          className="min-h-screen px-3 pb-8 pt-3 app-shell sm:px-5"
+          style={{
+            background: "var(--bg-deep)",
+            paddingTop: "max(12px, env(safe-area-inset-top))",
+          }}
+        >
+          <Suspense fallback={<PageSkeleton />}>
+            <Routes>
+              <Route path="/golden-plus" element={goldenPlusRouteElement} />
+              <Route path="/golden-plus/classifica" element={goldenClassificaRouteElement} />
+              <Route path="*" element={<Navigate to="/golden-plus" replace />} />
+            </Routes>
+          </Suspense>
+        </main>
+      </BrowserRouter>
+    );
+  }
+
   if (!loggedIn) {
     return <LoginPage onLogin={handleLogin} onAdminLogin={handleAdminLogin} error={loginError} />;
   }
@@ -274,6 +431,9 @@ export default function App() {
   });
   const unreadAnnouncementCount = countUnreadAnnouncements(announcements, lastAnnouncementReadAt);
   const latestUnreadAnnouncementTitle = unreadAnnouncements[0]?.title?.trim();
+  const loginAnnouncementItems = isAdminSession
+    ? []
+    : unreadAnnouncements.filter((announcement) => !loginReadAnnouncementIds.includes(announcement.id));
   const unreadPrivateMessageCount = privateThread?.unreadByPlayer ?? 0;
   const latestPrivateMessagePreview =
     unreadPrivateMessageCount > 0 && privateThread?.lastMessageFrom === "committee"
@@ -291,10 +451,23 @@ export default function App() {
     scheduleStatus: "bozza" as const,
     lastAnnouncementReadAt: null,
   };
+  const handleLoginAnnouncementsConfirm = async () => {
+    const readIds = loginAnnouncementItems.map((announcement) => announcement.id);
+    if (readIds.length === 0) return;
+
+    setLoginReadAnnouncementIds((current) => Array.from(new Set([...current, ...readIds])));
+
+    if (!effectivePlayerUid) return;
+    try {
+      await markAnnouncementsRead(CLASSIC_GAME_ID, effectivePlayerUid);
+    } catch (err) {
+      console.warn("[announcements] failed to mark login announcements as read", err);
+    }
+  };
 
   return (
     <BrowserRouter>
-      <Layout isAdmin={isAdminSession} hasPlayerProfile={hasAdminPlayerProfile}>
+      <Layout isAdmin={isAdminSession} hasPlayerProfile={hasAdminPlayerProfile} hasGoldenAccess={hasGoldenAccess}>
         <Suspense fallback={<PageSkeleton />}>
           <Routes>
             <Route path="/" element={<DashboardPage game={game} player={safePlayer} players={players} matches={matches} unreadAnnouncementCount={unreadAnnouncementCount} latestAnnouncementTitle={latestUnreadAnnouncementTitle} unreadPrivateMessageCount={unreadPrivateMessageCount} latestPrivateMessagePreview={latestPrivateMessagePreview} />} />
@@ -303,34 +476,84 @@ export default function App() {
               element={
                 isAdminSession
                   ? hasAdminPlayerProfile
-                    ? <SchedinaPage game={game} player={safePlayer} matches={matches} gameId={GAME_ID} />
+                    ? <SchedinaPage game={game} player={safePlayer} matches={matches} gameId={CLASSIC_GAME_ID} />
                     : <Navigate to="/admin" replace />
-                  : <SchedinaPage game={game} player={safePlayer} matches={matches} gameId={GAME_ID} />
+                  : <SchedinaPage game={game} player={safePlayer} matches={matches} gameId={CLASSIC_GAME_ID} />
               }
             />
             <Route path="/classifica" element={<ClassificaPage game={game} player={safePlayer} players={players} loading={playersLoading} />} />
             <Route path="/confronto" element={<ConfrontoGiocatorePage game={game} player={safePlayer} players={players} matches={matches} />} />
             <Route path="/profilo" element={<ProfiloPage game={game} player={safePlayer} players={players} matches={matches} isAdmin={isAdminSession} hasPlayerProfile={hasAdminPlayerProfile} unreadAnnouncementCount={unreadAnnouncementCount} unreadPrivateMessageCount={unreadPrivateMessageCount} onLogout={handleLogout} />} />
-            <Route path="/bacheca" element={<BachecaPage gameId={GAME_ID} playerUid={effectivePlayerUid ?? ""} />} />
-            <Route path="/messaggi" element={<MessaggiPage gameId={GAME_ID} playerUid={effectivePlayerUid ?? ""} currentAuthUid={user?.uid ?? ""} />} />
+            <Route path="/bacheca" element={<BachecaPage gameId={CLASSIC_GAME_ID} playerUid={effectivePlayerUid ?? ""} />} />
+            <Route path="/messaggi" element={<MessaggiPage gameId={CLASSIC_GAME_ID} playerUid={effectivePlayerUid ?? ""} currentAuthUid={user?.uid ?? ""} />} />
             <Route path="/griglione" element={<RiepilogoPage game={game} players={players} matches={matches} currentPlayer={effectivePlayer ?? undefined} />} />
+            <Route
+              path="/golden-plus"
+              element={goldenPlusRouteElement}
+            />
+            <Route path="/golden-plus/classifica" element={goldenClassificaRouteElement} />
             {isAdminSession && (
               <>
                 <Route path="/admin" element={<AdminPage game={game} players={players} matches={matches} onLogout={handleLogout} />} />
-                <Route path="/admin/risultati" element={<RisultatiPage matches={matches} gameId={GAME_ID} />} />
-                <Route path="/admin/giocatori" element={<GiocatoriPage players={players} gameId={GAME_ID} />} />
+                <Route path="/admin/risultati" element={<RisultatiPage matches={matches} gameId={CLASSIC_GAME_ID} />} />
+                <Route path="/admin/giocatori" element={<GiocatoriPage players={players} gameId={CLASSIC_GAME_ID} />} />
                 <Route path="/admin/riepilogo" element={<RiepilogoPage game={game} players={players} matches={matches} />} />
-                <Route path="/admin/schedine" element={<SchedineRicevutePage players={players} matches={matches} gameId={GAME_ID} game={game} />} />
+                <Route path="/admin/schedine" element={<SchedineRicevutePage players={players} matches={matches} gameId={CLASSIC_GAME_ID} game={game} />} />
                 <Route path="/admin/confronto" element={<ConfrontoPage game={game} players={players} matches={matches} />} />
-                <Route path="/admin/annunci" element={<AdminAnnunciPage gameId={GAME_ID} currentUid={user?.uid ?? ""} players={players} />} />
-                <Route path="/admin/messaggi" element={<AdminMessaggiPage gameId={GAME_ID} currentUid={user?.uid ?? ""} players={players} />} />
+                <Route path="/admin/golden-plus" element={<GoldenPlusAdminPanel players={players} currentUid={user?.uid ?? ""} accessClosesAt={goldenAccessClosesAt} />} />
+                <Route
+                  path="/admin/golden-schedine"
+                  element={
+                    goldenGame ? (
+                      <SchedineRicevutePage
+                        players={goldenPlayersForAdmin}
+                        matches={goldenMatches}
+                        gameId={GOLDEN_GAME_ID}
+                        game={goldenGame}
+                        title="Schedine Golden"
+                        subtitle={`${goldenPlayersForAdmin.filter((p) => p.scheduleStatus !== "bozza").length} inviate · ${goldenPlayersForAdmin.length} totali`}
+                        backTo="/admin/golden-plus"
+                        backLabel="Golden Plus"
+                      />
+                    ) : (
+                      <PageSkeleton />
+                    )
+                  }
+                />
+                <Route
+                  path="/admin/golden-risultati"
+                  element={
+                    goldenGame ? (
+                      <RisultatiPage
+                        matches={goldenMatches}
+                        gameId={GOLDEN_GAME_ID}
+                        predictionMode="qualifier"
+                        title="Risultati Golden"
+                        backTo="/admin/golden-plus"
+                        backLabel="Golden Plus"
+                        showAutomaticProposals={false}
+                      />
+                    ) : (
+                      <PageSkeleton />
+                    )
+                  }
+                />
+                <Route path="/admin/annunci" element={<AdminAnnunciPage gameId={CLASSIC_GAME_ID} currentUid={user?.uid ?? ""} players={players} />} />
+                <Route path="/admin/messaggi" element={<AdminMessaggiPage gameId={CLASSIC_GAME_ID} currentUid={user?.uid ?? ""} players={players} />} />
               </>
             )}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
       </Layout>
-      {!isAdminSession && <Chatbot />}
+      {loginAnnouncementItems.length > 0 && (
+        <AnnouncementLoginModal announcements={loginAnnouncementItems} onConfirm={handleLoginAnnouncementsConfirm} />
+      )}
+      {!isAdminSession && (
+        <Suspense fallback={null}>
+          <Chatbot />
+        </Suspense>
+      )}
     </BrowserRouter>
   );
 }

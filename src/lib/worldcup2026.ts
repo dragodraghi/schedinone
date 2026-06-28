@@ -91,8 +91,8 @@ const REAL_KICKOFFS_UTC: Record<string, string> = {
   "Turchia|USA": "2026-06-26T02:00:00Z",
   "Paraguay|Australia": "2026-06-26T02:00:00Z",
   // Group E
-  "Costa d'Avorio|Ecuador": "2026-06-14T17:00:00Z",
-  "Germania|Curaçao": "2026-06-14T23:00:00Z",
+  "Germania|Curaçao": "2026-06-14T17:00:00Z",
+  "Costa d'Avorio|Ecuador": "2026-06-14T23:00:00Z",
   "Germania|Costa d'Avorio": "2026-06-20T20:00:00Z",
   "Ecuador|Curaçao": "2026-06-21T00:00:00Z",
   "Ecuador|Germania": "2026-06-25T20:00:00Z",

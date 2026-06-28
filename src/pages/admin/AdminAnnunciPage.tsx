@@ -3,6 +3,7 @@ import {
   subscribeAllAnnouncements, createAnnouncement, publishAnnouncement,
   editPublishedAnnouncement, updateDraftAnnouncement, softDeleteAnnouncement,
 } from '../../lib/announcements';
+import { AnnouncementBodyText } from '../../components/AnnouncementCard';
 import { TargetPicker } from '../../components/TargetPicker';
 import type { Announcement } from '../../lib/types';
 import { ANNOUNCEMENT_TITLE_MAX, ANNOUNCEMENT_BODY_MAX } from '../../lib/types';
@@ -92,7 +93,7 @@ export default function AdminAnnunciPage({ gameId, currentUid, players }: Props)
                 </button>
               </div>
             </div>
-            <p className="text-sm mt-1 whitespace-pre-wrap">{a.body}</p>
+            <p className="text-sm mt-1 whitespace-pre-wrap"><AnnouncementBodyText body={a.body} /></p>
             <p className="text-xs text-gray-500 mt-1">
               {a.targetUids === null ? 'Tutti' : `${a.targetUids.length} destinatari`}
               {a.editedAt && ' · (modificato)'}

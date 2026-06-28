@@ -1,12 +1,11 @@
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
-
 interface PdfOptions {
   filename: string;
   /** Paper orientation. Default "portrait". Use "landscape" for wide tables. */
   orientation?: "portrait" | "landscape";
   /** Page margin in mm. Default 10. */
   margin?: number;
+  /** Custom PDF format in mm. Default "a4". */
+  format?: "a4" | [number, number];
   /** Background color to composite the canvas onto. Default "#ffffff" for printable output. */
   background?: string;
 }
@@ -21,10 +20,16 @@ export async function exportElementAsPdf(
   element: HTMLElement,
   options: PdfOptions
 ): Promise<void> {
+  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+    import("html2canvas"),
+    import("jspdf"),
+  ]);
+
   const {
     filename,
     orientation = "portrait",
     margin = 10,
+    format = "a4",
     background = "#ffffff",
   } = options;
 
@@ -45,7 +50,7 @@ export async function exportElementAsPdf(
   const pdf = new jsPDF({
     orientation,
     unit: "mm",
-    format: "a4",
+    format,
     compress: true,
   });
 

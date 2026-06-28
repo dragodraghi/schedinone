@@ -110,4 +110,24 @@ describe("MessaggiPage", () => {
       );
     });
   });
+
+  it("keeps the draft visible and explains the failure when sending is rejected", async () => {
+    chatMocks.subscribeMessages.mockImplementation((_gameId: string, _uid: string, cb: (items: ChatMessage[]) => void) => {
+      cb([]);
+      return vi.fn();
+    });
+    chatMocks.subscribeThread.mockReturnValue(vi.fn());
+    chatMocks.sendMessage.mockRejectedValue(new Error("rate limited"));
+
+    render(<MessaggiPage gameId="schedinone-2026" playerUid="player-1" currentAuthUid="player-1" />);
+
+    const textarea = screen.getByLabelText("Testo del messaggio");
+    fireEvent.change(textarea, {
+      target: { value: "Non perdere questo messaggio" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /invia/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/non e' stato inviato/i);
+    expect(textarea).toHaveValue("Non perdere questo messaggio");
+  });
 });

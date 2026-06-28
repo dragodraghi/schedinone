@@ -30,6 +30,8 @@ export default function Toast({ toast, onDone, duration = 3000 }: Props) {
 
   return (
     <div
+      role="status"
+      aria-live="polite"
       className="fixed top-4 left-1/2 z-50 px-5 py-3 rounded-xl text-sm font-bold toast-animate toast-in"
       style={{
         transform: "translateX(-50%)",

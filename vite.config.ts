@@ -11,6 +11,7 @@ export default defineConfig({
       registerType: "prompt",
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
+        globIgnores: ["**/og-image.png", "**/html2canvas-*.js", "**/jspdf*.js", "**/purify.es*.js"],
         // Serve the SPA shell for client-side routes when offline.
         navigateFallback: "index.html",
       },

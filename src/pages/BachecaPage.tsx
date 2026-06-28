@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
-import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { subscribeAnnouncementsForPlayer } from '../lib/announcements';
+import { markAnnouncementsRead, subscribeAnnouncementsForPlayer } from '../lib/announcements';
 import { AnnouncementCard } from '../components/AnnouncementCard';
 import type { Announcement } from '../lib/types';
 
@@ -17,9 +15,7 @@ export default function BachecaPage({ gameId, playerUid }: Props) {
 
   useEffect(() => {
     if (!playerUid || !gameId) return;
-    updateDoc(doc(db, `games/${gameId}/players/${playerUid}`), {
-      lastAnnouncementReadAt: serverTimestamp(),
-    }).catch(() => {});
+    markAnnouncementsRead(gameId, playerUid).catch(() => {});
   }, [gameId, playerUid]);
 
   return (

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { Game, Match, Player } from "../types";
+import { GOLDEN_GAME_ID, isGoldenGameId } from "../games";
+import type { Game, GoldenAccess, Match, Player } from "../types";
 
 describe("types", () => {
   it("Game type has required fields", () => {
@@ -33,6 +34,35 @@ describe("types", () => {
     };
     expect(match.locked).toBe(false);
     expect(match.result).toBeNull();
+  });
+
+  it("Golden Plus type fields model a separate qualifier game", () => {
+    const game: Game = {
+      id: GOLDEN_GAME_ID,
+      name: "Schedinone Golden Plus 2026",
+      entryFee: 0,
+      admins: ["admin-1"],
+      accessCode: "",
+      phases: ["sedicesimi", "ottavi", "quarti", "semifinali", "finale"],
+      currentPhase: "sedicesimi",
+      topScorer: null,
+      winner: null,
+      mode: "golden-plus",
+      predictionMode: "qualifier",
+      specialPicksEnabled: false,
+      sourceGameId: "schedinone-2026",
+    };
+    const access: GoldenAccess = {
+      id: "player-1",
+      status: "approved",
+      type: "classic-player",
+      displayName: "Italia",
+      classicPlayerUid: "player-1",
+    };
+
+    expect(isGoldenGameId(game.id)).toBe(true);
+    expect(game.phases[0]).toBe("sedicesimi");
+    expect(access.status).toBe("approved");
   });
 
   it("Player type has required fields", () => {

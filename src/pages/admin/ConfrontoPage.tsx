@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import ComparisonTable from "../../components/ComparisonTable";
 import EmptyState from "../../components/EmptyState";
-import type { Game, Player, Match } from "../../lib/types";
+import type { Game, Match, Player } from "../../lib/types";
 
 interface Props {
   game: Game;
@@ -10,37 +10,40 @@ interface Props {
   matches: Match[];
 }
 
+const MAX_COMPARISON_PLAYERS = 4;
+
 /**
- * Admin supervision: select any N players and compare them side-by-side.
- * Unlike the player's Profilo Confronto, there's no "self" column — the
- * admin account doesn't play.
+ * Admin supervision: select up to four players and compare them side-by-side.
+ * Unlike the player's Profilo Confronto, there is no "self" column: the
+ * admin account does not play.
  */
 export default function ConfrontoPage({ game, players, matches }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Default to all accepted players if no selection
   const allPlayers = [...players].sort((a, b) => b.points - a.points);
   const selectedPlayers = allPlayers.filter((p) => selectedIds.has(p.id));
 
   const togglePlayer = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else if (next.size < MAX_COMPARISON_PLAYERS) {
+        next.add(id);
+      }
       return next;
     });
   };
 
   return (
     <div className="space-y-4 animate-in">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black" style={{ fontFamily: "Outfit, sans-serif" }}>
-            ⚔️ Confronto Giocatori
+            Confronto Giocatori
           </h1>
           <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-            Seleziona due o più giocatori e confronta le statistiche
+            Seleziona da 2 a massimo 4 squadre contemporaneamente.
           </p>
         </div>
         <Link
@@ -48,22 +51,21 @@ export default function ConfrontoPage({ game, players, matches }: Props) {
           className="text-xs transition-colors px-3 py-1.5 rounded-lg glass shrink-0"
           style={{ color: "var(--text-muted)" }}
         >
-          ← Admin
+          Admin
         </Link>
       </div>
 
       {allPlayers.length === 0 ? (
         <EmptyState
-          icon="👥"
+          icon="VS"
           title="Nessun giocatore iscritto"
           description="Appena i giocatori entreranno, potrai confrontarli qui."
           accent="muted"
         />
       ) : (
         <>
-          {/* Selector */}
           <div className="glass rounded-xl p-3 space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <p
                 className="text-[10px] uppercase tracking-wider"
                 style={{
@@ -76,20 +78,13 @@ export default function ConfrontoPage({ game, players, matches }: Props) {
               </p>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setSelectedIds(new Set(allPlayers.map((p) => p.id)))}
+                  onClick={() =>
+                    setSelectedIds(new Set(allPlayers.slice(0, MAX_COMPARISON_PLAYERS).map((p) => p.id)))
+                  }
                   className="text-[10px] font-bold"
                   style={{ color: "var(--accent)" }}
                 >
-                  Tutti
-                </button>
-                <button
-                  onClick={() =>
-                    setSelectedIds(new Set(allPlayers.slice(0, 5).map((p) => p.id)))
-                  }
-                  className="text-[10px] font-bold"
-                  style={{ color: "var(--gold)" }}
-                >
-                  Top 5
+                  Top 4
                 </button>
                 <button
                   onClick={() => setSelectedIds(new Set())}
@@ -103,22 +98,23 @@ export default function ConfrontoPage({ game, players, matches }: Props) {
             <div className="flex flex-wrap gap-1.5">
               {allPlayers.map((p) => {
                 const active = selectedIds.has(p.id);
+                const disabled = !active && selectedIds.size >= MAX_COMPARISON_PLAYERS;
                 return (
                   <button
                     key={p.id}
                     onClick={() => togglePlayer(p.id)}
-                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all"
+                    disabled={disabled}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all disabled:opacity-45"
                     style={{
                       fontFamily: "Outfit, sans-serif",
-                      background: active
-                        ? "rgba(0, 212, 255, 0.2)"
-                        : "rgba(255, 255, 255, 0.05)",
+                      background: active ? "rgba(0, 212, 255, 0.2)" : "rgba(255, 255, 255, 0.05)",
                       color: active ? "var(--accent)" : "var(--text-muted)",
                       border: `1px solid ${active ? "rgba(0,212,255,0.4)" : "var(--border)"}`,
                       boxShadow: active ? "0 0 8px rgba(0,212,255,0.25)" : "none",
+                      cursor: disabled ? "not-allowed" : "pointer",
                     }}
                   >
-                    {active && "✓ "}
+                    {active && "OK "}
                     {p.name}
                     <span
                       className="ml-1 text-[9px]"
@@ -134,9 +130,9 @@ export default function ConfrontoPage({ game, players, matches }: Props) {
 
           {selectedPlayers.length < 2 ? (
             <EmptyState
-              icon="⚔️"
+              icon="VS"
               title={selectedPlayers.length === 0 ? "Scegli almeno 2 giocatori" : "Aggiungine ancora uno"}
-              description="Il confronto ha senso con 2 o più giocatori. Tocca i nomi sopra per includerli."
+              description="Il confronto ha senso con 2 o piu giocatori, fino a un massimo di 4 squadre alla volta."
               accent="blue"
             />
           ) : (

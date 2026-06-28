@@ -14,7 +14,9 @@ dist-ssr
 functions/lib
 functions/node_modules
 .firebase
+.netlify
 .superpowers
+tmp/
 
 # Environment variables
 .env

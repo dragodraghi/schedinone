@@ -4,14 +4,19 @@ import { isMatchClosed, requireCurrentPhase } from "./scheduleRules";
 import { resolveSchedulePlayerUid } from "./saveScheduleAuth";
 
 type Sign = "1" | "X" | "2";
+type PredictionMode = "result" | "qualifier";
 
 const MAX_PREDICTIONS = 150;
 const MAX_PICK_LEN = 40;
-function isSign(value: unknown): value is Sign {
+function isSign(value: unknown, predictionMode: PredictionMode): value is Sign {
+  if (predictionMode === "qualifier") return value === "1" || value === "2";
   return value === "1" || value === "X" || value === "2";
 }
 
-function sanitizePredictions(value: unknown): Record<string, Sign> {
+export function sanitizePredictionsForMode(
+  value: unknown,
+  predictionMode: PredictionMode
+): Record<string, Sign> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new HttpsError("invalid-argument", "Pronostici non validi.");
   }
@@ -23,7 +28,7 @@ function sanitizePredictions(value: unknown): Record<string, Sign> {
 
   const out: Record<string, Sign> = {};
   for (const [matchId, sign] of entries) {
-    if (!matchId || matchId.length > 120 || !isSign(sign)) {
+    if (!matchId || matchId.length > 120 || !isSign(sign, predictionMode)) {
       throw new HttpsError("invalid-argument", "Pronostici non validi.");
     }
     out[matchId] = sign;
@@ -43,6 +48,21 @@ function sanitizePick(value: unknown, required: boolean): string {
     throw new HttpsError("invalid-argument", "Scelta speciale troppo lunga.");
   }
   return trimmed;
+}
+
+export function resolveSpecialPicksForMode(
+  specialPicksEnabled: boolean,
+  submit: boolean,
+  topScorerPickValue: unknown,
+  winnerPickValue: unknown
+): { topScorerPick: string; winnerPick: string } {
+  if (!specialPicksEnabled) {
+    return { topScorerPick: "", winnerPick: "" };
+  }
+  return {
+    topScorerPick: sanitizePick(topScorerPickValue, submit),
+    winnerPick: sanitizePick(winnerPickValue, submit),
+  };
 }
 
 async function loadMatchMap(
@@ -89,9 +109,6 @@ export const saveSchedule = onCall(
 
     const gameId = data.gameId;
     const submit = data.submit === true;
-    const predictions = sanitizePredictions(data.predictions);
-    const topScorerPick = sanitizePick(data.topScorerPick, submit);
-    const winnerPick = sanitizePick(data.winnerPick, submit);
     const now = new Date();
     const db = admin.firestore();
 
@@ -101,6 +118,16 @@ export const saveSchedule = onCall(
       throw new HttpsError("not-found", "Gioco non trovato.");
     }
     const gameData = gameSnap.data() ?? {};
+    const predictionMode: PredictionMode =
+      gameData.predictionMode === "qualifier" ? "qualifier" : "result";
+    const specialPicksEnabled = gameData.specialPicksEnabled !== false;
+    const predictions = sanitizePredictionsForMode(data.predictions, predictionMode);
+    const { topScorerPick, winnerPick } = resolveSpecialPicksForMode(
+      specialPicksEnabled,
+      submit,
+      data.topScorerPick,
+      data.winnerPick
+    );
     const playerUid = resolveSchedulePlayerUid(uid, provider, gameData);
     if (!playerUid) {
       throw new HttpsError(

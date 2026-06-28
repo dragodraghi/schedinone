@@ -78,6 +78,18 @@ describe('AdminPage', () => {
     expect(screen.getByRole('link', { name: /messaggi/i })).toHaveAttribute('href', '/admin/messaggi');
   });
 
+  it('espone la sezione Golden Plus nel menu admin', () => {
+    render(
+      <MemoryRouter>
+        <AdminPage game={game} players={[]} matches={[]} onLogout={vi.fn()} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('link', { name: /golden plus/i })).toHaveAttribute('href', '/admin/golden-plus');
+    expect(screen.getByRole('link', { name: /schedine golden/i })).toHaveAttribute('href', '/admin/golden-schedine');
+    expect(screen.getByRole('link', { name: /risultati golden/i })).toHaveAttribute('href', '/admin/golden-risultati');
+  });
+
   it('non mostra il qr code nel pannello admin', () => {
     render(
       <MemoryRouter>
@@ -102,6 +114,32 @@ describe('AdminPage', () => {
     expect(urgentPanel).toContainElement(screen.getByRole('link', { name: /Messaggi/i }));
     expect(urgentPanel).toContainElement(screen.getByRole('link', { name: /Annunci/i }));
     expect(within(urgentPanel).getByText('1')).toBeInTheDocument();
+  });
+
+  it('mostra il riepilogo tra iscritti e schedine inviate o accettate', () => {
+    const players: Player[] = [
+      { ...pendingPlayer, id: 'player-1', name: 'Italia', scheduleStatus: 'inviata' },
+      { ...pendingPlayer, id: 'player-2', name: 'Brasile', scheduleStatus: 'accettata' },
+      { ...pendingPlayer, id: 'player-3', name: 'Argentina', scheduleStatus: 'bozza' },
+      { ...pendingPlayer, id: 'player-4', name: 'Francia', scheduleStatus: 'rifiutata' },
+    ];
+
+    render(
+      <MemoryRouter>
+        <AdminPage game={game} players={players} matches={[]} onLogout={vi.fn()} />
+      </MemoryRouter>
+    );
+
+    const summaryPanel = screen.getByLabelText('Riepilogo iscrizioni');
+
+    expect(within(summaryPanel).getByText('Schedine inviate/accettate')).toBeInTheDocument();
+    expect(within(summaryPanel).getByText('2 di 4')).toBeInTheDocument();
+    expect(within(summaryPanel).getByText('Accettate dal Comitato')).toBeInTheDocument();
+    expect(within(summaryPanel).getByText('1 di 4 accettate')).toBeInTheDocument();
+    expect(within(summaryPanel).getByText('1 accettata')).toBeInTheDocument();
+    expect(within(summaryPanel).getByText('1 da accettare')).toBeInTheDocument();
+    expect(within(summaryPanel).getByText('1 in bozza')).toBeInTheDocument();
+    expect(within(summaryPanel).getByText('1 rifiutata')).toBeInTheDocument();
   });
 
   it('evidenzia nella dashboard admin i messaggi non letti del Comitato', async () => {

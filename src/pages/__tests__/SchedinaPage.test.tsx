@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import SchedinaPage from "../SchedinaPage";
 import type { Game, Match, Player } from "../../lib/types";
@@ -25,7 +25,7 @@ const match: Match = {
   group: "A",
   homeTeam: "Italia",
   awayTeam: "Brasile",
-  kickoff: new Date("2026-06-11T18:00:00Z"),
+  kickoff: new Date("2026-06-20T18:00:00Z"),
   result: null,
   score: null,
   locked: false,
@@ -61,13 +61,46 @@ function expectBefore(first: HTMLElement, second: HTMLElement) {
   expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 }
 
-function groupHeading(name: string): HTMLElement {
-  const heading = screen.getAllByText(`Gruppo ${name}`).find((el) => el.tagName.toLowerCase() === "h2");
-  if (!heading) throw new Error(`Missing group heading ${name}`);
-  return heading;
+function firstText(name: string): HTMLElement {
+  const element = screen.getAllByText(name)[0];
+  if (!element) throw new Error(`Missing text ${name}`);
+  return element;
 }
 
 describe("SchedinaPage prediction editing", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-06-01T10:00:00Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("non cancella una scelta appena selezionata quando arriva una bozza remota vecchia", () => {
+    const emptyDraftPlayer = { ...player, predictions: {}, topScorerPick: "", winnerPick: "" };
+    const { rerender } = render(
+      <SchedinaPage game={game} player={emptyDraftPlayer} matches={[match]} gameId="schedinone-2026" />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "1" }));
+
+    expect(screen.getByText("1/1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "1" })).toHaveAttribute("aria-pressed", "true");
+
+    rerender(
+      <SchedinaPage
+        game={game}
+        player={{ ...emptyDraftPlayer, predictions: {} }}
+        matches={[match]}
+        gameId="schedinone-2026"
+      />
+    );
+
+    expect(screen.getByText("1/1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "1" })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("removes an already selected prediction when the same sign is clicked again", () => {
     render(<SchedinaPage game={game} player={player} matches={[match]} gameId="schedinone-2026" />);
 
@@ -78,28 +111,36 @@ describe("SchedinaPage prediction editing", () => {
     expect(screen.getByRole("button", { name: /mancano 1 pronostico/i })).toBeDisabled();
   });
 
-  it("mostra i gironi in ordine alfabetico anche se le partite arrivano ordinate per orario", () => {
+  it("mostra le partite in ordine cronologico anche se appartengono a gironi diversi", () => {
     render(
       <SchedinaPage
         game={game}
         player={{ ...player, predictions: {}, topScorerPick: "", winnerPick: "" }}
         matches={[
-          makeMatch("a1", "A", "2026-06-11T19:00:00Z"),
-          makeMatch("b1", "B", "2026-06-12T19:00:00Z"),
-          makeMatch("d1", "D", "2026-06-13T01:00:00Z"),
           makeMatch("c1", "C", "2026-06-13T22:00:00Z"),
+          makeMatch("a1", "A", "2026-06-12T11:00:00Z"),
+          makeMatch("b1", "B", "2026-06-12T10:00:00Z"),
+          makeMatch("d1", "D", "2026-06-13T01:00:00Z"),
         ]}
         gameId="schedinone-2026"
       />
     );
 
-    const groupA = groupHeading("A");
-    const groupB = groupHeading("B");
-    const groupC = groupHeading("C");
-    const groupD = groupHeading("D");
+    expect(screen.getAllByText(/12 giugno/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/13 giugno/i).length).toBeGreaterThan(0);
 
-    expectBefore(groupA, groupB);
-    expectBefore(groupB, groupC);
-    expectBefore(groupC, groupD);
+    expectBefore(firstText("Casa B"), firstText("Casa A"));
+    expectBefore(firstText("Casa A"), firstText("Casa D"));
+    expectBefore(firstText("Casa D"), firstText("Casa C"));
+  });
+
+  it("monta la conferma invio fuori dal contenitore della schedina", () => {
+    const { container } = render(<SchedinaPage game={game} player={player} matches={[match]} gameId="schedinone-2026" />);
+
+    fireEvent.click(screen.getByRole("button", { name: /salva e invia al comitato/i }));
+
+    const title = screen.getByRole("heading", { name: /conferma invio/i });
+    expect(document.body).toContainElement(title);
+    expect(container).not.toContainElement(title);
   });
 });

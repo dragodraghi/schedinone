@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculatePlayerPoints, computeRanksById } from "../calcPoints";
+import { calculatePlayerPoints, computeRanksById, publicPlayerData } from "../calcPoints";
 
 const ts = (millis: number) => ({ toMillis: () => millis });
 
@@ -39,6 +39,34 @@ describe("calculatePlayerPoints", () => {
   it("scores zero for draft or rejected schedules", () => {
     expect(calculatePlayerPoints({ scheduleStatus: "bozza", predictions: { m1: "1" } }, matches)).toBe(0);
     expect(calculatePlayerPoints({ scheduleStatus: "rifiutata", predictions: { m1: "1" } }, matches)).toBe(0);
+  });
+});
+
+describe("publicPlayerData", () => {
+  it("publishes computed points without exposing unaccepted predictions", () => {
+    expect(
+      publicPlayerData(
+        {
+          name: "7 e Muzzo",
+          joinedAt: "joined",
+          paid: true,
+          scheduleStatus: "inviata",
+          predictions: { m1: "1" },
+          topScorerPick: "Mbappe",
+          winnerPick: "Francia",
+        },
+        3
+      )
+    ).toEqual({
+      name: "7 e Muzzo",
+      joinedAt: "joined",
+      points: 3,
+      paid: true,
+      scheduleStatus: "inviata",
+      predictions: {},
+      topScorerPick: "",
+      winnerPick: "",
+    });
   });
 });
 

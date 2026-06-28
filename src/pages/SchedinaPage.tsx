@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { vibrate } from "../lib/haptic";
 import { exportElementAsPdf, timestampSlug } from "../lib/pdfExport";
 import { saveSchedule } from "../lib/schedule";
 import { formatLockLead, getCloseAt, isMatchClosedForPredictions } from "../lib/scheduleRules";
-import { getOrderedMatchGroups } from "../lib/matchGrouping";
+import { getChronologicalMatchDayGroups } from "../lib/matchGrouping";
 import MatchCard from "../components/MatchCard";
 import Toast, { type ToastData } from "../components/Toast";
 import EmptyState from "../components/EmptyState";
@@ -18,6 +19,21 @@ interface Props {
   player: Player;
   matches: Match[];
   gameId: string;
+}
+
+function scheduleDraftSignature(
+  predictions: Record<string, Sign>,
+  topScorerPick: string,
+  winnerPick: string
+): string {
+  const sortedPredictions = Object.fromEntries(
+    Object.entries(predictions).sort(([a], [b]) => a.localeCompare(b))
+  );
+  return JSON.stringify({
+    predictions: sortedPredictions,
+    topScorerPick: topScorerPick.trim(),
+    winnerPick: winnerPick.trim(),
+  });
 }
 
 export default function SchedinaPage({ game, player, matches, gameId }: Props) {
@@ -35,8 +51,24 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
   const [exportingPdf, setExportingPdf] = useState(false);
   const prevStatusRef = useRef(player.scheduleStatus);
   const hydratedRef = useRef(false);
+  const localDraftDirtyRef = useRef(false);
+  const pendingSavedSignatureRef = useRef<string | null>(null);
+  const latestLocalSignatureRef = useRef(
+    scheduleDraftSignature(player.predictions, player.topScorerPick || "", player.winnerPick || "")
+  );
+  const autoSaveSeqRef = useRef(0);
   const printableRef = useRef<HTMLDivElement>(null);
   const clearToast = useCallback(() => setToast(null), []);
+  const localSignature = scheduleDraftSignature(predictions, topScorerPick, winnerPick);
+
+  useEffect(() => {
+    latestLocalSignatureRef.current = localSignature;
+  }, [localSignature]);
+
+  const markLocalDraftEdited = useCallback(() => {
+    localDraftDirtyRef.current = true;
+    pendingSavedSignatureRef.current = null;
+  }, []);
 
   const handleExportPdf = async () => {
     if (!printableRef.current) return;
@@ -58,6 +90,25 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
   };
 
   useEffect(() => {
+    const remoteSignature = scheduleDraftSignature(
+      player.predictions,
+      player.topScorerPick || "",
+      player.winnerPick || ""
+    );
+    const remoteIsEditable = player.scheduleStatus === "bozza" || player.scheduleStatus === "rifiutata";
+    if (localDraftDirtyRef.current && remoteIsEditable) {
+      if (pendingSavedSignatureRef.current === remoteSignature) {
+        localDraftDirtyRef.current = false;
+        pendingSavedSignatureRef.current = null;
+      } else {
+        setLocalStatus(player.scheduleStatus);
+        return;
+      }
+    } else if (!remoteIsEditable) {
+      localDraftDirtyRef.current = false;
+      pendingSavedSignatureRef.current = null;
+    }
+
     setPredictions(player.predictions);
     setTopScorerPick(player.topScorerPick || "");
     setWinnerPick(player.winnerPick || "");
@@ -81,6 +132,15 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
   const isEditable = !isReadOnly;
 
   useEffect(() => {
+    if (!showConfirmModal) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showConfirmModal]);
+
+  useEffect(() => {
     if (!hydratedRef.current) {
       hydratedRef.current = true;
       return;
@@ -88,6 +148,8 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
     if (!isEditable) return;
 
     const handle = setTimeout(async () => {
+      const saveSignature = localSignature;
+      const saveSeq = ++autoSaveSeqRef.current;
       try {
         setAutoSaving(true);
         await saveSchedule({
@@ -97,28 +159,38 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
           winnerPick,
           submit: false,
         });
-        setAutoSaveError(false);
-        setDraftSaved(true);
-        setTimeout(() => setDraftSaved(false), 2000);
+        if (saveSeq === autoSaveSeqRef.current) {
+          if (latestLocalSignatureRef.current === saveSignature) {
+            pendingSavedSignatureRef.current = saveSignature;
+          }
+          setAutoSaveError(false);
+          setDraftSaved(true);
+          setTimeout(() => setDraftSaved(false), 2000);
+        }
       } catch (err) {
         console.error("Auto-save error:", err);
-        setAutoSaveError(true);
+        if (saveSeq === autoSaveSeqRef.current) {
+          setAutoSaveError(true);
+        }
       } finally {
-        setAutoSaving(false);
+        if (saveSeq === autoSaveSeqRef.current) {
+          setAutoSaving(false);
+        }
       }
     }, 800);
 
     return () => clearTimeout(handle);
-  }, [predictions, topScorerPick, winnerPick, isEditable, status, gameId, player.id]);
+  }, [predictions, topScorerPick, winnerPick, localSignature, isEditable, status, gameId, player.id]);
 
   const phaseMatches = matches.filter((m) => m.phase === game.currentPhase);
-  const groups = getOrderedMatchGroups(phaseMatches);
+  const dayGroups = getChronologicalMatchDayGroups(phaseMatches);
 
   const handlePredict = (matchId: string, sign: Sign | null) => {
     if (isReadOnly) return;
     const match = matches.find((m) => m.id === matchId);
     if (match && isMatchClosedForPredictions(game, match)) return;
     if (sign) vibrate("tap");
+    markLocalDraftEdited();
     setPredictions((prev) => {
       if (sign) return { ...prev, [matchId]: sign };
       const next = { ...prev };
@@ -156,8 +228,48 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
   const filledCount = phaseMatches.filter((m) => predictions[m.id]).length;
   const allFilled = filledCount === phaseMatches.length && topScorerPick && winnerPick;
   const missingMatches = phaseMatches.length - filledCount;
+  const confirmModal = showConfirmModal
+    ? createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto px-4 py-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="schedina-confirm-title"
+          style={{ background: "rgba(4, 8, 16, 0.88)", backdropFilter: "blur(10px)" }}
+        >
+          <div className="modal-panel p-5 w-full max-w-sm space-y-4 animate-in">
+            <h2
+              id="schedina-confirm-title"
+              className="text-lg font-black"
+              style={{ fontFamily: "Outfit, sans-serif", color: "var(--text-primary)" }}
+            >
+              Conferma invio
+            </h2>
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+              Sei sicuro? Dopo l'invio non potrai modificare la schedina.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="secondary-action flex-1 px-3"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={() => { setShowConfirmModal(false); handleSave(); }}
+                className="primary-action flex-1 px-3"
+              >
+                Conferma
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )
+    : null;
 
   return (
+    <>
     <div className="space-y-5 animate-in">
       <Confetti active={celebrate} />
       <Toast toast={toast} onDone={clearToast} />
@@ -269,17 +381,17 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
           accent="muted"
         />
       )}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {groups.map(([groupName, groupMatches], i) => (
+      <div className="space-y-4">
+        {dayGroups.map((dayGroup, i) => (
           <div
-            key={groupName}
+            key={dayGroup.key}
             className="space-y-2 animate-in"
             style={{ animationDelay: `${i * 50}ms` }}
           >
             <h2 className="group-header sticky-group text-[11px] uppercase tracking-wider" style={{ color: "var(--pitch)" }}>
-              {game.currentPhase === "gironi" ? `Gruppo ${groupName}` : groupName}
+              {dayGroup.label}
             </h2>
-            {groupMatches.map((match) => (
+            {dayGroup.matches.map((match) => (
               <MatchCard
                 key={match.id}
                 match={match}
@@ -298,7 +410,12 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
           <input
             type="text"
             value={topScorerPick}
-            onChange={(e) => { if (!isReadOnly) setTopScorerPick(e.target.value); }}
+            onChange={(e) => {
+              if (!isReadOnly) {
+                markLocalDraftEdited();
+                setTopScorerPick(e.target.value);
+              }
+            }}
             placeholder="Nome giocatore"
             maxLength={40}
             disabled={isReadOnly}
@@ -311,7 +428,12 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
           <input
             type="text"
             value={winnerPick}
-            onChange={(e) => { if (!isReadOnly) setWinnerPick(e.target.value); }}
+            onChange={(e) => {
+              if (!isReadOnly) {
+                markLocalDraftEdited();
+                setWinnerPick(e.target.value);
+              }
+            }}
             placeholder="Nome squadra"
             maxLength={40}
             disabled={isReadOnly}
@@ -320,36 +442,6 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
           />
         </div>
       </div>
-
-      {showConfirmModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center px-4"
-          style={{ background: "rgba(4, 8, 16, 0.88)", backdropFilter: "blur(10px)" }}
-        >
-          <div className="modal-panel p-5 w-full max-w-sm space-y-4 animate-in">
-            <h2 className="text-lg font-black" style={{ fontFamily: "Outfit, sans-serif", color: "var(--text-primary)" }}>
-              Conferma invio
-            </h2>
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Sei sicuro? Dopo l'invio non potrai modificare la schedina.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowConfirmModal(false)}
-                className="secondary-action flex-1 px-3"
-              >
-                Annulla
-              </button>
-              <button
-                onClick={() => { setShowConfirmModal(false); handleSave(); }}
-                className="primary-action flex-1 px-3"
-              >
-                Conferma
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {!isReadOnly && (
         <button
@@ -431,5 +523,7 @@ export default function SchedinaPage({ game, player, matches, gameId }: Props) {
         />
       </div>
     </div>
+    {confirmModal}
+    </>
   );
 }

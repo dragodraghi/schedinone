@@ -10,6 +10,7 @@ export default function MessaggiPage({ gameId, playerUid, currentAuthUid }: Prop
   const [msgs, setMsgs] = useState<ChatMessage[]>([]);
   const [thread, setThread] = useState<Thread | null>(null);
   const [text, setText] = useState('');
+  const [sendError, setSendError] = useState('');
   const [sending, setSending] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
 
@@ -38,9 +39,13 @@ export default function MessaggiPage({ gameId, playerUid, currentAuthUid }: Prop
     const t = text.trim();
     if (!t) return;
     setSending(true);
+    setSendError('');
     try {
       await sendMessage(gameId, playerUid, currentAuthUid || playerUid, 'player', t);
       setText('');
+    } catch (err) {
+      console.warn('Send message error:', err);
+      setSendError("Il messaggio non e' stato inviato. Attendi qualche secondo e riprova.");
     } finally {
       setSending(false);
     }
@@ -87,7 +92,10 @@ export default function MessaggiPage({ gameId, playerUid, currentAuthUid }: Prop
             <textarea
               aria-label="Testo del messaggio"
               value={text}
-              onChange={(e) => setText(e.target.value.slice(0, CHAT_MESSAGE_MAX))}
+              onChange={(e) => {
+                setSendError('');
+                setText(e.target.value.slice(0, CHAT_MESSAGE_MAX));
+              }}
               className="app-field min-h-[76px] flex-1 resize-none px-3 py-2 text-base leading-relaxed sm:min-h-[52px] sm:text-sm"
               rows={3}
               placeholder="Scrivi un messaggio..."
@@ -102,6 +110,11 @@ export default function MessaggiPage({ gameId, playerUid, currentAuthUid }: Prop
               {sending ? 'Invio' : 'Invia'}
             </button>
           </div>
+          {sendError && (
+            <p role="alert" className="mt-2 text-xs font-bold" style={{ color: 'var(--wrong)' }}>
+              {sendError}
+            </p>
+          )}
           <p className="text-[10px] mt-2 text-right" style={{ color: 'var(--text-muted)' }}>
             {text.length}/{CHAT_MESSAGE_MAX}
           </p>

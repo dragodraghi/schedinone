@@ -14,6 +14,45 @@ export function resolveExtraDeviceLinkTarget(
   return isFreshDraftPlayer(playerData) ? matchingPlayerUid : null;
 }
 
+export type JoinGameMode = "classic" | "golden-plus";
+
+export type JoinIdentityInput = {
+  gameMode: JoinGameMode;
+  name?: unknown;
+  code?: unknown;
+  accessData?: Record<string, unknown>;
+};
+
+export function resolveJoinIdentity(input: JoinIdentityInput): {
+  effectiveName: string;
+  skipCodeCheck: boolean;
+} {
+  const name = typeof input.name === "string" ? input.name.trim() : "";
+  const code = typeof input.code === "string" ? input.code.trim() : "";
+
+  if (input.gameMode === "golden-plus") {
+    const accessData = input.accessData ?? {};
+    if (accessData.status !== "approved") {
+      throw new Error("Accesso Golden Plus non autorizzato.");
+    }
+    if (typeof accessData.displayName !== "string" || !accessData.displayName.trim()) {
+      throw new Error("Accesso Golden Plus incompleto.");
+    }
+    return {
+      effectiveName: accessData.displayName.trim(),
+      skipCodeCheck: true,
+    };
+  }
+
+  if (!name || !code) {
+    throw new Error("Parametri mancanti o non validi.");
+  }
+  return {
+    effectiveName: name,
+    skipCodeCheck: false,
+  };
+}
+
 const RESERVED_PLAYER_NAMES = new Set([
   "admin",
   "administrator",
@@ -23,10 +62,18 @@ const RESERVED_PLAYER_NAMES = new Set([
   "staff",
 ]);
 
+export function canonicalPlayerNameKey(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/gi, "")
+    .toLowerCase();
+}
+
 export function isReservedPlayerName(name: string): boolean {
-  const normalized = name.trim().toLowerCase();
+  if (name.includes("@")) return true;
+  const normalized = canonicalPlayerNameKey(name);
   if (!normalized) return false;
-  if (normalized.includes("@")) return true;
   return RESERVED_PLAYER_NAMES.has(normalized);
 }
 

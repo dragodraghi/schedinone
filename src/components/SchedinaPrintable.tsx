@@ -1,5 +1,5 @@
 import { forwardRef } from "react";
-import { getOrderedMatchGroups } from "../lib/matchGrouping";
+import { getChronologicalMatchDayGroups } from "../lib/matchGrouping";
 import type { Game, Match, Player, Sign } from "../lib/types";
 
 interface Props {
@@ -16,14 +16,14 @@ interface Props {
  *
  * Renders a clean white-background layout (via `.pdf-export` overrides in
  * index.css) suitable for archiving or sharing outside the app. Laid out
- * as a single long page with match-by-match predictions grouped by girone.
+ * as a single long page with match-by-match predictions grouped by day.
  */
 const SchedinaPrintable = forwardRef<HTMLDivElement, Props>(function SchedinaPrintable(
   { game, player, matches, predictions, topScorerPick, winnerPick },
   ref
 ) {
   const phaseMatches = matches.filter((m) => m.phase === game.currentPhase);
-  const groups = getOrderedMatchGroups(phaseMatches);
+  const dayGroups = getChronologicalMatchDayGroups(phaseMatches);
 
   const filledCount = phaseMatches.filter((m) => predictions[m.id]).length;
   const generatedAt = new Date().toLocaleString("it-IT", {
@@ -115,9 +115,9 @@ const SchedinaPrintable = forwardRef<HTMLDivElement, Props>(function SchedinaPri
         </div>
       </div>
 
-      {/* Groups */}
-      {groups.map(([groupName, groupMatches]) => (
-        <div key={groupName} style={{ marginBottom: 18 }}>
+      {/* Match days */}
+      {dayGroups.map((dayGroup) => (
+        <div key={dayGroup.key} style={{ marginBottom: 18 }}>
           <div
             style={{
               fontFamily: "Outfit, sans-serif",
@@ -131,7 +131,7 @@ const SchedinaPrintable = forwardRef<HTMLDivElement, Props>(function SchedinaPri
               marginBottom: 8,
             }}
           >
-            {game.currentPhase === "gironi" ? `Gruppo ${groupName}` : groupName}
+            {dayGroup.label}
           </div>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
@@ -144,7 +144,7 @@ const SchedinaPrintable = forwardRef<HTMLDivElement, Props>(function SchedinaPri
               </tr>
             </thead>
             <tbody>
-              {groupMatches.map((match) => {
+              {dayGroup.matches.map((match) => {
                 const pred = predictions[match.id];
                 const result = match.result;
                 const correct = result && pred === result;

@@ -1,9 +1,32 @@
 import * as admin from "firebase-admin";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { sendPushToUids } from "./messaging";
+import { CLASSIC_GAME_ID, GOLDEN_GAME_ID } from "./gameIds";
 
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+async function resolveThreadPlayerName(
+  db: FirebaseFirestore.Firestore,
+  gameId: string,
+  playerUid: string
+): Promise<string> {
+  const playerSnap = await db.doc(`games/${gameId}/players/${playerUid}`).get();
+  const playerName = playerSnap.data()?.name;
+  if (typeof playerName === "string" && playerName.trim().length > 0) {
+    return playerName;
+  }
+
+  if (gameId === CLASSIC_GAME_ID) {
+    const accessSnap = await db.doc(`games/${GOLDEN_GAME_ID}/access/${playerUid}`).get();
+    const goldenName = accessSnap.data()?.displayName;
+    if (typeof goldenName === "string" && goldenName.trim().length > 0) {
+      return goldenName;
+    }
+  }
+
+  return "Giocatore";
 }
 
 export const onMessageCreated = onDocumentCreated(
@@ -22,7 +45,7 @@ export const onMessageCreated = onDocumentCreated(
 
     const playerSnap = await db.doc(`games/${gameId}/players/${playerUid}`).get();
     const playerData = playerSnap.data() ?? {};
-    const playerName: string = (playerData.name as string | undefined) ?? "Giocatore";
+    const playerName = await resolveThreadPlayerName(db, gameId, playerUid);
 
     if (!threadSnap.exists) {
       await threadRef.set({

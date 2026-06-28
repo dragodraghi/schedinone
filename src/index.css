@@ -296,6 +296,21 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 -14px 40px rgba(0, 0, 0, 0.28);
 }
 
+.bottom-nav-scroll {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.bottom-nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.golden-bracket-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+}
+
 .nav-item {
   min-width: 70px;
   border-radius: 8px;
@@ -602,6 +617,20 @@ body.pdf-export .pdf-gold { color: #b8860b !important; }
 body.pdf-export .pdf-correct { color: #008a4a !important; }
 body.pdf-export .pdf-wrong { color: #c11f44 !important; }
 body.pdf-export .pdf-hide { display: none !important; }
+body.pdf-export [data-griglione-print="true"] {
+  background: #ffffff !important;
+  color: #111827 !important;
+}
+body.pdf-export [data-griglione-print="true"] .griglione-dark-cell {
+  background: #1f2937 !important;
+  color: #ffffff !important;
+}
+body.pdf-export [data-griglione-print="true"] .griglione-dark-cell * {
+  color: #ffffff !important;
+}
+body.pdf-export [data-griglione-print="true"] .griglione-muted {
+  color: #64748b !important;
+}
 
 /* Chatbot typing indicator */
 @keyframes typingBlink {
@@ -644,4 +673,15 @@ body.pdf-export .pdf-hide { display: none !important; }
   border-radius: 50%;
   animation: ptrSpin 0.8s linear infinite;
   margin-right: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }

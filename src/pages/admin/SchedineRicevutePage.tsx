@@ -11,54 +11,87 @@ interface Props {
   matches: Match[];
   gameId: string;
   game: Game;
+  title?: string;
+  subtitle?: string;
+  backTo?: string;
+  backLabel?: string;
 }
 
 type FilterTab = "Tutte" | "In attesa" | "Accettate" | "Rifiutate";
 
 function statusLabel(status: ScheduleStatus): string {
   switch (status) {
-    case "inviata": return "In attesa";
-    case "accettata": return "Accettata";
-    case "rifiutata": return "Rifiutata";
-    default: return "Bozza";
+    case "inviata":
+      return "In attesa";
+    case "accettata":
+      return "Accettata";
+    case "rifiutata":
+      return "Rifiutata";
+    default:
+      return "Bozza";
   }
 }
 
 function statusColor(status: ScheduleStatus): string {
   switch (status) {
-    case "inviata": return "var(--accent)";
-    case "accettata": return "var(--correct)";
-    case "rifiutata": return "var(--wrong)";
-    default: return "var(--text-muted)";
+    case "inviata":
+      return "var(--accent)";
+    case "accettata":
+      return "var(--correct)";
+    case "rifiutata":
+      return "var(--wrong)";
+    default:
+      return "var(--text-muted)";
   }
 }
 
 function statusBg(status: ScheduleStatus): string {
   switch (status) {
-    case "inviata": return "rgba(0, 212, 255, 0.12)";
-    case "accettata": return "rgba(0, 255, 136, 0.12)";
-    case "rifiutata": return "rgba(255, 51, 102, 0.12)";
-    default: return "rgba(255,255,255,0.05)";
+    case "inviata":
+      return "rgba(0, 212, 255, 0.12)";
+    case "accettata":
+      return "rgba(0, 255, 136, 0.12)";
+    case "rifiutata":
+      return "rgba(255, 51, 102, 0.12)";
+    default:
+      return "rgba(255,255,255,0.05)";
   }
 }
 
 function statusBorder(status: ScheduleStatus): string {
   switch (status) {
-    case "inviata": return "rgba(0, 212, 255, 0.35)";
-    case "accettata": return "rgba(0, 255, 136, 0.35)";
-    case "rifiutata": return "rgba(255, 51, 102, 0.35)";
-    default: return "var(--border)";
+    case "inviata":
+      return "rgba(0, 212, 255, 0.35)";
+    case "accettata":
+      return "rgba(0, 255, 136, 0.35)";
+    case "rifiutata":
+      return "rgba(255, 51, 102, 0.35)";
+    default:
+      return "var(--border)";
   }
 }
 
-export default function SchedineRicevutePage({ players, matches, gameId, game }: Props) {
+export default function SchedineRicevutePage({
+  players,
+  matches,
+  gameId,
+  game,
+  title,
+  subtitle,
+  backTo = "/admin",
+  backLabel = "Admin",
+}: Props) {
   const [activeTab, setActiveTab] = useState<FilterTab>("Tutte");
   const [updating, setUpdating] = useState<string | null>(null);
   const [acceptingAll, setAcceptingAll] = useState(false);
   const [showAcceptAllConfirm, setShowAcceptAllConfirm] = useState(false);
   const [toast, setToast] = useState<ToastData | null>(null);
 
-  const totalMatches = matches.filter((m) => m.phase === game.currentPhase).length;
+  const isGolden = game.mode === "golden-plus" || game.predictionMode === "qualifier";
+  const relevantMatches = isGolden ? matches : matches.filter((m) => m.phase === game.currentPhase);
+  const totalMatches = relevantMatches.length;
+  const showSpecialPicks = game.specialPicksEnabled !== false && !isGolden;
+  const pageTitle = title ?? (isGolden ? "Schedine Golden" : "Schedine Ricevute");
 
   const submitted = players.filter((p) => p.scheduleStatus !== "bozza");
 
@@ -71,10 +104,10 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
   });
 
   const tabCounts: Record<FilterTab, number> = {
-    "Tutte": submitted.length,
+    Tutte: submitted.length,
     "In attesa": submitted.filter((p) => p.scheduleStatus === "inviata").length,
-    "Accettate": submitted.filter((p) => p.scheduleStatus === "accettata").length,
-    "Rifiutate": submitted.filter((p) => p.scheduleStatus === "rifiutata").length,
+    Accettate: submitted.filter((p) => p.scheduleStatus === "accettata").length,
+    Rifiutate: submitted.filter((p) => p.scheduleStatus === "rifiutata").length,
   };
 
   const tabs: FilterTab[] = ["Tutte", "In attesa", "Accettate", "Rifiutate"];
@@ -92,12 +125,11 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
   };
 
   const pendingPlayers = submitted.filter((p) => p.scheduleStatus === "inviata");
-  const payablePendingPlayers = pendingPlayers.filter((p) => p.paid);
-  const unpaidPendingCount = pendingPlayers.length - payablePendingPlayers.length;
+  const unpaidPendingCount = pendingPlayers.filter((p) => !p.paid).length;
 
   const acceptAll = async () => {
-    if (payablePendingPlayers.length === 0) return;
-    const count = payablePendingPlayers.length;
+    if (pendingPlayers.length === 0) return;
+    const count = pendingPlayers.length;
     setAcceptingAll(true);
     try {
       let batch = writeBatch(db);
@@ -108,7 +140,7 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
         batch = writeBatch(db);
         pendingWrites = 0;
       };
-      for (const p of payablePendingPlayers) {
+      for (const p of pendingPlayers) {
         const ref = doc(db, "games", gameId, "players", p.id);
         batch.update(ref, { scheduleStatus: "accettata" });
         pendingWrites++;
@@ -132,27 +164,26 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
   return (
     <div className="space-y-4 animate-in">
       <Toast toast={toast} onDone={() => setToast(null)} />
-      {/* Header */}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black" style={{ fontFamily: "Outfit, sans-serif" }}>
-            📬 Schedine Ricevute
+            {pageTitle}
           </h1>
           <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-            {submitted.length} inviate · {players.length} totali
+            {subtitle ?? `${submitted.length} inviate · ${players.length} totali`}
           </p>
         </div>
         <Link
-          to="/admin"
+          to={backTo}
           className="text-xs transition-colors px-3 py-1.5 rounded-lg glass"
           style={{ color: "var(--text-muted)" }}
         >
-          ← Admin
+          ← {backLabel}
         </Link>
       </div>
 
-      {/* Accetta pagate button */}
-      {payablePendingPlayers.length > 0 && (
+      {pendingPlayers.length > 0 && (
         <button
           onClick={() => setShowAcceptAllConfirm(true)}
           disabled={acceptingAll}
@@ -166,7 +197,7 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
             boxShadow: "0 0 16px rgba(0,255,136,0.1)",
           }}
         >
-          {acceptingAll ? "Accettando..." : `✓ Accetta pagate (${payablePendingPlayers.length})`}
+          {acceptingAll ? "Accettando..." : `✓ Accetta inviate (${pendingPlayers.length})`}
         </button>
       )}
 
@@ -182,12 +213,11 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
             {unpaidPendingCount} schedin{unpaidPendingCount === 1 ? "a" : "e"} in attesa di pagamento
           </p>
           <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-            Segna "Pagato" nella pagina Giocatori prima di accettare.
+            Puoi accettarle comunque: il pagamento resta separato e rimane visibile come "Da pagare".
           </p>
         </div>
       )}
 
-      {/* Confirm bulk accept modal */}
       {showAcceptAllConfirm && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -198,10 +228,11 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
             style={{ border: "1px solid rgba(0,255,136,0.3)", boxShadow: "0 0 40px rgba(0,255,136,0.1)" }}
           >
             <h2 className="text-lg font-black" style={{ fontFamily: "Outfit, sans-serif", color: "var(--correct)" }}>
-              ✓ Accettare {payablePendingPlayers.length} schedin{payablePendingPlayers.length === 1 ? "a" : "e"} pagat{payablePendingPlayers.length === 1 ? "a" : "e"}?
+              ✓ Accettare {pendingPlayers.length} schedin{pendingPlayers.length === 1 ? "a" : "e"} inviat{pendingPlayers.length === 1 ? "a" : "e"}?
             </h2>
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Solo le schedine gia' segnate come pagate verranno contrassegnate come <strong style={{ color: "var(--correct)" }}>accettate</strong> e i pronostici saranno visibili nel Griglione. L'operazione si puo' annullare rifiutandole una per una.
+              Tutte le schedine in attesa verranno contrassegnate come <strong style={{ color: "var(--correct)" }}>accettate</strong> e i pronostici saranno visibili nel Griglione.
+              Se una schedina e' ancora senza bonifico, restera' comunque segnata come <strong style={{ color: "var(--gold)" }}>da pagare</strong>.
             </p>
             <div className="flex gap-3">
               <button
@@ -224,14 +255,13 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
                   boxShadow: "0 0 20px rgba(0,255,136,0.25)",
                 }}
               >
-                Si, accetta pagate
+                Si, accetta inviate
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Filter tabs */}
       <div className="flex flex-wrap gap-1.5">
         {tabs.map((tab) => {
           const isActive = activeTab === tab;
@@ -265,24 +295,16 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
         })}
       </div>
 
-      {/* Cards */}
       {filtered.length === 0 ? (
-        <div
-          className="glass rounded-xl p-8 text-center"
-          style={{ color: "var(--text-muted)", fontFamily: "Outfit, sans-serif" }}
-        >
+        <div className="glass rounded-xl p-8 text-center" style={{ color: "var(--text-muted)", fontFamily: "Outfit, sans-serif" }}>
           <div className="text-3xl mb-2">📭</div>
           <p className="font-bold">Nessuna schedina in questa categoria</p>
         </div>
       ) : (
         <div className="space-y-3">
           {filtered.map((player) => {
-            const filledCount = matches
-              .filter((m) => m.phase === game.currentPhase)
-              .filter((m) => player.predictions[m.id]).length;
-
+            const filledCount = relevantMatches.filter((m) => player.predictions[m.id]).length;
             const isInviata = player.scheduleStatus === "inviata";
-            const canAccept = player.paid;
             const acceptKey = player.id + "accettata";
             const rejectKey = player.id + "rifiutata";
 
@@ -295,12 +317,8 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
                   boxShadow: isInviata ? "0 0 16px rgba(0,212,255,0.08)" : "none",
                 }}
               >
-                {/* Top row: name + status badge */}
                 <div className="flex items-center justify-between">
-                  <p
-                    className="text-base font-black"
-                    style={{ fontFamily: "Outfit, sans-serif", color: "var(--text-primary)" }}
-                  >
+                  <p className="text-base font-black" style={{ fontFamily: "Outfit, sans-serif", color: "var(--text-primary)" }}>
                     {player.name}
                   </p>
                   <span
@@ -316,7 +334,6 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
                   </span>
                 </div>
 
-                {/* Stats row */}
                 <div className="flex flex-wrap gap-3">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-muted)", fontFamily: "Outfit, sans-serif" }}>
@@ -334,7 +351,7 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
                     </span>
                   </div>
 
-                  {player.topScorerPick && (
+                  {showSpecialPicks && player.topScorerPick && (
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-muted)", fontFamily: "Outfit, sans-serif" }}>
                         Capocannoniere
@@ -345,7 +362,7 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
                     </div>
                   )}
 
-                  {player.winnerPick && (
+                  {showSpecialPicks && player.winnerPick && (
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-muted)", fontFamily: "Outfit, sans-serif" }}>
                         Vincitrice
@@ -374,28 +391,25 @@ export default function SchedineRicevutePage({ players, matches, gameId, game }:
                   </div>
                 </div>
 
-                {/* Action buttons for pending schedine */}
                 {isInviata && (
                   <div className="flex gap-2 pt-1">
                     <button
-                      onClick={() => {
-                        if (canAccept) updateStatus(player.id, "accettata");
-                      }}
-                      disabled={updating === acceptKey || !canAccept}
-                      aria-label={canAccept ? `Accetta schedina ${player.name}` : `Pagamento mancante per ${player.name}`}
-                      title={canAccept ? "Accetta schedina" : "Segna il pagamento prima di accettare"}
+                      onClick={() => updateStatus(player.id, "accettata")}
+                      disabled={updating === acceptKey}
+                      aria-label={`Accetta schedina ${player.name}`}
+                      title="Accetta schedina"
                       className="flex-1 py-2 rounded-lg font-bold text-sm transition-all"
                       style={{
                         fontFamily: "Outfit, sans-serif",
-                        background: canAccept ? "rgba(0,255,136,0.15)" : "rgba(255,215,0,0.08)",
-                        color: canAccept ? "var(--correct)" : "var(--gold)",
-                        border: `1px solid ${canAccept ? "rgba(0,255,136,0.4)" : "rgba(255,215,0,0.32)"}`,
+                        background: "rgba(0,255,136,0.15)",
+                        color: "var(--correct)",
+                        border: "1px solid rgba(0,255,136,0.4)",
                         opacity: updating === acceptKey ? 0.6 : 1,
-                        boxShadow: canAccept ? "0 0 12px rgba(0,255,136,0.1)" : "none",
-                        cursor: canAccept ? "pointer" : "not-allowed",
+                        boxShadow: "0 0 12px rgba(0,255,136,0.1)",
+                        cursor: "pointer",
                       }}
                     >
-                      {updating === acceptKey ? "..." : canAccept ? "✓ Accetta" : "Pagamento mancante"}
+                      {updating === acceptKey ? "..." : "✓ Accetta"}
                     </button>
                     <button
                       onClick={() => updateStatus(player.id, "rifiutata")}

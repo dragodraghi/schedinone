@@ -14,6 +14,7 @@ import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
 const PROJECT_ID = "demo-schedinone-rules";
 const GAME_ID = "game-1";
+const GOLDEN_GAME_ID = "schedinone-golden-plus-2026";
 
 let testEnv: RulesTestEnvironment;
 const rulesEmulatorAvailable = !!process.env.FIRESTORE_EMULATOR_HOST;
@@ -57,6 +58,21 @@ async function seedData() {
       entryFee: 10,
       currentPhase: "gironi",
       phases: ["gironi"],
+    });
+    await db.doc(`games/${GOLDEN_GAME_ID}`).set({
+      name: "Schedinone Golden Plus 2026",
+      admins: ["admin-1"],
+      playerDeviceAliases: {
+        "player-1-device-2": "player-1",
+      },
+      entryFee: 0,
+      accessClosesAt: firebase.firestore.Timestamp.fromDate(new Date("2099-06-28T18:00:00Z")),
+      currentPhase: "sedicesimi",
+      phases: ["sedicesimi", "ottavi", "quarti", "semifinali", "finale"],
+      mode: "golden-plus",
+      predictionMode: "qualifier",
+      specialPicksEnabled: false,
+      sourceGameId: GAME_ID,
     });
     await db.doc(`games/${GAME_ID}/matches/m1`).set({
       phase: "gironi",
@@ -278,6 +294,217 @@ describeRules("Firestore rules", () => {
     );
   });
 
+  it("allows a signed-in user to create only their own pending Golden Plus request", async () => {
+    const db = anonymous("new-golden-player");
+
+    await assertSucceeds(
+      db.doc(`games/${GOLDEN_GAME_ID}/access/new-golden-player`).set({
+        status: "pending",
+        type: "new-request",
+        displayName: "Team Golden",
+        contact: "team@example.test",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      })
+    );
+    await assertFails(
+      db.doc(`games/${GOLDEN_GAME_ID}/access/other-player`).set({
+        status: "pending",
+        type: "new-request",
+        displayName: "Team Golden",
+        contact: "team@example.test",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      })
+    );
+    await assertFails(
+      db.doc(`games/${GOLDEN_GAME_ID}/access/new-golden-player-2`).set({
+        status: "approved",
+        type: "new-request",
+        displayName: "Team Golden",
+        contact: "team@example.test",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      })
+    );
+  });
+
+  it("allows only game admins to approve or revoke Golden Plus access", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`games/${GOLDEN_GAME_ID}/access/new-golden-player`).set({
+        status: "pending",
+        type: "new-request",
+        displayName: "Team Golden",
+        contact: "team@example.test",
+        createdAt: firebase.firestore.Timestamp.fromDate(new Date("2026-06-27T10:00:00Z")),
+      });
+    });
+
+    const playerDb = anonymous("new-golden-player");
+    const adminDb = signedIn("admin-1");
+
+    await assertFails(
+      playerDb.doc(`games/${GOLDEN_GAME_ID}/access/new-golden-player`).update({
+        status: "approved",
+        reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        reviewedBy: "new-golden-player",
+      })
+    );
+    await assertSucceeds(
+      adminDb.doc(`games/${GOLDEN_GAME_ID}/access/new-golden-player`).update({
+        status: "approved",
+        reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        reviewedBy: "admin-1",
+      })
+    );
+    await assertFails(
+      playerDb.doc(`games/${GOLDEN_GAME_ID}/access/new-golden-player`).update({
+        paid: true,
+      })
+    );
+    await assertSucceeds(
+      adminDb.doc(`games/${GOLDEN_GAME_ID}/access/new-golden-player`).update({
+        paid: true,
+        reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        reviewedBy: "admin-1",
+      })
+    );
+    await assertSucceeds(
+      adminDb.doc(`games/${GOLDEN_GAME_ID}/access/player-1`).set({
+        status: "approved",
+        type: "classic-player",
+        displayName: "Alice",
+        classicPlayerUid: "player-1",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        reviewedBy: "admin-1",
+      })
+    );
+  });
+
+  it("allows approved Golden Plus players to read access through an authorized extra device", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`games/${GOLDEN_GAME_ID}/access/player-1`).set({
+        status: "approved",
+        type: "classic-player",
+        displayName: "Alice",
+        classicPlayerUid: "player-1",
+        createdAt: firebase.firestore.Timestamp.fromDate(new Date("2026-06-27T10:00:00Z")),
+      });
+      await context.firestore().doc(`games/${GOLDEN_GAME_ID}/players/player-1`).set({
+        ...playerData("Alice"),
+        predictions: {},
+        topScorerPick: "",
+        winnerPick: "",
+      });
+    });
+
+    const extraDeviceDb = anonymous("player-1-device-2");
+
+    await assertSucceeds(extraDeviceDb.doc(`games/${GOLDEN_GAME_ID}/access/player-1`).get());
+    await assertSucceeds(extraDeviceDb.doc(`games/${GOLDEN_GAME_ID}/players/player-1`).get());
+  });
+
+  it("blocks new Golden Plus requests and approvals after access closes", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`games/${GOLDEN_GAME_ID}`).update({
+        accessClosesAt: firebase.firestore.Timestamp.fromDate(new Date("2000-01-01T00:00:00Z")),
+      });
+      await context.firestore().doc(`games/${GOLDEN_GAME_ID}/access/new-golden-player`).set({
+        status: "pending",
+        type: "new-request",
+        displayName: "Team Golden",
+        contact: "team@example.test",
+        createdAt: firebase.firestore.Timestamp.fromDate(new Date("2026-06-27T10:00:00Z")),
+      });
+      await context.firestore().doc(`games/${GOLDEN_GAME_ID}/access/old-approved`).set({
+        status: "approved",
+        type: "classic-player",
+        displayName: "Old Team",
+        classicPlayerUid: "player-2",
+        createdAt: firebase.firestore.Timestamp.fromDate(new Date("2026-06-27T10:00:00Z")),
+      });
+    });
+
+    const playerDb = anonymous("late-player");
+    const adminDb = signedIn("admin-1");
+
+    await assertFails(
+      playerDb.doc(`games/${GOLDEN_GAME_ID}/access/late-player`).set({
+        status: "pending",
+        type: "new-request",
+        displayName: "Late Team",
+        contact: "late@example.test",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      })
+    );
+    await assertFails(
+      adminDb.doc(`games/${GOLDEN_GAME_ID}/access/new-golden-player`).update({
+        status: "approved",
+        reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        reviewedBy: "admin-1",
+      })
+    );
+    await assertFails(
+      adminDb.doc(`games/${GOLDEN_GAME_ID}/access/player-1`).set({
+        status: "approved",
+        type: "classic-player",
+        displayName: "Alice",
+        classicPlayerUid: "player-1",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        reviewedBy: "admin-1",
+      })
+    );
+    await assertSucceeds(
+      adminDb.doc(`games/${GOLDEN_GAME_ID}/access/old-approved`).update({
+        status: "revoked",
+        reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        reviewedBy: "admin-1",
+      })
+    );
+  });
+
+  it("allows admins to write Golden Plus bracket match metadata", async () => {
+    const adminDb = signedIn("admin-1");
+    const playerDb = anonymous("player-1");
+    const matchData = {
+      phase: "sedicesimi",
+      group: null,
+      homeTeam: "Spagna",
+      awayTeam: "Corea del Sud",
+      kickoff: firebase.firestore.Timestamp.fromDate(new Date("2026-06-29T19:00:00Z")),
+      result: null,
+      score: null,
+      locked: false,
+      bracketSlot: "r32-01",
+      feedsInto: "r16-01",
+      feedsIntoSide: "home",
+    };
+
+    await assertSucceeds(adminDb.doc(`games/${GOLDEN_GAME_ID}/matches/r32-01`).set(matchData));
+    await assertFails(playerDb.doc(`games/${GOLDEN_GAME_ID}/matches/r32-02`).set(matchData));
+  });
+
+  it("allows confirming result proposals on matches with operational metadata", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`games/${GAME_ID}/matches/m1`).update({
+        calendarFixedAt: firebase.firestore.Timestamp.fromDate(new Date("2026-06-02T10:00:00Z")),
+        calendarFixedSource: "FIFA/Sky/FourFourTwo verification 2026-06-02",
+        temporarilyReopenedAt: firebase.firestore.Timestamp.fromDate(new Date("2026-06-10T10:00:00Z")),
+        temporarilyReopenedFor: "Tilox",
+      });
+    });
+
+    const db = signedIn("admin-1");
+
+    await assertSucceeds(
+      db.doc(`games/${GAME_ID}/matches/m1`).update({
+        result: "1",
+        score: "2-0",
+        locked: true,
+        resultSource: "manual",
+      })
+    );
+  });
+
   it("keeps automatic result proposals committee-only and read-delete-only", async () => {
     const adminDb = signedIn("admin-1");
     const playerDb = anonymous("player-1");
@@ -341,6 +568,35 @@ describeRules("Firestore rules", () => {
         text: "ciao dal secondo dispositivo",
         from: "player",
         senderUid: "player-1-device-2",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      })
+    );
+  });
+
+  it("rate-limits consecutive chat messages only from the same side", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`games/${GAME_ID}/threads/player-1`).update({
+        lastMessageAt: firebase.firestore.FieldValue.serverTimestamp(),
+        lastMessageFrom: "player",
+      });
+    });
+
+    const playerDb = anonymous("player-1");
+    const adminDb = signedIn("admin-1");
+
+    await assertFails(
+      playerDb.collection(`games/${GAME_ID}/threads/player-1/messages`).add({
+        text: "aggiungo una cosa",
+        from: "player",
+        senderUid: "player-1",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      })
+    );
+    await assertSucceeds(
+      adminDb.collection(`games/${GAME_ID}/threads/player-1/messages`).add({
+        text: "Risposta del Comitato",
+        from: "committee",
+        senderUid: "admin-1",
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       })
     );

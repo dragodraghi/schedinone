@@ -34,4 +34,23 @@ describe("worldcup2026", () => {
     });
     expect(byId.get("gir-L-md3-03")?.kickoff.toISOString()).toBe("2026-06-27T21:00:00.000Z");
   });
+
+  it("uses the official Group E kickoff order from FIFA", () => {
+    const matches = buildWC2026Matches();
+    const byId = new Map(matches.map((match) => [match.id, match]));
+
+    expect(byId.get("gir-E-md1-01")).toMatchObject({
+      homeTeam: "Germania",
+      awayTeam: "Curaçao",
+      group: "E",
+    });
+    expect(byId.get("gir-E-md1-01")?.kickoff.toISOString()).toBe("2026-06-14T17:00:00.000Z");
+
+    expect(byId.get("gir-E-md1-23")).toMatchObject({
+      homeTeam: "Costa d'Avorio",
+      awayTeam: "Ecuador",
+      group: "E",
+    });
+    expect(byId.get("gir-E-md1-23")?.kickoff.toISOString()).toBe("2026-06-14T23:00:00.000Z");
+  });
 });

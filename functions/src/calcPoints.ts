@@ -5,6 +5,30 @@ export interface RecalculatePointsReport {
   matchesCounted: number;
 }
 
+export function publicPlayerData(data: admin.firestore.DocumentData, points: number) {
+  const status =
+    data.scheduleStatus === "inviata" ||
+    data.scheduleStatus === "accettata" ||
+    data.scheduleStatus === "rifiutata"
+      ? data.scheduleStatus
+      : "bozza";
+  const accepted = status === "accettata";
+
+  return {
+    name: typeof data.name === "string" ? data.name : "Giocatore",
+    joinedAt: data.joinedAt ?? null,
+    points,
+    paid: data.paid === true,
+    scheduleStatus: status,
+    predictions:
+      accepted && data.predictions && typeof data.predictions === "object"
+        ? data.predictions
+        : {},
+    topScorerPick: accepted && typeof data.topScorerPick === "string" ? data.topScorerPick : "",
+    winnerPick: accepted && typeof data.winnerPick === "string" ? data.winnerPick : "",
+  };
+}
+
 /**
  * Compute each player's current leaderboard rank, replicating the frontend
  * ordering in src/lib/playerOrdering.ts: points desc -> joinedAt asc ->
@@ -119,6 +143,14 @@ export async function recalculatePoints(gameId: string): Promise<RecalculatePoin
       if (pendingWrites >= 400) {
         await commitPending();
       }
+    }
+
+    batch.set(db.doc(`games/${gameId}/publicPlayers/${playerDoc.id}`), publicPlayerData(data, points), {
+      merge: true,
+    });
+    pendingWrites++;
+    if (pendingWrites >= 400) {
+      await commitPending();
     }
   }
 

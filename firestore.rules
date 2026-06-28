@@ -12,7 +12,7 @@ service cloud.firestore {
     }
 
     function isValidPhase(value) {
-      return value in ['gironi', 'ottavi', 'quarti', 'semifinali', 'finale'];
+      return value in ['gironi', 'sedicesimi', 'ottavi', 'quarti', 'semifinali', 'finale'];
     }
 
     function isValidScheduleStatus(value) {
@@ -41,6 +41,9 @@ service cloud.firestore {
 
     function isValidSafeGameUpdate() {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
+      // Game mode fields are intentionally immutable from the client. They are
+      // set during game seeding/Admin SDK setup so an admin UI action cannot
+      // accidentally switch the classic game into Golden Plus mode.
       return changed.hasOnly([
           'name',
           'entryFee',
@@ -67,10 +70,17 @@ service cloud.firestore {
           'awayTeam',
           'kickoff',
           'kickoffSource',
+          'calendarFixedAt',
+          'calendarFixedSource',
+          'temporarilyReopenedAt',
+          'temporarilyReopenedFor',
           'result',
           'score',
           'locked',
-          'resultSource'
+          'resultSource',
+          'bracketSlot',
+          'feedsInto',
+          'feedsIntoSide'
         ])
         && request.resource.data.keys().hasAll(['phase', 'homeTeam', 'awayTeam', 'kickoff', 'result', 'score', 'locked'])
         && isValidPhase(request.resource.data.phase)
@@ -83,10 +93,17 @@ service cloud.firestore {
         && request.resource.data.awayTeam.size() <= 80
         && request.resource.data.kickoff is timestamp
         && (!request.resource.data.keys().hasAny(['kickoffSource']) || request.resource.data.kickoffSource in ['synthetic', 'api', 'manual'])
+        && (!request.resource.data.keys().hasAny(['calendarFixedAt']) || request.resource.data.calendarFixedAt is timestamp)
+        && (!request.resource.data.keys().hasAny(['calendarFixedSource']) || isValidNullableString(request.resource.data.calendarFixedSource, 200))
+        && (!request.resource.data.keys().hasAny(['temporarilyReopenedAt']) || request.resource.data.temporarilyReopenedAt is timestamp)
+        && (!request.resource.data.keys().hasAny(['temporarilyReopenedFor']) || isValidNullableString(request.resource.data.temporarilyReopenedFor, 80))
         && isValidNullableSign(request.resource.data.result)
         && isValidNullableString(request.resource.data.score, 20)
         && request.resource.data.locked is bool
-        && (!request.resource.data.keys().hasAny(['resultSource']) || request.resource.data.resultSource in ['manual', 'auto']);
+        && (!request.resource.data.keys().hasAny(['resultSource']) || request.resource.data.resultSource in ['manual', 'auto'])
+        && (!request.resource.data.keys().hasAny(['bracketSlot']) || isValidNullableString(request.resource.data.bracketSlot, 40))
+        && (!request.resource.data.keys().hasAny(['feedsInto']) || isValidNullableString(request.resource.data.feedsInto, 40))
+        && (!request.resource.data.keys().hasAny(['feedsIntoSide']) || request.resource.data.feedsIntoSide == null || request.resource.data.feedsIntoSide in ['home', 'away']);
     }
 
     function isValidAdminPlayerUpdate() {
@@ -96,6 +113,64 @@ service cloud.firestore {
         && (!changed.hasAny(['scheduleStatus']) || isValidScheduleStatus(request.resource.data.scheduleStatus))
         && (!changed.hasAny(['multiDeviceEnabled']) || request.resource.data.multiDeviceEnabled is bool)
         && (!changed.hasAny(['deviceUids']) || isValidStringList(request.resource.data.deviceUids, 10));
+    }
+
+    function isValidGoldenAccessStatus(value) {
+      return value in ['pending', 'approved', 'rejected', 'revoked'];
+    }
+
+    function isValidGoldenAccessType(value) {
+      return value in ['classic-player', 'new-request'];
+    }
+
+    function isGoldenAccessOpen(gameId) {
+      let game = get(/databases/$(database)/documents/games/$(gameId)).data;
+      return !game.keys().hasAny(['accessClosesAt'])
+        || !(game.accessClosesAt is timestamp)
+        || request.time < game.accessClosesAt;
+    }
+
+    function canWriteGoldenAccessStatus(gameId) {
+      return request.resource.data.status != 'approved'
+        || (resource != null && resource.data.status == 'approved')
+        || isGoldenAccessOpen(gameId);
+    }
+
+    function isValidGoldenAccessCreate() {
+      return request.resource.data.keys().hasOnly(['status', 'type', 'displayName', 'contact', 'createdAt'])
+        && request.resource.data.status == 'pending'
+        && request.resource.data.type == 'new-request'
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 1
+        && request.resource.data.displayName.size() <= 30
+        && (!request.resource.data.keys().hasAny(['contact']) || (request.resource.data.contact is string && request.resource.data.contact.size() <= 120))
+        && request.resource.data.createdAt == request.time;
+    }
+
+    function isValidGoldenAccessAdminWrite() {
+      return request.resource.data.keys().hasOnly([
+          'status',
+          'type',
+          'displayName',
+          'contact',
+          'classicPlayerUid',
+          'authUids',
+          'paid',
+          'createdAt',
+          'reviewedAt',
+          'reviewedBy'
+        ])
+        && isValidGoldenAccessStatus(request.resource.data.status)
+        && isValidGoldenAccessType(request.resource.data.type)
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 1
+        && request.resource.data.displayName.size() <= 30
+        && (!request.resource.data.keys().hasAny(['contact']) || (request.resource.data.contact is string && request.resource.data.contact.size() <= 120))
+        && (!request.resource.data.keys().hasAny(['classicPlayerUid']) || isValidNullableString(request.resource.data.classicPlayerUid, 80))
+        && (!request.resource.data.keys().hasAny(['authUids']) || isValidStringList(request.resource.data.authUids, 10))
+        && (!request.resource.data.keys().hasAny(['paid']) || request.resource.data.paid is bool)
+        && (!request.resource.data.keys().hasAny(['reviewedAt']) || request.resource.data.reviewedAt == request.time)
+        && (!request.resource.data.keys().hasAny(['reviewedBy']) || request.resource.data.reviewedBy == request.auth.uid);
     }
 
     function isPlayerDevice(gameId, playerUid) {
@@ -130,8 +205,9 @@ service cloud.firestore {
         && request.resource.data.lastAnnouncementReadAt == request.time;
     }
 
-    function threadCanReceiveMessage(gameId, playerUid) {
+    function threadCanReceiveMessage(gameId, playerUid, from) {
       return !exists(/databases/$(database)/documents/games/$(gameId)/threads/$(playerUid))
+        || get(/databases/$(database)/documents/games/$(gameId)/threads/$(playerUid)).data.lastMessageFrom != from
         || request.time > get(/databases/$(database)/documents/games/$(gameId)/threads/$(playerUid)).data.lastMessageAt + duration.value(5, 's');
     }
 
@@ -321,6 +397,21 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
+      match /access/{accessUid} {
+        allow read: if isSignedIn() && (request.auth.uid == accessUid || isPlayerDevice(gameId, accessUid) || isGameAdmin(gameId));
+        allow create: if isSignedIn()
+          && request.auth.uid == accessUid
+          && isValidGoldenAccessCreate()
+          && isGoldenAccessOpen(gameId);
+        allow create: if isGameAdmin(gameId)
+          && isValidGoldenAccessAdminWrite()
+          && (request.resource.data.status != 'approved' || isGoldenAccessOpen(gameId));
+        allow update: if isGameAdmin(gameId)
+          && isValidGoldenAccessAdminWrite()
+          && canWriteGoldenAccessStatus(gameId);
+        allow delete: if isGameAdmin(gameId);
+      }
+
       match /announcements/{announcementId} {
         allow read: if isSignedIn() && (
           isGameAdmin(gameId)
@@ -377,13 +468,13 @@ service cloud.firestore {
               (
                 isPlayerDevice(gameId, playerUid)
                 && request.resource.data.from == 'player'
-                && threadCanReceiveMessage(gameId, playerUid)
+                && threadCanReceiveMessage(gameId, playerUid, request.resource.data.from)
               )
               // Admin to any thread, with the same per-thread rate limit.
               || (
                 isGameAdmin(gameId)
                 && request.resource.data.from == 'committee'
-                && threadCanReceiveMessage(gameId, playerUid)
+                && threadCanReceiveMessage(gameId, playerUid, request.resource.data.from)
               )
             );
           allow update, delete: if false;

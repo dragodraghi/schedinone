@@ -1,10 +1,14 @@
 import type { Timestamp } from 'firebase/firestore';
 
 export type Sign = "1" | "X" | "2";
+export type QualifierSign = "1" | "2";
 
 export type ScheduleStatus = "bozza" | "inviata" | "accettata" | "rifiutata";
 
-export type Phase = "gironi" | "ottavi" | "quarti" | "semifinali" | "finale";
+export type GameMode = "classic" | "golden-plus";
+export type PredictionMode = "result" | "qualifier";
+
+export type Phase = "gironi" | "sedicesimi" | "ottavi" | "quarti" | "semifinali" | "finale";
 
 export interface Game {
   id: string;
@@ -22,6 +26,11 @@ export interface Game {
   currentPhase: Phase;
   topScorer: string | null;
   winner: string | null;
+  mode?: GameMode;
+  predictionMode?: PredictionMode;
+  specialPicksEnabled?: boolean;
+  sourceGameId?: string;
+  accessClosesAt?: Date;
 }
 
 /**
@@ -43,6 +52,9 @@ export interface Match {
   result: Sign | null;
   score: string | null;
   locked: boolean;
+  bracketSlot?: string;
+  feedsInto?: string | null;
+  feedsIntoSide?: "home" | "away" | null;
 }
 
 export interface Player {
@@ -98,6 +110,20 @@ export type ChatMessage = {
   senderUid: string;
   createdAt: Timestamp;
 };
+
+export type GoldenAccessStatus = "pending" | "approved" | "rejected" | "revoked";
+export type GoldenAccessType = "classic-player" | "new-request";
+
+export interface GoldenAccess {
+  id: string;
+  status: GoldenAccessStatus;
+  type: GoldenAccessType;
+  displayName: string;
+  contact?: string;
+  classicPlayerUid?: string;
+  authUids?: string[];
+  paid?: boolean;
+}
 
 export const ANNOUNCEMENT_TITLE_MAX = 120;
 export const ANNOUNCEMENT_BODY_MAX = 2000;

@@ -6,6 +6,7 @@ import type { Game, Phase } from "../lib/types";
 function asPhase(value: unknown): Phase {
   if (
     value === "gironi" ||
+    value === "sedicesimi" ||
     value === "ottavi" ||
     value === "quarti" ||
     value === "semifinali" ||
@@ -46,6 +47,19 @@ function asPhaseLockLeadHours(value: unknown): Partial<Record<Phase, number>> | 
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
+function asDate(value: unknown): Date | undefined {
+  if (
+    value &&
+    typeof value === "object" &&
+    "toDate" in value &&
+    typeof value.toDate === "function"
+  ) {
+    return value.toDate();
+  }
+  if (value instanceof Date) return value;
+  return undefined;
+}
+
 export function useGame(gameId: string, enabled = true) {
   const [game, setGame] = useState<Game | null>(null);
   const [hasReceived, setHasReceived] = useState(false);
@@ -76,6 +90,11 @@ export function useGame(gameId: string, enabled = true) {
             currentPhase: asPhase(data.currentPhase),
             topScorer: typeof data.topScorer === "string" ? data.topScorer : null,
             winner: typeof data.winner === "string" ? data.winner : null,
+            mode: data.mode === "golden-plus" ? "golden-plus" : "classic",
+            predictionMode: data.predictionMode === "qualifier" ? "qualifier" : "result",
+            specialPicksEnabled: data.specialPicksEnabled === false ? false : true,
+            sourceGameId: typeof data.sourceGameId === "string" ? data.sourceGameId : undefined,
+            accessClosesAt: asDate(data.accessClosesAt),
           } satisfies Game);
         } else {
           setGame(null);

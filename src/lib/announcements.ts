@@ -58,6 +58,12 @@ export async function softDeleteAnnouncement(gameId: string, id: string) {
   await updateDoc(doc(col(gameId), id), { deletedAt: serverTimestamp() });
 }
 
+export async function markAnnouncementsRead(gameId: string, playerUid: string) {
+  await updateDoc(doc(db, `games/${gameId}/players/${playerUid}`), {
+    lastAnnouncementReadAt: serverTimestamp(),
+  });
+}
+
 export function subscribeAnnouncementsForPlayer(
   gameId: string, uid: string, cb: (items: Announcement[]) => void
 ) {

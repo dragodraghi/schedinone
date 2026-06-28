@@ -29,4 +29,25 @@ describe("AnnouncementCard", () => {
     expect(screen.getByText("COMUNICAZIONE DI SERVIZIO").closest("article")).toHaveClass("bg-white", "text-slate-950");
     expect(screen.getByText("Leggere con attenzione.")).toHaveClass("text-slate-900");
   });
+
+  it("renders internal Golden Plus paths as clickable links", () => {
+    const announcement: Announcement = {
+      id: "a1",
+      title: "GOLDEN PLUS",
+      body: "Clicca qui: /golden-plus per partecipare.",
+      status: "published",
+      authorUid: "admin-1",
+      targetUids: null,
+      createdAt: ts,
+      publishedAt: ts,
+      editedAt: null,
+      deletedAt: null,
+    };
+
+    render(<AnnouncementCard a={announcement} />);
+
+    expect(screen.getByRole("link", { name: "/golden-plus" })).toHaveAttribute("href", "/golden-plus");
+    expect(screen.getByRole("link", { name: /partecipa al golden plus/i })).toHaveAttribute("href", "/golden-plus");
+    expect(screen.getByText(/clicca qui:/i)).toBeInTheDocument();
+  });
 });

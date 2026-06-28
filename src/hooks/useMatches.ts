@@ -5,6 +5,7 @@ import type { KickoffSource, Match, Phase, Sign } from "../lib/types";
 
 function asPhase(value: unknown): Phase {
   if (
+    value === "sedicesimi" ||
     value === "ottavi" ||
     value === "quarti" ||
     value === "semifinali" ||
@@ -51,6 +52,11 @@ export function useMatches(gameId: string, enabled = true) {
             result: asSign(raw.result),
             score: typeof raw.score === "string" ? raw.score : null,
             locked: raw.locked === true,
+            bracketSlot: typeof raw.bracketSlot === "string" ? raw.bracketSlot : undefined,
+            feedsInto:
+              typeof raw.feedsInto === "string" ? raw.feedsInto : raw.feedsInto === null ? null : undefined,
+            feedsIntoSide:
+              raw.feedsIntoSide === "home" || raw.feedsIntoSide === "away" ? raw.feedsIntoSide : raw.feedsIntoSide === null ? null : undefined,
           } satisfies Match;
         });
         setMatches(data);

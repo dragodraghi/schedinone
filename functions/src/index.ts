@@ -55,9 +55,11 @@ export const scheduledLockMatches = onSchedule(
 // resultProposals and become official only after Comitato confirmation.
 
 export { onMessageCreated } from "./onMessageCreated";
+export { onGoldenAccessRequestCreated } from "./goldenAccessRequest";
 export { onAnnouncementPublished } from "./onAnnouncementPublished";
 export { markThreadRead } from "./markThreadRead";
 export { deleteChatMessage } from "./deleteChatMessage";
+export { sendBulkCommitteeMessage } from "./sendBulkCommitteeMessage";
 export { joinGame } from "./joinGame";
 export { saveSchedule } from "./saveSchedule";
 export { syncPublicPlayer } from "./syncPublicPlayer";

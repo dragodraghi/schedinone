@@ -1,7 +1,8 @@
 import { MemoryRouter } from "react-router-dom";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import RiepilogoPage from "../RiepilogoPage";
+import { exportElementAsPdf } from "../../../lib/pdfExport";
 import type { Game, Match, Player } from "../../../lib/types";
 
 vi.mock("../../../lib/pdfExport", () => ({
@@ -72,6 +73,7 @@ function renderRiepilogo(players: Player[], currentPlayer?: Player) {
 describe("RiepilogoPage player visibility", () => {
   afterEach(() => {
     vi.useRealTimers();
+    vi.clearAllMocks();
   });
 
   it("mostra al giocatore solo la propria schedina nel griglione", () => {
@@ -94,6 +96,17 @@ describe("RiepilogoPage player visibility", () => {
     expect(screen.getByTitle("Mario Rossi")).toBeInTheDocument();
     expect(screen.getByTitle("Luigi Verdi")).toBeInTheDocument();
     expect(screen.getByText(/2 giocatori/)).toBeInTheDocument();
+  });
+
+  it("mostra il nome completo delle squadre lunghe nell'intestazione", () => {
+    const longNamePlayer = makePlayer("player-1", "Non siamo mica gli americani", "1");
+    const otherPlayer = makePlayer("player-2", "Oreste Pieroni F.C.", "2");
+
+    renderRiepilogo([longNamePlayer, otherPlayer]);
+
+    const header = screen.getByTitle("Non siamo mica gli americani");
+    expect(header).toHaveTextContent("Non siamo mica gli americani");
+    expect(header).not.toHaveTextContent(/^Non$/);
   });
 
   it("non apre il griglione completo prima della chiusura anche se tutte le schedine sono accettate", () => {
@@ -149,5 +162,25 @@ describe("RiepilogoPage player visibility", () => {
 
     expect(screen.getByTitle("Luigi Verdi")).toBeInTheDocument();
     expect(screen.getByText(/2 giocatori/)).toBeInTheDocument();
+  });
+
+  it("esporta un griglione printable landscape con formato custom", async () => {
+    const players = Array.from({ length: 8 }, (_, index) => ({
+      ...makePlayer(`player-${index + 1}`, `Squadra ${index + 1}`, index % 2 === 0 ? "1" : "2", "accettata"),
+      joinedAt: new Date(`2026-01-${String(index + 1).padStart(2, "0")}T00:00:00Z`),
+    }));
+
+    renderRiepilogo(players);
+
+    fireEvent.click(screen.getByRole("button", { name: /pdf/i }));
+
+    await waitFor(() => expect(exportElementAsPdf).toHaveBeenCalledTimes(1));
+    const [element, options] = vi.mocked(exportElementAsPdf).mock.calls[0]!;
+    expect((element as HTMLElement).dataset.griglionePrint).toBe("true");
+    expect(options.orientation).toBe("landscape");
+    expect(options.margin).toBe(0);
+    expect(Array.isArray(options.format)).toBe(true);
+    const [widthMm, heightMm] = options.format as [number, number];
+    expect(widthMm).toBeGreaterThan(heightMm);
   });
 });

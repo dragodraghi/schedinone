@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
-import { subscribeAllThreads, subscribeMessages, sendMessage, markThreadRead, deleteChatMessage } from '../../lib/chat';
+import {
+  subscribeAllThreads,
+  subscribeMessages,
+  sendMessage,
+  sendBulkCommitteeMessage,
+  markThreadRead,
+  deleteChatMessage,
+} from '../../lib/chat';
 import { ChatMessageBubble } from '../../components/ChatMessageBubble';
 import type { ChatMessage, Thread, Player as GamePlayer } from '../../lib/types';
 import { CHAT_MESSAGE_MAX } from '../../lib/types';
@@ -35,6 +42,9 @@ export default function AdminMessaggiPage({ gameId, currentUid, players }: Props
   const [filter, setFilter] = useState<ThreadFilter>('all');
   const [search, setSearch] = useState('');
   const [sending, setSending] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+  const [bulkSending, setBulkSending] = useState(false);
+  const [bulkNotice, setBulkNotice] = useState('');
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [lastError, setLastError] = useState<string>('');
   const activeThread = threads.find((t) => t.id === activeUid);
@@ -79,6 +89,26 @@ export default function AdminMessaggiPage({ gameId, currentUid, players }: Props
       setTimeout(() => setLastError(''), 5000);
     } finally {
       setSending(false);
+    }
+  }
+
+  async function onBulkSend() {
+    if (!gameId || bulkSending) return;
+    const t = bulkText.trim();
+    if (!t) return;
+    setLastError('');
+    setBulkNotice('');
+    setBulkSending(true);
+    try {
+      const result = await sendBulkCommitteeMessage(gameId, t);
+      setBulkText('');
+      setBulkNotice(`Messaggio inviato a ${result.sent} giocatori.`);
+    } catch (e: unknown) {
+      const msg = getErrorMessage(e);
+      setLastError(msg);
+      setTimeout(() => setLastError(''), 5000);
+    } finally {
+      setBulkSending(false);
     }
   }
 
@@ -137,6 +167,36 @@ export default function AdminMessaggiPage({ gameId, currentUid, players }: Props
           Errore: {lastError}
         </div>
       )}
+      <div className="border-b border-amber-200 bg-amber-50 p-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+          <label className="block flex-1">
+            <span className="block text-xs font-bold text-amber-900">Messaggio privato a tutti</span>
+            <textarea
+              aria-label="Testo massivo per tutti"
+              value={bulkText}
+              onChange={(e) => {
+                setBulkNotice('');
+                setBulkText(e.target.value.slice(0, CHAT_MESSAGE_MAX));
+              }}
+              className="mt-2 min-h-[76px] w-full resize-none rounded border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-amber-600"
+              rows={3}
+              placeholder="Scrivi un messaggio per tutti"
+            />
+          </label>
+          <div className="flex shrink-0 items-center justify-between gap-3 lg:w-48 lg:flex-col lg:items-stretch">
+            <span className="text-[10px] text-amber-900">{bulkText.length}/{CHAT_MESSAGE_MAX}</span>
+            <button
+              type="button"
+              onClick={onBulkSend}
+              disabled={bulkSending || !bulkText.trim() || players.length === 0}
+              className="rounded bg-amber-600 px-3 py-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {bulkSending ? 'Invio...' : `Invia a tutti${players.length > 0 ? ` (${players.length})` : ''}`}
+            </button>
+          </div>
+        </div>
+        {bulkNotice && <p className="mt-2 text-xs font-semibold text-emerald-700">{bulkNotice}</p>}
+      </div>
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <aside className="max-h-[36vh] w-full shrink-0 overflow-auto border-b border-slate-200 bg-slate-50 lg:max-h-none lg:w-80 lg:border-b-0 lg:border-r">
           <div className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 p-3">

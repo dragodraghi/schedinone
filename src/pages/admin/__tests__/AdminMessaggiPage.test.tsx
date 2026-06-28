@@ -8,6 +8,7 @@ const chatMocks = vi.hoisted(() => ({
   subscribeAllThreads: vi.fn(),
   subscribeMessages: vi.fn(),
   sendMessage: vi.fn(),
+  sendBulkCommitteeMessage: vi.fn(),
   markThreadRead: vi.fn(),
   deleteChatMessage: vi.fn(),
 }));
@@ -105,6 +106,7 @@ function configureChatMocks(
   });
   chatMocks.markThreadRead.mockResolvedValue(undefined);
   chatMocks.sendMessage.mockResolvedValue(undefined);
+  chatMocks.sendBulkCommitteeMessage.mockResolvedValue({ sent: players.length });
   chatMocks.deleteChatMessage.mockResolvedValue(undefined);
 }
 
@@ -170,7 +172,7 @@ describe('AdminMessaggiPage', () => {
     fireEvent.click(await screen.findByText('Beta FC'));
     fireEvent.change(screen.getByRole('textbox', { name: /testo del messaggio/i }), { target: { value: 'Confermo tutto' } });
 
-    const sendButton = screen.getByRole('button', { name: /invia/i });
+    const sendButton = screen.getByRole('button', { name: /^invia$/i });
     fireEvent.click(sendButton);
 
     await waitFor(() => expect(sendButton).toBeDisabled());
@@ -179,13 +181,40 @@ describe('AdminMessaggiPage', () => {
     expect(chatMocks.sendMessage).toHaveBeenCalledTimes(1);
   });
 
+  it('invia un messaggio privato massivo a tutti i giocatori', async () => {
+    renderPage();
+
+    fireEvent.change(await screen.findByLabelText(/testo massivo per tutti/i), {
+      target: { value: 'Ricordatevi di controllare la schedina.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /invia a tutti/i }));
+
+    await waitFor(() => {
+      expect(chatMocks.sendBulkCommitteeMessage).toHaveBeenCalledWith(
+        'world-cup-2026',
+        'Ricordatevi di controllare la schedina.'
+      );
+    });
+    expect(chatMocks.sendMessage).not.toHaveBeenCalled();
+    expect(await screen.findByText(/messaggio inviato a 3 giocatori/i)).toBeInTheDocument();
+  });
+
+  it('mostra il messaggio massivo sopra la lista conversazioni', async () => {
+    renderPage();
+
+    const bulkLabel = await screen.findByText('Messaggio privato a tutti');
+    const threadTitle = screen.getByText('Messaggi Comitato');
+
+    expectBefore(bulkLabel, threadTitle);
+  });
+
   it('mantiene il testo se l invio fallisce', async () => {
     chatMocks.sendMessage.mockRejectedValue(new Error('Permesso negato'));
     renderPage();
 
     fireEvent.click(await screen.findByText('Beta FC'));
     fireEvent.change(screen.getByRole('textbox', { name: /testo del messaggio/i }), { target: { value: 'Messaggio da riprovare' } });
-    fireEvent.click(screen.getByRole('button', { name: /invia/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^invia$/i }));
 
     expect(await screen.findByText(/permesso negato/i)).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /testo del messaggio/i })).toHaveValue('Messaggio da riprovare');

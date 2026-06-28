@@ -80,3 +80,12 @@ export async function deleteChatMessage(gameId: string, threadUid: string, messa
   const fn = httpsCallable(getFunctions(app, 'europe-west1'), 'deleteChatMessage');
   await fn({ gameId, threadUid, messageId });
 }
+
+export async function sendBulkCommitteeMessage(gameId: string, text: string): Promise<{ sent: number }> {
+  const fn = httpsCallable<{ gameId: string; text: string }, { ok: boolean; sent: number }>(
+    getFunctions(app, 'europe-west1'),
+    'sendBulkCommitteeMessage'
+  );
+  const result = await fn({ gameId, text });
+  return { sent: Number(result.data.sent ?? 0) };
+}
