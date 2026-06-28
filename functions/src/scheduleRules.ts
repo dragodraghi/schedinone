@@ -56,11 +56,28 @@ export function getMaxLockLeadMs(gameData: admin.firestore.DocumentData): number
   return Math.max(...hours) * 60 * 60 * 1000;
 }
 
+function timestampToDate(value: unknown): Date | null {
+  const date = (value as { toDate?: () => Date } | undefined)?.toDate?.();
+  if (date instanceof Date) return date;
+  if (value instanceof Date) return value;
+  return null;
+}
+
+function hasActiveGoldenPredictionOverride(
+  gameData: admin.firestore.DocumentData,
+  now: Date
+): boolean {
+  if (gameData.mode !== "golden-plus") return false;
+  const openUntil = timestampToDate(gameData.predictionsOpenUntil);
+  return openUntil !== null && openUntil.getTime() > now.getTime();
+}
+
 export function isMatchClosed(
   gameData: admin.firestore.DocumentData,
   matchData: admin.firestore.DocumentData,
   now: Date
 ): boolean {
+  if (hasActiveGoldenPredictionOverride(gameData, now)) return false;
   if (matchData.locked === true) return true;
   const kickoff = matchData.kickoff?.toDate?.();
   if (!(kickoff instanceof Date)) return false;

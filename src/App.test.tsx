@@ -325,10 +325,10 @@ describe("App player session switching", () => {
     expect(await screen.findByText("has-golden-access:false")).toBeInTheDocument();
   });
 
-  it("uses a linked classic Golden grant while loading the Golden player by current auth uid", async () => {
+  it("uses a linked classic Golden grant while loading the Golden player by linked player uid", async () => {
     authUser = { uid: "device-flowers-2", isAnonymous: true };
     game.playerDeviceAliases = { "device-flowers-2": "player-1" };
-    goldenPlayerLookupUid = "device-flowers-2";
+    goldenPlayerLookupUid = "player-1";
     goldenAccessMocks.useGoldenAccess.mockImplementation((_gameId, uid) => ({
       access:
         uid === "player-1"
@@ -359,7 +359,7 @@ describe("App player session switching", () => {
     );
     expect(useCurrentPlayerMock).toHaveBeenCalledWith(
       "schedinone-golden-plus-2026",
-      "device-flowers-2",
+      "player-1",
       true
     );
   });

@@ -31,4 +31,18 @@ describe("functions scheduleRules", () => {
     expect(isMatchClosed(gameData, matchData, new Date("2026-06-10T18:59:59.999Z"))).toBe(false);
     expect(isMatchClosed(gameData, matchData, new Date("2026-06-10T19:00:00.000Z"))).toBe(true);
   });
+
+  it("keeps Golden Plus open while the emergency prediction override is active", () => {
+    const gameData = {
+      mode: "golden-plus",
+      predictionsOpenUntil: timestamp("2026-06-11T22:00:00.000Z"),
+    };
+    const matchData = {
+      phase: "sedicesimi",
+      locked: true,
+      kickoff: timestamp("2026-06-11T19:00:00.000Z"),
+    };
+
+    expect(isMatchClosed(gameData, matchData, new Date("2026-06-11T20:00:00.000Z"))).toBe(false);
+  });
 });

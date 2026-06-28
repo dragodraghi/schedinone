@@ -116,7 +116,7 @@ export default function App() {
   const goldenPlayerLookupUid =
     isAdminSession && adminPlayerUid
       ? adminPlayerUid
-      : currentAuthUid;
+      : goldenIdentityUid ?? currentAuthUid;
   const { player: goldenPlayer } = useCurrentPlayer(
     GOLDEN_GAME_ID,
     goldenPlayerLookupUid ?? undefined,

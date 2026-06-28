@@ -95,6 +95,7 @@ export function useGame(gameId: string, enabled = true) {
             specialPicksEnabled: data.specialPicksEnabled === false ? false : true,
             sourceGameId: typeof data.sourceGameId === "string" ? data.sourceGameId : undefined,
             accessClosesAt: asDate(data.accessClosesAt),
+            predictionsOpenUntil: asDate(data.predictionsOpenUntil),
           } satisfies Game);
         } else {
           setGame(null);

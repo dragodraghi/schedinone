@@ -17,7 +17,16 @@ export function getCloseAt(game: Game, match: Match): Date {
   return new Date(match.kickoff.getTime() - getLockLeadHours(game, match.phase) * 60 * 60 * 1000);
 }
 
+function hasActiveGoldenPredictionOverride(game: Game, now: Date): boolean {
+  return (
+    game.mode === "golden-plus" &&
+    game.predictionsOpenUntil instanceof Date &&
+    game.predictionsOpenUntil.getTime() > now.getTime()
+  );
+}
+
 export function isMatchClosedForPredictions(game: Game, match: Match, now = new Date()): boolean {
+  if (hasActiveGoldenPredictionOverride(game, now)) return false;
   return match.locked || getCloseAt(game, match).getTime() <= now.getTime();
 }
 

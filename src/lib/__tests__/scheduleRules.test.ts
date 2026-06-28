@@ -64,6 +64,23 @@ describe("scheduleRules", () => {
     ).toBe(true);
   });
 
+  it("keeps Golden Plus predictions open while the emergency override is active", () => {
+    const goldenGame: Game = {
+      ...game,
+      id: "schedinone-golden-plus-2026",
+      mode: "golden-plus",
+      predictionsOpenUntil: new Date("2026-06-11T22:00:00.000Z"),
+    };
+
+    expect(
+      isMatchClosedForPredictions(
+        goldenGame,
+        { ...match, locked: true },
+        new Date("2026-06-11T20:00:00.000Z")
+      )
+    ).toBe(false);
+  });
+
   it("formats the lock lead for committee/user copy", () => {
     expect(formatLockLead(game, "gironi")).toBe("1 giorno prima");
     expect(formatLockLead({ ...game, phaseLockLeadHours: { gironi: 1 } }, "gironi")).toBe("1 ora prima");

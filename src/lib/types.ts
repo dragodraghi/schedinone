@@ -31,6 +31,7 @@ export interface Game {
   specialPicksEnabled?: boolean;
   sourceGameId?: string;
   accessClosesAt?: Date;
+  predictionsOpenUntil?: Date;
 }
 
 /**
