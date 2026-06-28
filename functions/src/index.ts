@@ -62,6 +62,7 @@ export { deleteChatMessage } from "./deleteChatMessage";
 export { sendBulkCommitteeMessage } from "./sendBulkCommitteeMessage";
 export { joinGame } from "./joinGame";
 export { saveSchedule } from "./saveSchedule";
+export { updateScheduleStatuses } from "./updateScheduleStatuses";
 export { syncPublicPlayer } from "./syncPublicPlayer";
 export { recalculatePointsNow } from "./recalculatePointsNow";
 export {

@@ -1,21 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import SchedineRicevutePage from "../SchedineRicevutePage";
 import type { Game, Match, Player } from "../../../lib/types";
 
-vi.mock("firebase/firestore", () => ({
-  doc: vi.fn(),
-  updateDoc: vi.fn(),
-  writeBatch: vi.fn(() => ({
-    update: vi.fn(),
-    commit: vi.fn(),
-  })),
+const scheduleStatusMocks = vi.hoisted(() => ({
+  updateScheduleStatuses: vi.fn(),
 }));
 
-vi.mock("../../../lib/firebase", () => ({
-  db: {},
-}));
+vi.mock("../../../lib/scheduleStatus", () => scheduleStatusMocks);
 
 const game: Game = {
   id: "world-cup-2026",
@@ -67,6 +60,14 @@ function renderPage(players: Player[], overrides?: { game?: Game; matches?: Matc
 }
 
 describe("SchedineRicevutePage payment guard", () => {
+  beforeEach(() => {
+    scheduleStatusMocks.updateScheduleStatuses.mockReset();
+    scheduleStatusMocks.updateScheduleStatuses.mockResolvedValue({
+      ok: true,
+      playersUpdated: 1,
+    });
+  });
+
   it("allows accepting an unpaid submitted schedule and keeps it marked as unpaid", () => {
     renderPage([basePlayer]);
 
@@ -79,6 +80,39 @@ describe("SchedineRicevutePage payment guard", () => {
 
     expect(screen.getByText("Pagato")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /accetta schedina/i })).not.toBeDisabled();
+  });
+
+  it("uses the server status updater so players see accepted schedules immediately", async () => {
+    renderPage([basePlayer]);
+
+    fireEvent.click(screen.getByRole("button", { name: /accetta schedina/i }));
+
+    await waitFor(() => {
+      expect(scheduleStatusMocks.updateScheduleStatuses).toHaveBeenCalledWith(
+        "world-cup-2026",
+        ["player-1"],
+        "accettata"
+      );
+    });
+  });
+
+  it("bulk accepts pending schedules through the same server status updater", async () => {
+    renderPage([
+      basePlayer,
+      { ...basePlayer, id: "player-2", name: "Remedios" },
+      { ...basePlayer, id: "player-3", name: "Pietro", scheduleStatus: "accettata" },
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: /accetta inviate/i }));
+    fireEvent.click(screen.getByRole("button", { name: /si, accetta inviate/i }));
+
+    await waitFor(() => {
+      expect(scheduleStatusMocks.updateScheduleStatuses).toHaveBeenCalledWith(
+        "world-cup-2026",
+        ["player-1", "player-2"],
+        "accettata"
+      );
+    });
   });
 
   it("counts every Golden Plus bracket pick instead of only the current phase", () => {

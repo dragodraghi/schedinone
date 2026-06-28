@@ -1,8 +1,6 @@
 import { useState } from "react";
 import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
-import { doc, updateDoc, writeBatch } from "firebase/firestore";
-import { db } from "../../lib/firebase";
 import Toast, { type ToastData } from "../../components/Toast";
 import {
   applyBracketPredictions,
@@ -10,6 +8,7 @@ import {
   selectedTeam,
   sortBracketMatches,
 } from "../../lib/bracket";
+import { updateScheduleStatuses } from "../../lib/scheduleStatus";
 import type { Game, Player, Match, ScheduleStatus } from "../../lib/types";
 
 interface Props {
@@ -138,10 +137,10 @@ export default function SchedineRicevutePage({
   const updateStatus = async (playerId: string, status: ScheduleStatus) => {
     setUpdating(playerId + status);
     try {
-      const ref = doc(db, "games", gameId, "players", playerId);
-      await updateDoc(ref, { scheduleStatus: status });
+      await updateScheduleStatuses(gameId, [playerId], status);
     } catch (err) {
       console.error("Update status error:", err);
+      setToast({ message: "Errore nell'aggiornamento. Riprova.", type: "error" });
     } finally {
       setUpdating(null);
     }
@@ -155,23 +154,11 @@ export default function SchedineRicevutePage({
     const count = pendingPlayers.length;
     setAcceptingAll(true);
     try {
-      let batch = writeBatch(db);
-      let pendingWrites = 0;
-      const commitPending = async () => {
-        if (pendingWrites === 0) return;
-        await batch.commit();
-        batch = writeBatch(db);
-        pendingWrites = 0;
-      };
-      for (const p of pendingPlayers) {
-        const ref = doc(db, "games", gameId, "players", p.id);
-        batch.update(ref, { scheduleStatus: "accettata" });
-        pendingWrites++;
-        if (pendingWrites >= 400) {
-          await commitPending();
-        }
-      }
-      await commitPending();
+      await updateScheduleStatuses(
+        gameId,
+        pendingPlayers.map((p) => p.id),
+        "accettata"
+      );
       setToast({
         message: `${count} schedin${count === 1 ? "a accettata" : "e accettate"}`,
         type: "success",
