@@ -113,10 +113,14 @@ export default function App() {
   const shouldLoadGolden = authReady && (hasGoldenAccess || isAdminSession || isGoldenRoute);
   const { game: goldenGame } = useGame(GOLDEN_GAME_ID, shouldLoadGolden);
   const { matches: goldenMatches } = useMatches(GOLDEN_GAME_ID, shouldLoadGolden);
+  const goldenPlayerLookupUid =
+    isAdminSession && adminPlayerUid
+      ? adminPlayerUid
+      : currentAuthUid;
   const { player: goldenPlayer } = useCurrentPlayer(
     GOLDEN_GAME_ID,
-    user?.uid ?? undefined,
-    authReady && hasGoldenAccess && !!user?.uid
+    goldenPlayerLookupUid ?? undefined,
+    authReady && hasGoldenAccess && !!goldenPlayerLookupUid
   );
   const { players: goldenAdminPlayers, loading: goldenAdminPlayersLoading } = usePlayers(
     GOLDEN_GAME_ID,

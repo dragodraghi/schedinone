@@ -395,7 +395,7 @@ describe("App player session switching", () => {
   it("looks up Golden Plus access through the linked player uid for admin-player sessions", async () => {
     authUser = { uid: "admin-1", isAnonymous: false };
     game.adminPlayerUids = { "admin-1": "player-1" };
-    goldenPlayerLookupUid = "admin-1";
+    goldenPlayerLookupUid = "player-1";
     goldenAccessMocks.useGoldenAccess.mockReturnValue({
       access: {
         id: "player-1",
@@ -424,7 +424,7 @@ describe("App player session switching", () => {
     );
     expect(useCurrentPlayerMock).toHaveBeenCalledWith(
       "schedinone-golden-plus-2026",
-      "admin-1",
+      "player-1",
       true
     );
   });
