@@ -240,6 +240,23 @@ vi.mock("./pages/golden/GoldenBracketPage", () => ({
   default: ({ gameId }: { gameId: string }) => <div>Golden bracket page:{gameId}</div>,
 }));
 
+vi.mock("./pages/admin/RisultatiPage", () => ({
+  default: ({
+    gameId,
+    predictionMode,
+    showAutomaticProposals,
+  }: {
+    gameId: string;
+    predictionMode?: string;
+    showAutomaticProposals?: boolean;
+  }) => (
+    <div>
+      Risultati route:{gameId}:mode:{predictionMode ?? "result"}:automatic:
+      {String(showAutomaticProposals ?? true)}
+    </div>
+  ),
+}));
+
 describe("App player session switching", () => {
   beforeEach(() => {
     signOutMock.mockReset();
@@ -464,6 +481,22 @@ describe("App player session switching", () => {
 
     expect(
       await screen.findByText("Classifica:Classifica Golden:schedinone-golden-plus-2026")
+    ).toBeInTheDocument();
+  });
+
+  it("keeps automatic FIFA proposals enabled on the Golden results admin route", async () => {
+    authUser = { uid: "anonymous-no-player", isAnonymous: true };
+    window.history.pushState({}, "", "/admin/golden-risultati");
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /admin login/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /complete splash/i }));
+
+    expect(
+      await screen.findByText(
+        "Risultati route:schedinone-golden-plus-2026:mode:qualifier:automatic:true"
+      )
     ).toBeInTheDocument();
   });
 

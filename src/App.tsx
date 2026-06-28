@@ -560,7 +560,6 @@ export default function App() {
                         title="Risultati Golden"
                         backTo="/admin/golden-plus"
                         backLabel="Golden Plus"
-                        showAutomaticProposals={false}
                       />
                     ) : (
                       <PageSkeleton />

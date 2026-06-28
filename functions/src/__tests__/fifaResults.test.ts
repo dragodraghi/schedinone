@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildFifaResultProposal,
+  isResultProposalAllowedForPredictionMode,
   matchesTeam,
   scoreToSign,
   type FifaCalendarMatch,
@@ -63,5 +64,27 @@ describe("FIFA official result parser", () => {
     expect(scoreToSign(1, 0)).toBe("1");
     expect(scoreToSign(1, 1)).toBe("X");
     expect(scoreToSign(0, 1)).toBe("2");
+  });
+
+  it("rejects draw proposals for qualifier games", () => {
+    const drawProposal = {
+      matchId: "r32-01",
+      homeTeam: "Italia",
+      awayTeam: "Brasile",
+      score: "1-1",
+      result: "X" as const,
+      fixtureId: "400021999",
+      apiStatus: "0",
+      source: "fifa-official" as const,
+    };
+
+    expect(isResultProposalAllowedForPredictionMode(drawProposal, "result")).toBe(true);
+    expect(isResultProposalAllowedForPredictionMode(drawProposal, "qualifier")).toBe(false);
+    expect(
+      isResultProposalAllowedForPredictionMode({ ...drawProposal, result: "1" }, "qualifier")
+    ).toBe(true);
+    expect(
+      isResultProposalAllowedForPredictionMode({ ...drawProposal, result: "2" }, "qualifier")
+    ).toBe(true);
   });
 });

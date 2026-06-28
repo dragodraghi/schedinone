@@ -3,6 +3,7 @@ export const FIFA_CALENDAR_MATCHES_URL =
   `https://api.fifa.com/api/v3/calendar/matches?language=en&count=500&idSeason=${FIFA_WORLD_CUP_2026_SEASON_ID}`;
 
 export type Sign = "1" | "X" | "2";
+export type PredictionMode = "result" | "qualifier";
 
 export interface FifaCalendarMatch {
   IdMatch: string;
@@ -32,6 +33,13 @@ export interface ResultProposalDraft {
   fixtureId: string;
   apiStatus: string;
   source: "fifa-official";
+}
+
+export function isResultProposalAllowedForPredictionMode(
+  proposal: Pick<ResultProposalDraft, "result">,
+  predictionMode: PredictionMode = "result"
+): boolean {
+  return predictionMode !== "qualifier" || proposal.result === "1" || proposal.result === "2";
 }
 
 const FINISHED_MATCH_STATUSES = new Set([0]);

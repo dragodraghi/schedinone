@@ -5,7 +5,9 @@ import { publicCallableOptions } from "./callableOptions";
 import {
   buildFifaResultProposal,
   FIFA_CALENDAR_MATCHES_URL,
+  isResultProposalAllowedForPredictionMode,
   type FifaCalendarMatch,
+  type PredictionMode,
 } from "./fifaResults";
 
 const db = admin.firestore();
@@ -46,6 +48,9 @@ export async function fetchAndStoreResultProposals(options: {
   let matchesScanned = 0;
 
   for (const gameDoc of gameDocs) {
+    const gameData = gameDoc.data() ?? {};
+    const predictionMode: PredictionMode =
+      gameData.predictionMode === "qualifier" ? "qualifier" : "result";
     const matchesSnap = await gameDoc.ref.collection("matches").get();
     let batch = db.batch();
     let pendingWrites = 0;
@@ -59,6 +64,7 @@ export async function fetchAndStoreResultProposals(options: {
         .map((fifaMatch) => buildFifaResultProposal(matchDoc.id, matchData, fifaMatch))
         .find((draft) => draft !== null);
       if (!proposal) continue;
+      if (!isResultProposalAllowedForPredictionMode(proposal, predictionMode)) continue;
 
       batch.set(
         gameDoc.ref.collection("resultProposals").doc(matchDoc.id),

@@ -142,7 +142,26 @@ describe('RisultatiPage', () => {
     expect(firestoreMocks.updateDoc).not.toHaveBeenCalled();
   });
 
-  it('gestisce i risultati Golden Plus solo con qualificata 1 o 2', async () => {
+  it('permette al Comitato di cercare e confermare proposte automatiche Golden Plus 1 o 2', async () => {
+    proposalMocks.subscribeResultProposals.mockImplementation(
+      (_gameId: string, cb: (proposals: unknown[]) => void) => {
+        cb([
+          {
+            id: 'r32-01',
+            matchId: 'r32-01',
+            homeTeam: 'Italia',
+            awayTeam: 'Brasile',
+            score: '0-1',
+            result: '2',
+            status: 'pending',
+            source: 'fifa-official',
+            fetchedAt: null,
+          },
+        ]);
+        return vi.fn();
+      }
+    );
+
     const goldenMatch: Match = {
       id: 'r32-01',
       phase: 'sedicesimi',
@@ -162,13 +181,65 @@ describe('RisultatiPage', () => {
           gameId="schedinone-golden-plus-2026"
           predictionMode="qualifier"
           title="Risultati Golden"
-          showAutomaticProposals={false}
         />
       </MemoryRouter>
     );
 
     expect(screen.getByRole('heading', { name: /risultati golden/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /cerca risultati automatici/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /cerca risultati automatici/i })).toBeInTheDocument();
+    expect(await screen.findByText(/Proposta automatica/i)).toBeInTheDocument();
+    expect(screen.getByText(/passa Brasile/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /cerca risultati automatici/i }));
+
+    await waitFor(() => {
+      expect(proposalMocks.fetchResultProposalsNow).toHaveBeenCalledWith(
+        'schedinone-golden-plus-2026'
+      );
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /conferma proposta/i }));
+
+    await waitFor(() => {
+      expect(firestoreMocks.updateDoc).toHaveBeenCalledWith(
+        { path: 'games/schedinone-golden-plus-2026/matches/r32-01' },
+        {
+          result: '2',
+          score: '0-1',
+          locked: true,
+          resultSource: 'manual',
+        }
+      );
+    });
+    expect(firestoreMocks.deleteDoc).toHaveBeenCalledWith({
+      path: 'games/schedinone-golden-plus-2026/resultProposals/r32-01',
+    });
+    expect(recalcMocks.recalcPointsClient).toHaveBeenCalledWith('schedinone-golden-plus-2026');
+  });
+
+  it('gestisce i risultati Golden Plus manuali solo con qualificata 1 o 2', async () => {
+    const goldenMatch: Match = {
+      id: 'r32-01',
+      phase: 'sedicesimi',
+      group: null,
+      homeTeam: 'Italia',
+      awayTeam: 'Brasile',
+      kickoff: new Date('2026-06-28T19:00:00Z'),
+      result: null,
+      score: null,
+      locked: false,
+    };
+
+    render(
+      <MemoryRouter>
+        <RisultatiPage
+          matches={[goldenMatch]}
+          gameId="schedinone-golden-plus-2026"
+          predictionMode="qualifier"
+          title="Risultati Golden"
+        />
+      </MemoryRouter>
+    );
 
     fireEvent.click(screen.getByRole('button', { name: /inserisci risultato/i }));
 
@@ -190,5 +261,55 @@ describe('RisultatiPage', () => {
       );
     });
     expect(recalcMocks.recalcPointsClient).toHaveBeenCalledWith('schedinone-golden-plus-2026');
+  });
+
+  it('non mostra proposte X nella gestione risultati Golden Plus', async () => {
+    proposalMocks.subscribeResultProposals.mockImplementation(
+      (_gameId: string, cb: (proposals: unknown[]) => void) => {
+        cb([
+          {
+            id: 'r32-01',
+            matchId: 'r32-01',
+            homeTeam: 'Italia',
+            awayTeam: 'Brasile',
+            score: '1-1',
+            result: 'X',
+            status: 'pending',
+            source: 'fifa-official',
+            fetchedAt: null,
+          },
+        ]);
+        return vi.fn();
+      }
+    );
+
+    render(
+      <MemoryRouter>
+        <RisultatiPage
+          matches={[
+            {
+              id: 'r32-01',
+              phase: 'sedicesimi',
+              group: null,
+              homeTeam: 'Italia',
+              awayTeam: 'Brasile',
+              kickoff: new Date('2026-06-28T19:00:00Z'),
+              result: null,
+              score: null,
+              locked: false,
+            },
+          ]}
+          gameId="schedinone-golden-plus-2026"
+          predictionMode="qualifier"
+          title="Risultati Golden"
+        />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(proposalMocks.subscribeResultProposals).toHaveBeenCalled();
+    });
+    expect(screen.queryByText(/Proposta automatica/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /conferma proposta/i })).not.toBeInTheDocument();
   });
 });

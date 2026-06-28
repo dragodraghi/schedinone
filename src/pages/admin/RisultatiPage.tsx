@@ -31,6 +31,18 @@ function proposalSourceLabel(source: string): string {
   return source;
 }
 
+function isProposalAllowedForMode(proposal: ResultProposal, predictionMode: PredictionMode): boolean {
+  return predictionMode !== "qualifier" || proposal.result === "1" || proposal.result === "2";
+}
+
+function proposalResultLabel(proposal: ResultProposal, predictionMode: PredictionMode): string {
+  if (predictionMode === "qualifier") {
+    const qualifier = proposal.result === "1" ? proposal.homeTeam : proposal.awayTeam;
+    return `${proposal.score} - passa ${qualifier}`;
+  }
+  return `${proposal.score} - segno ${proposal.result}`;
+}
+
 /** Format a Date as a datetime-local input value in the user's local time zone. */
 function toLocalInput(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -72,10 +84,14 @@ export default function RisultatiPage({
     }
     return subscribeResultProposals(gameId, (proposals) => {
       setResultProposals(
-        Object.fromEntries(proposals.map((proposal) => [proposal.matchId, proposal]))
+        Object.fromEntries(
+          proposals
+            .filter((proposal) => isProposalAllowedForMode(proposal, predictionMode))
+            .map((proposal) => [proposal.matchId, proposal])
+        )
       );
     });
-  }, [gameId, showAutomaticProposals]);
+  }, [gameId, predictionMode, showAutomaticProposals]);
 
   const startEditResult = (match: Match) => {
     setEditingId(match.id);
@@ -143,6 +159,10 @@ export default function RisultatiPage({
   };
 
   const handleConfirmProposal = async (proposal: ResultProposal) => {
+    if (!isProposalAllowedForMode(proposal, predictionMode)) {
+      setToast({ message: "Proposta non valida per il Golden Plus", type: "error" });
+      return;
+    }
     setProposalBusyId(proposal.id);
     try {
       const matchRef = doc(db, "games", gameId, "matches", proposal.matchId);
@@ -423,7 +443,7 @@ export default function RisultatiPage({
                         Proposta automatica
                       </p>
                       <p className="mt-1 text-sm text-[var(--text-primary)]">
-                        {proposal.score} - segno <strong>{proposal.result}</strong>
+                        {proposalResultLabel(proposal, predictionMode)}
                       </p>
                     </div>
                     <span className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
