@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canonicalPlayerNameKey,
+  goldenAccessCandidateUids,
   isReservedPlayerName,
   resolveJoinIdentity,
   resolveExtraDeviceLinkTarget,
@@ -157,5 +158,35 @@ describe("resolveJoinIdentity", () => {
         code: "",
       })
     ).toThrow("Parametri mancanti o non validi.");
+  });
+});
+
+describe("goldenAccessCandidateUids", () => {
+  it("checks the current auth uid before linked classic player aliases", () => {
+    expect(
+      goldenAccessCandidateUids("device-max", {
+        playerDeviceAliases: {
+          "device-max": "classic-max",
+        },
+      })
+    ).toEqual(["device-max", "classic-max"]);
+  });
+
+  it("also considers aliases copied from the source classic game without duplicates", () => {
+    expect(
+      goldenAccessCandidateUids(
+        "device-max",
+        {
+          playerDeviceAliases: {
+            "device-max": "classic-max",
+          },
+        },
+        {
+          playerDeviceAliases: {
+            "device-max": "classic-max",
+          },
+        }
+      )
+    ).toEqual(["device-max", "classic-max"]);
   });
 });

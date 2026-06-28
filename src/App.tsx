@@ -86,14 +86,29 @@ export default function App() {
     isAdminSession && adminPlayerUid
       ? adminPlayerUid
       : effectivePlayerUid ?? user?.uid ?? null;
+  const currentAuthUid = user?.uid ?? null;
+  const linkedGoldenAccessUid =
+    goldenIdentityUid && goldenIdentityUid !== currentAuthUid ? goldenIdentityUid : null;
   const { players: publicPlayers, loading: publicPlayersLoading } = usePublicPlayers(CLASSIC_GAME_ID, authReady);
   const { players: adminPlayers, loading: adminPlayersLoading } = usePlayers(CLASSIC_GAME_ID, authReady && isAdminSession);
   const { player: currentPlayer } = useCurrentPlayer(CLASSIC_GAME_ID, effectivePlayerUid, authReady && !!effectivePlayerUid);
-  const { access: goldenAccess, loading: goldenAccessLoading } = useGoldenAccess(
+  const { access: directGoldenAccess, loading: directGoldenAccessLoading } = useGoldenAccess(
     GOLDEN_GAME_ID,
-    goldenIdentityUid,
+    currentAuthUid,
     authReady
   );
+  const { access: linkedGoldenAccess, loading: linkedGoldenAccessLoading } = useGoldenAccess(
+    GOLDEN_GAME_ID,
+    linkedGoldenAccessUid,
+    authReady && !!linkedGoldenAccessUid
+  );
+  const goldenAccess =
+    directGoldenAccess?.status === "approved"
+      ? directGoldenAccess
+      : linkedGoldenAccess?.status === "approved"
+        ? linkedGoldenAccess
+        : directGoldenAccess ?? linkedGoldenAccess;
+  const goldenAccessLoading = directGoldenAccessLoading || linkedGoldenAccessLoading;
   const hasGoldenAccess = goldenAccess?.status === "approved";
   const shouldLoadGolden = authReady && (hasGoldenAccess || isAdminSession || isGoldenRoute);
   const { game: goldenGame } = useGame(GOLDEN_GAME_ID, shouldLoadGolden);
@@ -321,7 +336,7 @@ export default function App() {
       gameId={GOLDEN_GAME_ID}
       access={goldenAccess}
       accessLoading={goldenAccessLoading}
-      userUid={goldenIdentityUid ?? ""}
+      userUid={currentAuthUid ?? ""}
       player={goldenPlayer}
       accessClosesAt={goldenAccessClosesAt}
     >
@@ -357,7 +372,7 @@ export default function App() {
       gameId={GOLDEN_GAME_ID}
       access={goldenAccess}
       accessLoading={goldenAccessLoading}
-      userUid={goldenIdentityUid ?? ""}
+      userUid={currentAuthUid ?? ""}
       player={goldenPlayer}
       accessClosesAt={goldenAccessClosesAt}
     >

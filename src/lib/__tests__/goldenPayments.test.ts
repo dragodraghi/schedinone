@@ -45,4 +45,21 @@ describe("mergeGoldenPlayersWithAccessPayments", () => {
 
     expect(mergeGoldenPlayersWithAccessPayments([{ ...basePlayer, paid: false }], accessItems)[0].paid).toBe(false);
   });
+
+  it("uses authUids from approved access rows for players created from linked devices", () => {
+    const accessItems: GoldenAccess[] = [
+      {
+        id: "classic-max",
+        status: "approved",
+        type: "classic-player",
+        displayName: "MAX",
+        authUids: ["device-max"],
+        paid: true,
+      },
+    ];
+
+    expect(
+      mergeGoldenPlayersWithAccessPayments([{ ...basePlayer, id: "device-max", paid: false }], accessItems)[0].paid
+    ).toBe(true);
+  });
 });

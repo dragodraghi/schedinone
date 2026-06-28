@@ -223,8 +223,16 @@ vi.mock("./pages/MessaggiPage", () => ({
 }));
 
 vi.mock("./pages/golden/GoldenPlusAccessGate", () => ({
-  default: ({ access, children }: { access?: { status?: string } | null; children: React.ReactNode }) => (
-    access?.status === "approved" ? <div>{children}</div> : <div>Golden access request form</div>
+  default: ({
+    access,
+    children,
+    userUid,
+  }: {
+    access?: { status?: string } | null;
+    children: React.ReactNode;
+    userUid?: string;
+  }) => (
+    access?.status === "approved" ? <div>{children}</div> : <div>Golden access request form uid:{userUid}</div>
   ),
 }));
 
@@ -300,24 +308,34 @@ describe("App player session switching", () => {
     expect(await screen.findByText("has-golden-access:false")).toBeInTheDocument();
   });
 
-  it("looks up the Golden Plus player by the linked classic player uid for extra devices", async () => {
+  it("uses a linked classic Golden grant while loading the Golden player by current auth uid", async () => {
     authUser = { uid: "device-flowers-2", isAnonymous: true };
     game.playerDeviceAliases = { "device-flowers-2": "player-1" };
     goldenPlayerLookupUid = "device-flowers-2";
-    goldenAccessMocks.useGoldenAccess.mockReturnValue({
-      access: {
-        id: "player-1",
-        status: "approved",
-        type: "classic-player",
-        displayName: "Italia",
-      },
+    goldenAccessMocks.useGoldenAccess.mockImplementation((_gameId, uid) => ({
+      access:
+        uid === "player-1"
+          ? {
+              id: "player-1",
+              status: "approved",
+              type: "classic-player",
+              displayName: "Italia",
+            }
+          : null,
       loading: false,
-    });
+    }));
 
     render(<App />);
 
     await screen.findByText("has-golden-access:true");
-    expect(goldenAccessMocks.useGoldenAccess).toHaveBeenCalledWith(
+    expect(goldenAccessMocks.useGoldenAccess).toHaveBeenNthCalledWith(
+      1,
+      "schedinone-golden-plus-2026",
+      "device-flowers-2",
+      true
+    );
+    expect(goldenAccessMocks.useGoldenAccess).toHaveBeenNthCalledWith(
+      2,
       "schedinone-golden-plus-2026",
       "player-1",
       true
@@ -352,9 +370,26 @@ describe("App player session switching", () => {
     expect(goldenAccessMocks.useGoldenAccess).toHaveBeenNthCalledWith(
       1,
       "schedinone-golden-plus-2026",
+      "device-flowers-2",
+      true
+    );
+    expect(goldenAccessMocks.useGoldenAccess).toHaveBeenNthCalledWith(
+      2,
+      "schedinone-golden-plus-2026",
       "player-1",
       true
     );
+  });
+
+  it("submits new Golden Plus requests with the current auth uid on extra devices", async () => {
+    authUser = { uid: "device-flowers-2", isAnonymous: true };
+    game.playerDeviceAliases = { "device-flowers-2": "player-1" };
+    goldenAccessMocks.useGoldenAccess.mockReturnValue({ access: null, loading: false });
+    window.history.pushState({}, "", "/golden-plus");
+
+    render(<App />);
+
+    expect(await screen.findByText("Golden access request form uid:device-flowers-2")).toBeInTheDocument();
   });
 
   it("looks up Golden Plus access through the linked player uid for admin-player sessions", async () => {
@@ -377,6 +412,11 @@ describe("App player session switching", () => {
     fireEvent.click(await screen.findByRole("button", { name: /complete splash/i }));
 
     expect(await screen.findByText("has-golden-access:true")).toBeInTheDocument();
+    expect(goldenAccessMocks.useGoldenAccess).toHaveBeenCalledWith(
+      "schedinone-golden-plus-2026",
+      "admin-1",
+      true
+    );
     expect(goldenAccessMocks.useGoldenAccess).toHaveBeenCalledWith(
       "schedinone-golden-plus-2026",
       "player-1",
@@ -433,7 +473,7 @@ describe("App player session switching", () => {
 
     render(<App />);
 
-    expect(await screen.findByText("Golden access request form")).toBeInTheDocument();
+    expect(await screen.findByText(/Golden access request form/)).toBeInTheDocument();
     expect(screen.queryByText("Login page")).not.toBeInTheDocument();
   });
 

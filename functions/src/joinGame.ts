@@ -2,6 +2,7 @@ import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import {
   canonicalPlayerNameKey,
+  goldenAccessCandidateUids,
   isReservedPlayerName,
   resolveJoinIdentity,
   resolveExtraDeviceLinkTarget,
@@ -42,6 +43,31 @@ function alreadyRegisteredError(name: string): HttpsError {
     "already-exists",
     `La squadra "${name}" e' gia' registrata. Usa il dispositivo originale o chiedi al Comitato.`
   );
+}
+
+async function readSourceGameData(
+  db: admin.firestore.Firestore,
+  gameData: admin.firestore.DocumentData
+): Promise<admin.firestore.DocumentData | undefined> {
+  const sourceGameId = typeof gameData.sourceGameId === "string" ? gameData.sourceGameId.trim() : "";
+  if (!sourceGameId) return undefined;
+  const sourceSnap = await db.doc(`games/${sourceGameId}`).get();
+  return sourceSnap.exists ? sourceSnap.data() ?? undefined : undefined;
+}
+
+async function findGoldenAccess(
+  db: admin.firestore.Firestore,
+  gameId: string,
+  uid: string,
+  gameData: admin.firestore.DocumentData
+): Promise<admin.firestore.DocumentSnapshot | null> {
+  const sourceGameData = await readSourceGameData(db, gameData);
+  const candidateUids = goldenAccessCandidateUids(uid, gameData, sourceGameData);
+  for (const candidateUid of candidateUids) {
+    const accessSnap = await db.doc(`games/${gameId}/access/${candidateUid}`).get();
+    if (accessSnap.exists) return accessSnap;
+  }
+  return null;
 }
 
 export const joinGame = onCall(
@@ -93,10 +119,8 @@ export const joinGame = onCall(
     }
 
     const gameMode = gameData.mode === "golden-plus" ? "golden-plus" : "classic";
-    const accessData =
-      gameMode === "golden-plus"
-        ? (await db.doc(`games/${gameId}/access/${uid}`).get()).data()
-        : undefined;
+    const goldenAccessSnap = gameMode === "golden-plus" ? await findGoldenAccess(db, gameId, uid, gameData) : null;
+    const accessData = goldenAccessSnap?.data();
     let joinIdentity: { effectiveName: string; skipCodeCheck: boolean };
     try {
       joinIdentity = resolveJoinIdentity({
@@ -247,6 +271,15 @@ export const joinGame = onCall(
       tx.set(publicPlayerRef, publicPlayerData(playerData));
       createdPlayer = true;
     });
+
+    if (gameMode === "golden-plus" && goldenAccessSnap && goldenAccessSnap.id !== uid) {
+      await goldenAccessSnap.ref.set(
+        {
+          authUids: admin.firestore.FieldValue.arrayUnion(uid),
+        },
+        { merge: true }
+      );
+    }
 
     return { ok: true, createdPlayer };
   }

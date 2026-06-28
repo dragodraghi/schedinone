@@ -16,6 +16,10 @@ export function resolveExtraDeviceLinkTarget(
 
 export type JoinGameMode = "classic" | "golden-plus";
 
+type GameAliasData = {
+  playerDeviceAliases?: unknown;
+};
+
 export type JoinIdentityInput = {
   gameMode: JoinGameMode;
   name?: unknown;
@@ -75,6 +79,29 @@ export function isReservedPlayerName(name: string): boolean {
   const normalized = canonicalPlayerNameKey(name);
   if (!normalized) return false;
   return RESERVED_PLAYER_NAMES.has(normalized);
+}
+
+export function goldenAccessCandidateUids(
+  currentUid: string,
+  gameData?: GameAliasData,
+  sourceGameData?: GameAliasData
+): string[] {
+  const out: string[] = [];
+  const add = (value: unknown) => {
+    if (typeof value !== "string") return;
+    const uid = value.trim();
+    if (uid && !out.includes(uid)) out.push(uid);
+  };
+  const addAlias = (data?: GameAliasData) => {
+    const aliases = data?.playerDeviceAliases;
+    if (!aliases || typeof aliases !== "object" || Array.isArray(aliases)) return;
+    add((aliases as Record<string, unknown>)[currentUid]);
+  };
+
+  add(currentUid);
+  addAlias(gameData);
+  addAlias(sourceGameData);
+  return out;
 }
 
 function isFreshDraftPlayer(playerData: {
