@@ -447,6 +447,7 @@ export default function App() {
 
   const effectivePlayer = currentPlayer ?? players.find((player) => player.id === effectivePlayerUid);
   const lastAnnouncementReadAt = effectivePlayer?.lastAnnouncementReadAt ?? null;
+  const showGoldenEntry = hasGoldenAccess || !isAdminSession || hasAdminPlayerProfile;
   const unreadAnnouncements = announcements.filter((announcement) => {
     if (!announcement.publishedAt) return false;
     if (!lastAnnouncementReadAt) return true;
@@ -490,10 +491,10 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Layout isAdmin={isAdminSession} hasPlayerProfile={hasAdminPlayerProfile} hasGoldenAccess={hasGoldenAccess}>
+      <Layout isAdmin={isAdminSession} hasPlayerProfile={hasAdminPlayerProfile} hasGoldenAccess={showGoldenEntry}>
         <Suspense fallback={<PageSkeleton />}>
           <Routes>
-            <Route path="/" element={<DashboardPage game={game} player={safePlayer} players={players} matches={matches} unreadAnnouncementCount={unreadAnnouncementCount} latestAnnouncementTitle={latestUnreadAnnouncementTitle} unreadPrivateMessageCount={unreadPrivateMessageCount} latestPrivateMessagePreview={latestPrivateMessagePreview} hasGoldenAccess={hasGoldenAccess} />} />
+            <Route path="/" element={<DashboardPage game={game} player={safePlayer} players={players} matches={matches} unreadAnnouncementCount={unreadAnnouncementCount} latestAnnouncementTitle={latestUnreadAnnouncementTitle} unreadPrivateMessageCount={unreadPrivateMessageCount} latestPrivateMessagePreview={latestPrivateMessagePreview} hasGoldenAccess={showGoldenEntry} />} />
             <Route
               path="/schedina"
               element={
